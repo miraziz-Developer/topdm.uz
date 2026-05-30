@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" fill="none" role="img" aria-label="Topdim.UZ">
+  <defs>
+    <linearGradient id="topdim-logo-grad" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0066FF"/>
+      <stop offset="1" stop-color="#FF4D12"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="14" fill="url(#topdim-logo-grad)"/>
+  <path fill="#fff" d="M15 12h18v5H26v9h-5v-9h-6V12z"/>
+  <circle cx="24" cy="36" r="4.5" fill="#fff"/>
+  <text x="58" y="32" font-family="Outfit, system-ui, sans-serif" font-size="28" font-weight="800" fill="#030308" letter-spacing="-0.02em">topdim</text>
+  <text x="168" y="32" font-family="Outfit, system-ui, sans-serif" font-size="28" font-weight="700" fill="#0066FF">.uz</text>
+</svg>

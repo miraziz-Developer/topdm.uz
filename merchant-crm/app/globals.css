@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+:root {
+  --bg-canvas: #eef1f7;
+  --bg-surface: #ffffff;
+  --bg-elevated: #e4e9f2;
+  --electric-500: #0055eb;
+  --electric-600: #0044c4;
+  --gold-500: #e85d04;
+  --text-100: #0a0c12;
+  --text-300: #3d4455;
+  --text-400: #6b7289;
+  --border-subtle: rgba(10, 12, 18, 0.08);
+  --shadow-card: 0 1px 2px rgba(10, 12, 18, 0.04), 0 8px 24px -6px rgba(10, 12, 18, 0.1);
+  --shadow-premium: 0 4px 6px -2px rgba(0, 85, 235, 0.06), 0 20px 48px -12px rgba(10, 12, 18, 0.14);
+}
+
+body {
+  margin: 0;
+  background: var(--bg-canvas);
+  color: var(--text-100);
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.01em;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(0, 85, 235, 0.16);
+  color: var(--text-100);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #e4e9f2 0%, #f4f6fa 50%, #e4e9f2 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite linear;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@layer utilities {
+  .crm-surface-card {
+    @apply rounded-2xl border border-border-subtle/90 bg-surface;
+    box-shadow: var(--shadow-card);
+  }
+
+  .crm-hero-card {
+    @apply relative overflow-hidden rounded-2xl border border-border-subtle/90 bg-surface;
+    box-shadow: var(--shadow-premium);
+    background-image: linear-gradient(135deg, rgba(0, 85, 235, 0.04) 0%, transparent 42%),
+      linear-gradient(225deg, rgba(232, 93, 4, 0.03) 0%, transparent 38%);
+  }
+
+  .crm-stat-tile {
+    @apply relative overflow-hidden rounded-2xl border border-border-subtle/80 bg-surface p-5 transition duration-200;
+    box-shadow: var(--shadow-card);
+  }
+
+  .crm-stat-tile::before {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-electric-500/25 to-transparent;
+  }
+
+  .crm-stat-tile:hover {
+    @apply border-electric-500/20;
+    box-shadow: 0 8px 28px -8px rgba(0, 85, 235, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .crm-tip-banner {
+    @apply rounded-2xl border border-electric-500/15 bg-electric-500/[0.04] px-4 py-3.5 sm:px-5;
+  }
+
+  .crm-btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl border-0 bg-electric-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,85,235,0.35)] transition hover:bg-electric-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .crm-page-enter {
+    animation: crm-fade-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .crm-mesh-bg {
+    background-image: radial-gradient(ellipse 70% 50% at 50% -10%, rgba(0, 85, 235, 0.07), transparent),
+      radial-gradient(ellipse 40% 30% at 100% 50%, rgba(0, 85, 235, 0.04), transparent);
+  }
+}
+
+@keyframes crm-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

@@ -1,0 +1,123 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bozor_ai}
+      POSTGRES_USER: ${POSTGRES_USER:-bozor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bozor}
+    ports:
+      - "5432:5432"
+    volumes:
+      - bozor_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bozor} -d ${POSTGRES_DB:-bozor_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - bozor_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - .env.local-prod
+    environment:
+      APP_ENV: ${APP_ENV:-local-prod}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD:-bozor}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+    ports:
+      - "8000:8000"
+    volumes:
+      - bozor_uploads:/app/uploads
+      - ./scripts:/app/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  merchant-bot:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - .env.local-prod
+    environment:
+      APP_ENV: ${APP_ENV:-local-prod}
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD:-bozor}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      PYTHONPATH: /app
+    entrypoint: []
+    command: ["python", "/app/scripts/run_merchant_bot.py"]
+    depends_on:
+      backend:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3002}
+        NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-http://localhost:3003}
+        NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
+        NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+        NEXT_PUBLIC_MEDIA_CDN_URL: ${NEXT_PUBLIC_MEDIA_CDN_URL:-}
+    restart: unless-stopped
+    env_file:
+      - .env.local-prod
+    environment:
+      NODE_ENV: production
+      BACKEND_API_URL: http://backend:8000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-3002}:3000"
+
+  merchant-crm:
+    build:
+      context: ./merchant-crm
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+    restart: unless-stopped
+    env_file:
+      - .env.local-prod
+    environment:
+      NODE_ENV: production
+      BACKEND_API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${MERCHANT_CRM_PORT:-3003}:3000"
+
+volumes:
+  bozor_pg:
+  bozor_redis:
+  bozor_uploads:

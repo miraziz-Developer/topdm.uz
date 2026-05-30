@@ -1,0 +1,13 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://topdim.uz",
+      "https://www.topdim.uz",
+      "https://crm.topdim.uz"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

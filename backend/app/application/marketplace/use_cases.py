@@ -4,16 +4,23 @@ import logging
 import re
 from uuid import UUID
 
-from app.infrastructure.messaging.telegram_notifier import TelegramNotifier
+from app.domain.interfaces.notifier_gateway import NotifierGateway
+from app.application.marketplace.order_tracking import enrich_order_for_live_tracker
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
+from app.interfaces.api.serializers import _ipadrom_name
 
 logger = logging.getLogger(__name__)
 
 PHONE_PATTERN = re.compile(r"^\+998\d{9}$")
+PICKUP_TIME_LABELS = {
+    "09:00": "09:00 - 11:00 (Ertalab)",
+    "12:00": "11:00 - 14:00 (Tushlik)",
+    "15:00": "14:00 - 17:00 (Abaddan keyin)",
+}
 
 
 class MarketplaceUseCases:
-    def __init__(self, repo: MarketplaceRepository, notifier: TelegramNotifier) -> None:
+    def __init__(self, repo: MarketplaceRepository, notifier: NotifierGateway) -> None:
         self._repo = repo
         self._notifier = notifier
 
@@ -53,6 +60,7 @@ class MarketplaceUseCases:
         shop_id: UUID,
         customer_phone: str,
         customer_name: str | None,
+        note: str | None,
         ref_token: str | None,
     ) -> dict:
         if not PHONE_PATTERN.match(customer_phone):
@@ -62,11 +70,12 @@ class MarketplaceUseCases:
             shop_id=shop_id,
             customer_phone=customer_phone,
             customer_name=customer_name,
+            note=note,
             ref_token=ref_token,
         )
         shop = await self._repo.get_shop(shop_id)
         if shop and shop.telegram_chat_id:
-            await self._notifier.notify_shop_lead(
+            await self._notifier.send_message(
                 int(shop.telegram_chat_id),
                 f"Yangi so'rov: {customer_name or 'Noma`lum'} | {customer_phone} | lead_id={lead.id}",
             )
@@ -82,8 +91,8 @@ class MarketplaceUseCases:
         session_id: str | None,
         metadata: dict,
     ) -> dict:
-        if event_type not in {"view", "lead", "visit", "share"}:
-            raise ValueError("event_type must be one of: view, lead, visit, share")
+        if event_type not in {"view", "lead", "visit", "share", "search"}:
+            raise ValueError("event_type must be one of: view, lead, visit, share, search")
         event = await self._repo.create_tracking_event(
             event_type=event_type,
             product_id=product_id,
@@ -115,4 +124,119 @@ class MarketplaceUseCases:
                 }
                 for lead in leads
             ],
+        }
+
+    async def create_order(
+        self,
+        *,
+        customer_phone: str,
+        product_id: UUID,
+        quantity: int,
+        note: str | None,
+        ref_token: str | None,
+    ) -> dict:
+        if not PHONE_PATTERN.match(customer_phone):
+            raise ValueError("Phone must match +998XXXXXXXXX format")
+        if quantity < 1 or quantity > 99:
+            raise ValueError("Quantity must be between 1 and 99")
+
+        product = await self._repo.get_product_by_id(product_id)
+        if not product or not product.is_available:
+            raise ValueError("Product not found or unavailable")
+
+        total_price = int(product.price) * quantity
+        order = await self._repo.create_order(
+            customer_phone=customer_phone,
+            product_id=product_id,
+            shop_id=product.shop_id,
+            quantity=quantity,
+            total_price=total_price,
+            note=note,
+            ref_token=ref_token,
+        )
+        return {
+            "order_id": str(order.id),
+            "status": order.status,
+            "total_price": float(order.total_price),
+        }
+
+    async def list_customer_orders(self, customer_phone: str) -> list[dict]:
+        orders = await self._repo.list_customer_orders(customer_phone)
+        return [self._order_to_dict(order) for order in orders]
+
+    async def get_live_orders(self, customer_phone: str) -> list[dict]:
+        """Profile jonli buyurtmalar — tracker maydonlari bilan."""
+        orders = await self._repo.list_customer_orders(customer_phone)
+        return [enrich_order_for_live_tracker(self._order_to_dict(order)) for order in orders]
+
+    async def get_customer_order(self, customer_phone: str, order_id: UUID) -> dict:
+        order = await self._repo.get_order_for_customer(order_id, customer_phone)
+        if not order:
+            raise ValueError("Order not found")
+        return self._order_to_dict(order)
+
+    async def set_product_featured(self, *, shop_id: UUID, product_id: UUID, featured: bool) -> dict:
+        product = await self._repo.set_product_featured(shop_id=shop_id, product_id=product_id, featured=featured)
+        if not product:
+            raise ValueError("Product not found for this shop")
+        return {"product_id": str(product.id), "is_featured": product.is_featured}
+
+    async def update_lead_status(self, *, shop_id: UUID, lead_id: UUID, status: str, note: str | None) -> dict:
+        allowed = {"pending", "contacted", "visited", "done", "cancelled"}
+        if status not in allowed:
+            raise ValueError(f"status must be one of: {', '.join(sorted(allowed))}")
+        lead = await self._repo.update_lead_status(shop_id=shop_id, lead_id=lead_id, status=status, note=note)
+        if not lead:
+            raise ValueError("Lead not found")
+        return {"lead_id": str(lead.id), "status": lead.status}
+
+    async def update_order_status(self, *, shop_id: UUID, order_id: UUID, status: str) -> dict:
+        allowed = {"pending", "reserved", "confirmed", "preparing", "ready", "completed", "cancelled"}
+        if status not in allowed:
+            raise ValueError(f"status must be one of: {', '.join(sorted(allowed))}")
+        order = await self._repo.update_order_status(shop_id=shop_id, order_id=order_id, status=status)
+        if not order:
+            raise ValueError("Order not found")
+        if status == "completed":
+            from app.application.finance.transaction_splitter import TransactionSplitterService
+
+            splitter = TransactionSplitterService(self._repo._session)
+            try:
+                await splitter.release_escrow_to_merchant(order_id)
+            except Exception:
+                pass
+        return {"order_id": str(order.id), "status": order.status}
+
+    @staticmethod
+    def _order_to_dict(order) -> dict:
+        product = order.product
+        shop = order.shop
+        return {
+            "id": str(order.id),
+            "status": order.status,
+            "quantity": order.quantity,
+            "total_price": float(order.total_price),
+            "note": order.note,
+            "ref_token": order.ref_token,
+            "fulfillment_type": getattr(order, "fulfillment_type", "delivery"),
+            "pickup_date": order.pickup_date.isoformat() if getattr(order, "pickup_date", None) else None,
+            "pickup_time": getattr(order, "pickup_time", None),
+            "pickup_window_label": PICKUP_TIME_LABELS.get(getattr(order, "pickup_time", None) or ""),
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "updated_at": order.updated_at.isoformat() if order.updated_at else None,
+            "product": {
+                "id": str(product.id) if product else "",
+                "name": product.name if product else "",
+                "price": float(product.price) if product else 0,
+                "images": product.images if product else [],
+            },
+            "shop": {
+                "id": str(shop.id) if shop else "",
+                "name": shop.name if shop else "",
+                "slug": shop.slug if shop else "",
+                "ipadrom": _ipadrom_name(shop) if shop else "",
+                "floor": shop.floor if shop else "",
+                "section": shop.section if shop else "",
+                "block_sector": getattr(shop, "block_sector", None) if shop else None,
+            },
         }

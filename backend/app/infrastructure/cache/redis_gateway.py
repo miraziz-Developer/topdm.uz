@@ -51,12 +51,19 @@ class RedisCacheGateway:
             return
 
     async def check_rate_limit(self, user_id: str) -> bool:
-        key = f"ratelimit:{user_id}"
+        return await self.check_fixed_window(
+            f"ratelimit:{user_id}",
+            limit=self._settings.user_rate_limit_per_minute,
+            window_seconds=60,
+        )
+
+    async def check_fixed_window(self, key: str, *, limit: int, window_seconds: int) -> bool:
+        """Atomic fixed-window counter; returns False when limit exceeded."""
         try:
             current = await self._redis.incr(key)
             if current == 1:
-                await self._redis.expire(key, 60)
-            return current <= self._settings.user_rate_limit_per_minute
+                await self._redis.expire(key, window_seconds)
+            return current <= limit
         except RedisError:
             return True
 

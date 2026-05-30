@@ -1,0 +1,30 @@
+{
+  "id": "/dashboard",
+  "name": "Topdim.UZ Merchant CRM",
+  "short_name": "Topdim CRM",
+  "description": "Bozorchilar uchun tezkor buyurtma va kuryer boshqaruvi",
+  "start_url": "/dashboard/orders?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#f2f4f8",
+  "theme_color": "#0066ff",
+  "lang": "uz",
+  "icons": [
+    {
+      "src": "/brand/topdim-icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/topdim-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "prefer_related_applications": false
+}

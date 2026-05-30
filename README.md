@@ -14,7 +14,7 @@ This repository contains a **production-oriented monorepo**: a FastAPI backend w
 | **AI stylist** | Text flows through LLM-backed intent + look composition (Groq for fast text; optional Gemini for vision when configured). |
 | **Marketplace core** | Shops, categories, ipadroms (market locations), products, leads, tracking events, and a simple shop dashboard API. |
 | **Leads & tracking** | Customers can express interest (“book” / lead); events can be recorded for analytics. Optional Telegram notifications for shop owners. |
-| **Auth (OTP + JWT)** | OTP can be sent via Eskiz (SMS); successful verification issues a JWT (see backend routes and env). |
+| **Auth (Telegram OTP + JWT)** | Free unlimited OTP via Telegram bot (`/auth/send-otp`, `/auth/verify-otp`); JWT for API access. |
 
 ---
 
@@ -26,13 +26,17 @@ Topdim.UZ/
 │   ├── app/
 │   │   ├── domain/          # Entities, value objects, repository contracts
 │   │   ├── application/     # Use cases (marketplace, stylist, inventory, …)
-│   │   ├── infrastructure/ # DB, Redis, AI clients, SMS, Telegram, auth
+│   │   ├── infrastructure/ # DB, Redis, AI clients, email, Telegram, auth
 │   │   └── interfaces/     # HTTP API (FastAPI), middlewares
 │   ├── migrations/          # Alembic migrations (pgvector, core tables)
 │   └── pyproject.toml
 ├── frontend/                # Next.js 14 + Tailwind + React Query + Zustand
+├── merchant-crm/            # Merchant dashboard (Next.js)
 ├── scripts/                 # e.g. database seeding utilities
-├── docker-compose.yml       # Local Postgres (pgvector), Redis, backend, frontend
+├── deploy/                  # Caddyfile + production runbook
+├── docker-compose.yml       # Local dev stack (Mailpit, hot reload)
+├── docker-compose.prod.yml  # Production stack (TLS, prod builds)
+├── .env.production.example  # Production env template
 └── README.md
 ```
 
@@ -67,7 +71,7 @@ Topdim.UZ/
 
 2. **Environment**
 
-   Copy and edit root `.env` (Compose reads it for `backend` / `frontend`). At minimum, mirror variables from `backend/.env.example` and set secrets (`GROQ_API_KEY`, optional `GOOGLE_API_KEY`, `JWT_SECRET`, SMS/Telegram keys as needed).
+   Copy and edit root `.env` (Compose reads it for `backend` / `frontend`). At minimum, mirror variables from `backend/.env.example` and set secrets (`GROQ_API_KEY`, optional `GOOGLE_API_KEY`, `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, SMTP for production email when not using Mailpit).
 
 3. **Start services**
 
@@ -75,7 +79,7 @@ Topdim.UZ/
    docker compose up -d --build
    ```
 
-4. **Database migrations** (if you run the API outside Compose or need a fresh DB)
+4. **Database migrations** run automatically on backend container start (`docker-entrypoint.sh`). To run manually:
 
    ```bash
    cd backend
@@ -92,9 +96,47 @@ Topdim.UZ/
 6. **URLs (default Compose)**
 
    - API: `http://localhost:8000`  
-   - API docs: `http://localhost:8000/docs`  
-   - Health: `http://localhost:8000/health`  
-   - Frontend: `http://localhost:3000`  
+   - API docs: `http://localhost:8000/docs` (only when `APP_DEBUG=true`)  
+   - Health: `http://localhost:8000/api/v1/health`  
+   - Mailpit (dev email): `http://localhost:8025`  
+   - Frontend: `http://localhost:3002` (`FRONTEND_PORT`, default 3002)  
+   - Merchant CRM: `http://localhost:3003` (`MERCHANT_CRM_PORT`, default 3003)  
+   - Merchant Telegram bot: `docker compose up merchant-bot -d` (requires `TELEGRAM_BOT_TOKEN`)  
+
+---
+
+## Production deployment
+
+Use the **production Compose stack** with Nginx TLS (`nginx/production.conf`), multi-worker API, production Next.js builds, and no Mailpit.
+
+**Serverga qo‘yish (to‘liq):** [docs/DEPLOY_SERVER.md](docs/DEPLOY_SERVER.md) · [docs/PRODUCTION_READY.md](docs/PRODUCTION_READY.md)
+
+Click/Payme buyurtma to‘lovi yoqiladi: `.env` da `ENABLE_ONLINE_CHECKOUT=true` va `NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT=true` (+ `CLICK_*` / `PAYME_*` kalitlar).
+
+1. `cp .env.production.example .env` — barcha secretlar (DB, JWT, Telegram, Resend, Yandex, Groq).
+2. DNS: `topdim.uz`, `api.topdim.uz`, `crm.topdim.uz`.
+3. Preflight + deploy + smoke:
+
+   ```bash
+   ./scripts/preflight-deploy.sh
+   docker compose -f docker-compose.prod.yml up -d --build
+   ./scripts/smoke-all.sh https://topdim.uz https://crm.topdim.uz https://api.topdim.uz
+   ```
+
+Full runbook: **[deploy/README.md](deploy/README.md)**.
+
+Production checklist:
+
+| Item | Requirement |
+|------|-------------|
+| `APP_ENV` | `production` |
+| `APP_DEBUG` | `false` |
+| `JWT_SECRET` | ≥ 32 random characters |
+| `CORS_ORIGINS` | Your HTTPS site URLs |
+| `SMTP_*` | Real provider (not `mailpit`) |
+| `ADMIN_API_KEY` | Set for admin routes |
+| Media | Prefer `s3` or `supabase` |
+| TLS | Caddy on ports 80/443 |
 
 ---
 
@@ -120,7 +162,15 @@ npm install
 npm run dev
 ```
 
-Point the UI at your API, e.g. `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api/v1` in `.env.local`.
+Use the same-origin proxy (recommended for HttpOnly cookie auth):
+
+```bash
+# frontend/.env.local or repo root .env
+NEXT_PUBLIC_API_BASE_URL=/api/v1
+BACKEND_API_URL=http://127.0.0.1:8000
+```
+
+Do **not** point the browser at `http://127.0.0.1:8000/api/v1` directly — login/session cookies are set on the Next.js origin only.
 
 ---
 
@@ -135,8 +185,21 @@ See **`backend/.env.example`** for the full list. Important groups:
 | `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_VISION_MODEL` | LLM text / vision fallback |
 | `GOOGLE_API_KEY`, `GEMINI_MODEL` | Primary vision path when enabled |
 | `JWT_SECRET`, `JWT_ALGORITHM`, `JWT_EXP_MINUTES` | Access tokens after OTP verify |
-| `TELEGRAM_BOT_TOKEN` | Optional lead notifications |
-| `ESKIZ_LOGIN`, `ESKIZ_PASSWORD` | SMS OTP via Eskiz.uz |
+| `TELEGRAM_BOT_TOKEN` | Lead notifications + merchant bot |
+| `MEDIA_STORAGE_BACKEND` | `local`, `supabase`, or `s3` for product images |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage uploads when backend is `supabase` |
+| `S3_*` | S3-compatible object storage (Cloudflare R2, MinIO, AWS) |
+| `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USE_TLS`, `SMTP_USE_SSL`, `MAIL_FROM`, `MAIL_USERNAME`, `MAIL_PASSWORD` | Email OTP (Mailpit in Docker dev, or real SMTP in production) |
+
+### Real email (production)
+
+- Set **`APP_DEBUG=false`** so OTP is never returned in JSON responses.
+- In **`.env`**, configure your provider (SPF/DKIM on the sending domain recommended):
+  - **SendGrid:** `SMTP_SERVER=smtp.sendgrid.net`, `SMTP_PORT=587`, `SMTP_USE_TLS=true`, `MAIL_USERNAME=apikey`, `MAIL_PASSWORD=<API key>`, `MAIL_FROM=noreply@your-domain`.
+  - **Gmail:** use an [App Password](https://support.google.com/accounts/answer/185833); `MAIL_FROM` and `MAIL_USERNAME` = your address; `SMTP_PORT=587`, `SMTP_USE_TLS=true`.
+  - **Port 465 (implicit TLS):** `SMTP_USE_SSL=true`, `SMTP_USE_TLS=false`, `SMTP_PORT=465`.
+- Docker Compose forwards these env vars into **`backend`** (defaults remain Mailpit-oriented). After changes: `docker compose up -d backend`.
+- To hide the Mailpit banner on `/auth`, set **`NEXT_PUBLIC_MAILPIT_WEB_URL=`** empty in `.env` or unset it.
 
 **Never commit real `.env` files or API keys.** This repo’s `.gitignore` excludes `.env` and `.venv/`.
 
@@ -154,7 +217,8 @@ Representative endpoints (names may evolve; always check OpenAPI at `/docs`):
 - `POST /products`, `POST /leads`, `POST /tracking/events` — writes for marketplace flows  
 - `GET /dashboard/shop/{shop_id}` — owner-oriented stats and recent leads  
 - `POST /stylist/lookbook` — AI stylist / look composition  
-- `POST /auth/otp/send`, `POST /auth/otp/verify` — OTP + JWT  
+- `POST /auth/email/send-otp`, `POST /auth/email/verify` — email OTP + JWT  
+- `POST /auth/telegram` — Telegram Login + JWT  
 
 ---
 

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://topdim.uz/schemas/store-operational-kpis.json",
+  "title": "StoreOperationalKpis",
+  "description": "CRM KPI block persisted on shops.trust_metrics (JSONB)",
+  "type": "object",
+  "properties": {
+    "order_fulfillment_rate": { "type": "number", "minimum": 0, "maximum": 100 },
+    "product_match_rate": { "type": "number", "minimum": 0, "maximum": 100 },
+    "average_response_time_min": { "type": "integer", "minimum": 0 },
+    "quality_guarantee": { "type": "boolean" },
+    "badges": { "type": "array", "items": { "type": "string" } },
+    "rating_distribution": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    }
+  },
+  "additionalProperties": false
+}

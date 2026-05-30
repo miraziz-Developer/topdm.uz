@@ -1,0 +1,278 @@
+from __future__ import annotations
+
+import uuid
+
+from aiogram import F, Router
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
+
+from app.application.merchant.registration import (
+    MARKET_ZONE_OPTIONS,
+    MerchantRegistrationDraft,
+    MerchantRegistrationService,
+    normalize_uz_phone,
+)
+from app.infrastructure.bots.merchant_bot_ui import (
+    contact_keyboard,
+    location_keyboard,
+    market_zone_keyboard,
+    merchant_menu_keyboard,
+    start_inline_keyboard,
+)
+from app.infrastructure.bots.merchant_states import MerchantBotStates
+from app.infrastructure.db.session import AsyncSessionFactory
+
+reg_router = Router(name="merchant_registration")
+
+
+def _cancel_hint() -> str:
+    return "Bekor qilish uchun «Bekor qilish» yozing."
+
+
+@reg_router.message(Command("register"))
+@reg_router.message(F.text.casefold() == "ro'yxatdan o'tish")
+@reg_router.message(F.text.casefold() == "royxatdan otish")
+async def cmd_register(message: Message, state: FSMContext) -> None:
+    if not message.from_user:
+        return
+    async with AsyncSessionFactory() as session:
+        svc = MerchantRegistrationService(session)
+        existing = await svc.chat_already_has_shop(int(message.chat.id))
+    if existing:
+        await state.set_state(MerchantBotStates.ready)
+        await state.update_data(shop_id=str(existing.id))
+        await message.answer(
+            f"Siz allaqachon ro'yxatdan o'tgansiz: {existing.name}",
+            reply_markup=merchant_menu_keyboard(existing.id),
+        )
+        return
+
+    await state.clear()
+    await state.set_state(MerchantBotStates.reg_name)
+    await message.answer(
+        "Topdim — do'kon ro'yxatdan o'tish\n\n"
+        "1/8 — Do'kon nomini yozing (masalan: Murod Fashion):",
+        reply_markup=None,
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_name, F.text)
+async def reg_name(message: Message, state: FSMContext) -> None:
+    name = (message.text or "").strip()
+    if name.lower() in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Ro'yxatdan o'tish bekor qilindi.")
+        return
+    if len(name) < 2:
+        await message.answer("Nom juda qisqa. Qayta yozing.")
+        return
+    await state.update_data(reg_name=name)
+    await state.set_state(MerchantBotStates.reg_market)
+    await message.answer(
+        "2/8 — Qaysi bozor?\nTugmani tanlang:",
+        reply_markup=market_zone_keyboard(),
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_market, F.text)
+async def reg_market(message: Message, state: FSMContext) -> None:
+    zone = (message.text or "").strip()
+    if zone.lower() in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Bekor qilindi.")
+        return
+    if zone not in MARKET_ZONE_OPTIONS:
+        await message.answer("Ro'yxatdan tugmani tanlang.", reply_markup=market_zone_keyboard())
+        return
+    await state.update_data(reg_market=zone)
+    await state.set_state(MerchantBotStates.reg_block)
+    await message.answer(
+        "3/8 — Blok / qator nomi (masalan: A blok, 2-qator):",
+        reply_markup=None,
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_block, F.text)
+async def reg_block(message: Message, state: FSMContext) -> None:
+    block = (message.text or "").strip()
+    if block.lower() in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Bekor qilindi.")
+        return
+    if len(block) < 1:
+        await message.answer("Blok/qator kiriting.")
+        return
+    await state.update_data(reg_block=block)
+    await state.set_state(MerchantBotStates.reg_stall)
+    await message.answer("4/8 — Do'kon raqami (masalan: 12, 45-A):")
+
+
+@reg_router.message(MerchantBotStates.reg_stall, F.text)
+async def reg_stall(message: Message, state: FSMContext) -> None:
+    stall = (message.text or "").strip()
+    if stall.lower() in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Bekor qilindi.")
+        return
+    await state.update_data(reg_stall=stall)
+    await state.set_state(MerchantBotStates.reg_location_comment)
+    await message.answer(
+        "5/8 — Joy topish uchun izoh (masalan: Eskalator yonida, ko'k eshik):"
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_location_comment, F.text)
+async def reg_location_comment(message: Message, state: FSMContext) -> None:
+    comment = (message.text or "").strip()
+    if comment.lower() in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Bekor qilindi.")
+        return
+    await state.update_data(reg_location_comment=comment)
+    await state.set_state(MerchantBotStates.reg_location)
+    await message.answer(
+        "6/8 — Telegram joylashuvni yuboring (📍 tugmasi):",
+        reply_markup=location_keyboard(),
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_location, F.location)
+async def reg_location(message: Message, state: FSMContext) -> None:
+    if not message.location:
+        return
+    await state.update_data(
+        reg_lat=message.location.latitude,
+        reg_lon=message.location.longitude,
+        reg_loc_acc=message.location.horizontal_accuracy,
+    )
+    await state.set_state(MerchantBotStates.reg_storefront)
+    await message.answer(
+        "7/8 — Do'kon tashqi ko'rinishi (fasad) rasmini yuboring — majburiy:",
+        reply_markup=None,
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_storefront, F.photo)
+async def reg_storefront(message: Message, state: FSMContext) -> None:
+    if not message.photo:
+        return
+    photo = message.photo[-1]
+    await state.update_data(reg_storefront_file_id=photo.file_id)
+    await state.set_state(MerchantBotStates.reg_contact)
+    await message.answer(
+        "8/8 — Egasi telefon raqamini yuboring (kontakt tugmasi):",
+        reply_markup=contact_keyboard(),
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_contact, F.contact)
+async def reg_contact(message: Message, state: FSMContext) -> None:
+    if not message.contact or not message.from_user:
+        return
+    phone = normalize_uz_phone(message.contact.phone_number or "")
+    if not phone:
+        await message.answer("Telefon +998 formatida bo'lishi kerak. Qayta yuboring.")
+        return
+
+    async with AsyncSessionFactory() as session:
+        svc = MerchantRegistrationService(session)
+        if await svc.phone_already_registered(phone):
+            await message.answer("Bu telefon boshqa do'konda ro'yxatdan o'tgan.")
+            return
+
+    data = await state.get_data()
+    owner_name = " ".join(
+        p
+        for p in [message.contact.first_name or "", message.contact.last_name or ""]
+        if p
+    ).strip()
+
+    summary = (
+        f"Do'kon: {data.get('reg_name')}\n"
+        f"Bozor: {data.get('reg_market')}\n"
+        f"Blok/qator: {data.get('reg_block')}\n"
+        f"Raqam: {data.get('reg_stall')}\n"
+        f"Izoh: {data.get('reg_location_comment')}\n"
+        f"Telefon: {phone}\n\n"
+        "Tasdiqlaysizmi?"
+    )
+    await state.update_data(reg_phone=phone, reg_owner_name=owner_name or None)
+    await state.set_state(MerchantBotStates.reg_confirm)
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Ha, ro'yxatdan o'tish", callback_data="reg:confirm"),
+                InlineKeyboardButton(text="Bekor", callback_data="reg:cancel"),
+            ]
+        ]
+    )
+    await message.answer(summary, reply_markup=kb)
+
+
+@reg_router.callback_query(F.data == "reg:cancel")
+async def reg_cancel_cb(query: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    if query.message:
+        await query.message.edit_text("Ro'yxatdan o'tish bekor qilindi.")
+    await query.answer()
+
+
+@reg_router.callback_query(F.data == "reg:confirm")
+async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
+    if not query.message or not query.from_user:
+        await query.answer()
+        return
+    data = await state.get_data()
+    try:
+        draft = MerchantRegistrationDraft(
+            name=str(data["reg_name"]),
+            market_zone=str(data["reg_market"]),
+            block_sector=str(data["reg_block"]),
+            stall_number=str(data["reg_stall"]),
+            location_comment=str(data["reg_location_comment"]),
+            latitude=float(data["reg_lat"]),
+            longitude=float(data["reg_lon"]),
+            location_accuracy=float(data["reg_loc_acc"]) if data.get("reg_loc_acc") else None,
+            owner_phone=str(data["reg_phone"]),
+            owner_display_name=data.get("reg_owner_name"),
+            storefront_file_id=data.get("reg_storefront_file_id"),
+            storefront_image_url=None,
+            telegram_chat_id=int(query.message.chat.id),
+            telegram_user_id=int(query.from_user.id),
+        )
+        async with AsyncSessionFactory() as session:
+            svc = MerchantRegistrationService(session)
+            result = await svc.register_shop(draft)
+    except ValueError as exc:
+        await query.message.answer(str(exc))
+        await query.answer()
+        return
+    except Exception:
+        await query.message.answer("Ro'yxatdan o'tishda xatolik. Keyinroq urinib ko'ring.")
+        await query.answer()
+        return
+
+    shop = result.shop
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    crm_url = settings.merchant_crm_webapp_url.rstrip("/")
+
+    await state.set_state(MerchantBotStates.ready)
+    await state.update_data(shop_id=str(shop.id))
+
+    text = (
+        f"Tabriklaymiz! «{shop.name}» qabul qilindi.\n\n"
+        f"CRM Login: {result.login_code}\n"
+        f"Parol: {result.password_plain}\n"
+        f"Do'kon ID: {shop.id}\n\n"
+        f"Brauzer: {crm_url}/login\n\n"
+        "⏳ Saytda chiqish: platforma tasdiqlagach (odatda 24 soat).\n"
+        "Hozir CRM va mahsulot yuklash ishlaydi — rasm yuboring, AI to'ldiradi."
+    )
+    await query.message.answer(text, reply_markup=merchant_menu_keyboard(shop.id))
+    await query.message.answer("Tezkor:", reply_markup=start_inline_keyboard(shop.id))
+    await query.answer("Ro'yxatdan o'tildi")

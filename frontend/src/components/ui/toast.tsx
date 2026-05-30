@@ -26,7 +26,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const push = useCallback((message: string, kind: ToastKind = "info") => {
     const id = crypto.randomUUID();
-    setItems((prev) => [...prev, { id, message, kind }]);
+    setItems((prev) => {
+      const duplicate = prev.some((x) => x.message === message && x.kind === kind);
+      if (duplicate) return prev;
+      return [...prev, { id, message, kind }];
+    });
     setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== id)), 4000);
   }, []);
 
@@ -39,7 +43,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed right-4 top-4 z-[100] flex flex-col gap-2">
+      <div className="safe-top pointer-events-none fixed inset-x-3 top-0 z-[100] flex flex-col items-stretch gap-2 sm:inset-x-auto sm:right-4 sm:items-end">
         <AnimatePresence>
           {items.map((item) => {
             const Icon = icons[item.kind];
@@ -50,10 +54,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 100, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25 }}
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm ${styles[item.kind]}`}
+                className={`relative flex max-w-[min(100vw-1.5rem,22rem)] items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-sm sm:max-w-sm ${styles[item.kind]}`}
               >
                 <Icon className="h-5 w-5 flex-shrink-0" />
-                <span className="text-sm font-medium">{item.message}</span>
+                <span className="break-anywhere text-sm font-medium">{item.message}</span>
                 <button onClick={() => remove(item.id)} className="ml-2 flex-shrink-0 opacity-60 transition-opacity hover:opacity-100">
                   <X className="h-4 w-4" />
                 </button>

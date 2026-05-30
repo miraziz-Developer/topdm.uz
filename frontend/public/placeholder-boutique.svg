@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="640" viewBox="0 0 400 640" role="img" aria-label="Do'kon vitrina">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a22"/>
+      <stop offset="100%" stop-color="#2d3348"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="640" fill="url(#bg)"/>
+  <rect x="40" y="120" width="320" height="380" rx="8" fill="#3d4f6f" opacity="0.6"/>
+  <rect x="60" y="160" width="80" height="120" rx="4" fill="#0066ff" opacity="0.35"/>
+  <rect x="160" y="160" width="80" height="120" rx="4" fill="#3388ff" opacity="0.35"/>
+  <rect x="260" y="160" width="80" height="120" rx="4" fill="#0066ff" opacity="0.35"/>
+  <rect x="80" y="320" width="240" height="8" rx="4" fill="#ffffff" opacity="0.2"/>
+  <text x="200" y="560" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="14">Do&apos;kon vitrina</text>
+</svg>

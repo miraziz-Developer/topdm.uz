@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Topdim">
+  <defs>
+    <linearGradient id="topdim-icon-grad" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0066FF"/>
+      <stop offset="1" stop-color="#FF4D12"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="14" fill="url(#topdim-icon-grad)"/>
+  <path fill="#fff" d="M15 12h18v5H26v9h-5v-9h-6V12z"/>
+  <circle cx="24" cy="36" r="4.5" fill="#fff"/>
+</svg>

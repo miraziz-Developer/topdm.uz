@@ -29,8 +29,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     env_file:
       - .env
     environment:
@@ -41,29 +41,149 @@ services:
       POSTGRES_PASSWORD: bozor
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://bozor:bozor@postgres:5432/bozor_ai
+      ENABLE_ONLINE_CHECKOUT: ${ENABLE_ONLINE_CHECKOUT:-true}
+      PAYMENT_CHECKOUT_BASE_URL: ${PAYMENT_CHECKOUT_BASE_URL:-http://localhost:3002}
     ports:
       - "8000:8000"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./scripts:/app/scripts
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 40s
+
+  merchant-bot:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: bozor_ai
+      POSTGRES_USER: bozor
+      POSTGRES_PASSWORD: bozor
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://bozor:bozor@postgres:5432/bozor_ai
+      PYTHONPATH: /app
+    volumes:
+      - ./backend/app:/app/app
+      - ./scripts:/app/scripts
+    entrypoint: []
+    command: ["python", "/app/scripts/run_merchant_bot.py"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os,sys; token=os.getenv('TELEGRAM_BOT_TOKEN','').strip(); sys.exit(0 if token else 1)\"",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  merchant-crm:
+    build:
+      context: ./merchant-crm
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - ./merchant-crm:/app
+      - merchant_crm_node_modules:/app/node_modules
+      - merchant_crm_next:/app/.next
+    env_file:
+      - .env
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+      BACKEND_API_URL: http://backend:8000
+      NEXT_PUBLIC_BACKEND_ORIGIN: http://localhost:8000
+      NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "${MERCHANT_CRM_PORT:-3003}:3000"
+    command: ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+    depends_on:
+      backend:
         condition: service_healthy
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev
     env_file:
       - .env
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+      BACKEND_API_URL: http://backend:8000
+      NEXT_PUBLIC_BACKEND_ORIGIN: http://localhost:8000
+      NEXT_PUBLIC_MAPTILER_KEY: ${NEXT_PUBLIC_MAPTILER_KEY:-}
+      NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-yandex-maps-api}
+      NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+      YANDEX_ROUTER_API_KEY: ${YANDEX_ROUTER_API_KEY:-${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}}
+      WATCHPACK_POLLING: "true"
+      NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-true}
     ports:
-      - "3000:3000"
-    command: sh -c "if [ ! -d node_modules ]; then npm install; fi && npm run dev -- --hostname 0.0.0.0 --port 3000"
+      - "${FRONTEND_PORT:-3002}:3000"
+    volumes:
+      # Full tree mount — avoids macOS Docker turning package.json into a directory.
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: >-
+      sh -c "npm install --prefer-offline --no-audit --no-fund
+      && npm run dev -- --hostname 0.0.0.0 --port 3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+  # Local S3 dev (ixtiyoriy): docker compose --profile s3dev up -d minio minio-init
+  minio:
+    image: minio/minio:latest
+    profiles: ["s3dev"]
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    profiles: ["s3dev"]
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      sleep 2;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb -p local/topdim-media 2>/dev/null || true;
+      mc anonymous set download local/topdim-media 2>/dev/null || true;
+      echo minio bucket ready;
+      "
 
 volumes:
   bozor_pg:
   bozor_redis:
+  minio_data:
+  frontend_node_modules:
+  merchant_crm_node_modules:
+  merchant_crm_next:

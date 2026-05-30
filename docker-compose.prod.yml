@@ -1,0 +1,184 @@
+# Bozor-AI production stack — immutable images, private DB network, Nginx edge.
+#
+#   cp .env.production.example .env   # fill secrets
+#   mkdir -p deploy/ssl deploy/certbot/www
+#   # fullchain.pem + privkey.pem → deploy/ssl/
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Public ingress: nginx :80 / :443 only.
+# Postgres + Redis: backend-network (no host port publishing).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bozor_ai}
+      POSTGRES_USER: ${POSTGRES_USER:-bozor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - bozor_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bozor} -d ${POSTGRES_DB:-bozor_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - bozor_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: ${APP_DEBUG:-false}
+      RUN_SEED: "false"
+      ENABLE_ONLINE_CHECKOUT: ${ENABLE_ONLINE_CHECKOUT:-false}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+    volumes:
+      - bozor_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - backend-network
+
+  merchant-bot:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      PYTHONPATH: /app
+    entrypoint: []
+    command: ["python", "/app/scripts/run_merchant_bot.py"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - backend-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://topdim.uz}
+        NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-https://crm.topdim.uz}
+        NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
+        NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+        NEXT_PUBLIC_MEDIA_CDN_URL: ${NEXT_PUBLIC_MEDIA_CDN_URL:-}
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      BACKEND_API_URL: http://backend:8000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - frontend-network
+      - backend-network
+
+  merchant-crm:
+    build:
+      context: ./merchant-crm
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      BACKEND_API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - frontend-network
+      - backend-network
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/ssl:/etc/nginx/ssl:ro
+      - ./deploy/certbot/www:/var/www/certbot:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      frontend:
+        condition: service_started
+      merchant-crm:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - frontend-network
+      - backend-network
+
+networks:
+  backend-network:
+    driver: bridge
+    internal: false
+  frontend-network:
+    driver: bridge
+
+volumes:
+  bozor_pg:
+  bozor_redis:
+  bozor_uploads:
+  nginx_logs:

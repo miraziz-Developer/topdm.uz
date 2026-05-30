@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { BarChart3, Eye, Package, Phone, RefreshCw, ShoppingBag, TrendingUp, Users } from "lucide-react";
+import { BarChart3, Eye, Package, Phone, RefreshCw, ShoppingBag, Sparkles, TrendingUp, Users } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { BottomNav } from "@/components/BottomNav";
@@ -82,18 +83,25 @@ export default function DashboardPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-canvas pb-20 md:pb-6">
+    <main className="page-shell min-h-dvh bg-canvas md:pb-6">
       <Navigation />
-      <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="page-content-top mx-auto max-w-6xl px-4 pb-6 sm:px-5">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-text-100">Do'kon paneli</h1>
             <p className="mt-1 text-text-400">Statistikalar va so'rovlarni kuzating</p>
           </div>
           {data && (
-            <Button variant="secondary" size="sm" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => loadDashboard()} isLoading={loading}>
-              Yangilash
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/dashboard/banners">
+                <Button variant="secondary" size="sm" leftIcon={<Sparkles className="h-4 w-4" />}>
+                  Premium reklama
+                </Button>
+              </Link>
+              <Button variant="secondary" size="sm" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => loadDashboard()} isLoading={loading}>
+                Yangilash
+              </Button>
+            </div>
           )}
         </div>
 

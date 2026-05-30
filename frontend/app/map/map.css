@@ -1,0 +1,377 @@
+/* Ippodrom full-bleed map shell */
+.ippodrom-map-root {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 64px);
+  min-height: calc(100vh - 64px);
+  overflow: hidden;
+  background: #f4f5f7;
+}
+
+@media (max-width: 767px) {
+  .ippodrom-map-root {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+}
+
+.ippodrom-map-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  background: #f4f5f7;
+}
+
+.ippodrom-map-root .maplibre-market-map,
+.ippodrom-map-root .maplibregl-map {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+.ippodrom-map-root .maplibregl-ctrl-logo,
+.ippodrom-map-root .maplibregl-ctrl-attrib {
+  display: none !important;
+}
+
+.ippodrom-map-root .ippodrom-leaflet-map,
+.ippodrom-map-root .leaflet-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  background: #f4f5f7 !important;
+  font-family: var(--font-sans), "Outfit", system-ui, sans-serif;
+  touch-action: none;
+}
+
+.ippodrom-map-root .leaflet-pane,
+.ippodrom-map-root .leaflet-map-pane,
+.ippodrom-map-root .leaflet-tile-pane {
+  background: transparent !important;
+}
+
+.ippodrom-map-root .leaflet-control-attribution {
+  display: none;
+}
+
+.ippodrom-map-root .leaflet-popup-content-wrapper {
+  border-radius: 18px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+}
+
+.ippodrom-map-root .leaflet-popup-content {
+  margin: 0;
+  min-width: 240px;
+}
+
+.ippodrom-map-root .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: none;
+}
+
+.ippodrom-route-glow {
+  filter: drop-shadow(0 0 8px rgba(0, 102, 255, 0.5));
+}
+
+.ippodrom-route-pulse {
+  animation: ippodrom-route-dash 2.2s linear infinite;
+}
+
+@keyframes ippodrom-route-dash {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -56;
+  }
+}
+
+.ippodrom-marker-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 2.5px solid #fff;
+  box-shadow: 0 8px 20px rgba(0, 102, 255, 0.35);
+}
+
+.ippodrom-marker-pin span {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: rotate(45deg);
+  background: #fff;
+}
+
+.ippodrom-marker-pin--active {
+  background: linear-gradient(135deg, #0066ff, #3388ff);
+  animation: ippodrom-pin-pulse 1.8s ease-in-out infinite;
+}
+
+.ippodrom-marker-pin--target {
+  background: linear-gradient(135deg, #0066ff, #4f46e5);
+  box-shadow: 0 0 0 6px rgba(0, 102, 255, 0.25);
+}
+
+.ippodrom-marker-pin--default {
+  background: linear-gradient(135deg, #64748b, #94a3b8);
+}
+
+@keyframes ippodrom-pin-pulse {
+  0%,
+  100% {
+    transform: rotate(-45deg) scale(1);
+  }
+  50% {
+    transform: rotate(-45deg) scale(1.08);
+  }
+}
+
+/* —— Prestige spatial markers (MapsView) —— */
+.prestige-marker-anchor {
+  background: transparent !important;
+  border: none !important;
+}
+
+.prestige-marker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 56px;
+  pointer-events: none;
+}
+
+.prestige-marker__ping {
+  position: absolute;
+  inset: 2px;
+  border-radius: 9999px;
+  background: rgba(37, 99, 235, 0.35);
+  animation: prestige-marker-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.prestige-marker__ripple {
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 2px solid rgba(37, 99, 235, 0.35);
+  animation: prestige-marker-ripple 2.4s ease-out infinite;
+}
+
+.prestige-marker__halo {
+  position: absolute;
+  inset: 4px;
+  border-radius: 9999px;
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.prestige-marker__disc {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  height: 44px;
+  width: 44px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 9999px;
+  border: 2px solid #2563eb;
+  background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%);
+  box-shadow:
+    0 10px 24px rgba(37, 99, 235, 0.28),
+    0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.prestige-marker--focused .prestige-marker__disc {
+  box-shadow:
+    0 12px 28px rgba(37, 99, 235, 0.42),
+    0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+.prestige-marker__logo {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.prestige-marker__initials {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #2563eb;
+}
+
+.prestige-marker__label {
+  position: relative;
+  z-index: 2;
+  margin-top: 4px;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #0f172a;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+}
+
+.prestige-marker--focused .prestige-marker__label {
+  background: #2563eb;
+  color: #fff;
+}
+
+.prestige-route-arrow-anchor {
+  background: transparent !important;
+  border: none !important;
+}
+
+.prestige-route-arrow {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid #2563eb;
+  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.9));
+}
+
+.prestige-route--outline {
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.15));
+}
+
+.prestige-route--core {
+  filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.35));
+}
+
+@keyframes prestige-marker-ping {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.75;
+  }
+  70%,
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.prestige-map-marker {
+  font-family: var(--font-sans), "Inter", "Geometria", system-ui, sans-serif;
+  pointer-events: auto;
+}
+
+.prestige-map-marker__label {
+  font-family: inherit;
+  letter-spacing: -0.01em;
+}
+
+.maplibre-market-map .maplibregl-marker {
+  z-index: 1;
+}
+
+/* Yandex JS API — Topdim do‘kon pinlari (sayt ichida, katta) */
+.topdim-yandex-pin {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 68px;
+  cursor: pointer;
+  font-family: var(--font-sans), "Outfit", system-ui, sans-serif;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+}
+
+.topdim-yandex-pin__disc {
+  display: flex;
+  height: 52px;
+  width: 52px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 3px solid #fff;
+  background: linear-gradient(145deg, #3b82f6 0%, #60a5fa 100%);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  pointer-events: auto !important;
+}
+
+.topdim-yandex-pin:hover .topdim-yandex-pin__disc {
+  transform: scale(1.06);
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.45);
+}
+
+.topdim-yandex-pin__stall {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.topdim-yandex-pin__name {
+  margin-top: 4px;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #0f172a;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.14);
+}
+
+.topdim-yandex-pin--focused .topdim-yandex-pin__disc {
+  background: linear-gradient(145deg, #1e98ff 0%, #0066ff 100%);
+  box-shadow:
+    0 12px 28px rgba(30, 152, 255, 0.45),
+    0 0 0 5px rgba(30, 152, 255, 0.2);
+  transform: scale(1.08);
+}
+
+.topdim-yandex-pin--focused .topdim-yandex-pin__name {
+  background: #1e98ff;
+  color: #fff;
+}
+
+/* Yandex places pane — pinlar ustida pointer */
+.yandex-market-map-host [class*="places-pane"],
+.yandex-market-map-host [class*="events-pane"] {
+  pointer-events: auto !important;
+}
+
+.yandex-market-map-host .topdim-yandex-pin,
+.yandex-market-map-host .topdim-yandex-pin * {
+  cursor: pointer !important;
+}
+
+@keyframes prestige-marker-ripple {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}

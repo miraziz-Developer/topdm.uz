@@ -1,5 +1,9 @@
 .env
 .env.local
+.env.local-prod
+.env.*.local
+!.env.example
+!.env.*.example
 .venv/
 node_modules/
 __pycache__/

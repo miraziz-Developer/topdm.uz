@@ -4,8 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Phone, User } from "lucide-react";
 import { useState } from "react";
 
+import { ProductOptionModal } from "@/components/product/product-option-modal";
 import type { Product } from "@/types";
 import { createLead } from "@/lib/api";
+import { extractSelectableOptions, selectionLabel, type ProductSelectionOptions } from "@/lib/product-options";
 import { getRefToken } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,12 +27,19 @@ export function BandQilishModal({ product, isOpen, onClose }: BandQilishModalPro
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [optionOpen, setOptionOpen] = useState(false);
+  const [selectedOptions, setSelectedOptions] = useState<ProductSelectionOptions>({});
   const { push } = useToast();
 
   const onSubmit = async () => {
     if (!product) return;
     if (!PHONE_REGEX.test(phone)) {
       push("Telefon raqam +998XXXXXXXXX formatida bo'lsin", "error");
+      return;
+    }
+    const opts = product ? extractSelectableOptions(product) : { sizes: [], colors: [] };
+    if ((opts.sizes.length || opts.colors.length) && !selectedOptions.size && !selectedOptions.color) {
+      setOptionOpen(true);
       return;
     }
     setLoading(true);
@@ -40,6 +49,7 @@ export function BandQilishModal({ product, isOpen, onClose }: BandQilishModalPro
         shop_id: product.shop.id,
         customer_phone: phone,
         customer_name: name || undefined,
+        note: selectionLabel(selectedOptions) || undefined,
         ref_token: getRefToken(),
       });
       setSuccess(true);
@@ -48,6 +58,7 @@ export function BandQilishModal({ product, isOpen, onClose }: BandQilishModalPro
         onClose();
         setName("");
         setPhone("");
+        setSelectedOptions({});
       }, 3000);
     } catch {
       push("Band qilishda xatolik yuz berdi", "error");
@@ -57,6 +68,7 @@ export function BandQilishModal({ product, isOpen, onClose }: BandQilishModalPro
   };
 
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title={success ? undefined : "📞 Band qilish"}>
       <AnimatePresence mode="wait">
         {success ? (
@@ -87,6 +99,18 @@ export function BandQilishModal({ product, isOpen, onClose }: BandQilishModalPro
               <div className="rounded-xl border border-border-subtle bg-surface p-3">
                 <div className="text-sm font-medium text-text-100">{product.name}</div>
                 <div className="price-mono text-sm text-gold-500">{new Intl.NumberFormat("uz-UZ").format(product.price)} so'm</div>
+                {selectionLabel(selectedOptions) ? (
+                  <div className="mt-1 text-xs text-text-400">{selectionLabel(selectedOptions)}</div>
+                ) : null}
+                {product ? (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs text-electric-500 hover:underline"
+                    onClick={() => setOptionOpen(true)}
+                  >
+                    Razmer / rang tanlash
+                  </button>
+                ) : null}
               </div>
             )}
             <Input
@@ -115,5 +139,15 @@ export function BandQilishModal({ product, isOpen, onClose }: BandQilishModalPro
         )}
       </AnimatePresence>
     </Modal>
+    <ProductOptionModal
+      isOpen={optionOpen}
+      product={product}
+      onClose={() => setOptionOpen(false)}
+      onConfirm={(options) => {
+        setSelectedOptions(options);
+        setOptionOpen(false);
+      }}
+    />
+    </>
   );
 }
