@@ -1,14 +1,14 @@
 """Stories — is_active flag (soft hide + GC).
 
 Revision ID: 0036_stories_is_active
-Revises: 0035_shops_telegram_chat_id_bigint
+Revises: 0035_shop_tg_chat_bigint
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "0036_stories_is_active"
-down_revision = "0035_shops_telegram_chat_id_bigint"
+down_revision = "0035_shop_tg_chat_bigint"
 branch_labels = None
 depends_on = None
 
