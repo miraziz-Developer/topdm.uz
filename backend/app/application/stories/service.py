@@ -29,14 +29,6 @@ def build_level_context(*, floor: str | None, section: str | None) -> str:
     return " · ".join(parts) if parts else "Ippodrom"
 
 
-def story_is_hot(created_at, *, window_hours: int = 2) -> bool:
-    from datetime import datetime, timedelta, timezone
-
-    now = datetime.now(timezone.utc)
-    created = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
-    return created >= now - timedelta(hours=window_hours)
-
-
 class StoryService:
     def __init__(self, session: AsyncSession, media: ObjectMediaStore | None = None) -> None:
         self._repo = StoryRepository(session)

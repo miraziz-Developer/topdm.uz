@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
-from app.application.stories.service import story_is_hot
+from app.application.stories.constants import story_is_hot
 from app.core.client_context import apply_currency_to_product_dict
 from app.core.config import get_settings
 
