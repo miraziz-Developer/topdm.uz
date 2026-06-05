@@ -22,6 +22,25 @@ logger = logging.getLogger(__name__)
 prod_router = Router(name="merchant_product")
 
 
+async def _resolve_shop_id(state: FSMContext, chat_id: int) -> uuid.UUID | None:
+    data = await state.get_data()
+    shop_raw = data.get("shop_id")
+    if shop_raw:
+        try:
+            return uuid.UUID(str(shop_raw))
+        except ValueError:
+            pass
+
+    async with AsyncSessionFactory() as session:
+        repo = MarketplaceRepository(session)
+        shop = await repo.get_shop_by_telegram_chat_id(chat_id)
+        if not shop:
+            return None
+        await state.set_state(MerchantBotStates.ready)
+        await state.update_data(shop_id=str(shop.id))
+        return shop.id
+
+
 def _format_preview(attrs: dict, *, category_name: str | None = None) -> str:
     name = attrs.get("product_name") or attrs.get("category") or "Mahsulot"
     price = attrs.get("price_uzs")
@@ -85,12 +104,10 @@ async def _category_keyboard(session, pending_id: str, page: int = 0) -> InlineK
 async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> None:
     if not message.photo or not message.from_user:
         return
-    data = await state.get_data()
-    shop_raw = data.get("shop_id")
-    if not shop_raw:
+    shop_id = await _resolve_shop_id(state, int(message.chat.id))
+    if not shop_id:
         await message.answer("Avval /register yoki /start shop_<UUID> bilan ulanishni yakunlang.")
         return
-    shop_id = uuid.UUID(str(shop_raw))
     photo = message.photo[-1]
     buf = io.BytesIO()
     try:
@@ -169,10 +186,15 @@ async def prod_set_category(query: CallbackQuery, state: FSMContext) -> None:
         await query.answer()
         return
     pending_id, cat_id_s = parts[2], parts[3]
+    if not query.message:
+        await query.answer()
+        return
+    shop_id = await _resolve_shop_id(state, int(query.message.chat.id))
+    if not shop_id:
+        await query.answer("Chat do'konga ulanmagan", show_alert=True)
+        return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        data = await state.get_data()
-        shop_id = uuid.UUID(str(data["shop_id"]))
         row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
         if not row:
             await query.answer("Qoralama topilmadi")
@@ -198,10 +220,16 @@ async def prod_set_category(query: CallbackQuery, state: FSMContext) -> None:
 @prod_router.callback_query(F.data.startswith("prod:back:"))
 async def prod_back_preview(query: CallbackQuery, state: FSMContext) -> None:
     pending_id = (query.data or "").split(":", 2)[2]
+    if not query.message:
+        await query.answer()
+        return
+    shop_id = await _resolve_shop_id(state, int(query.message.chat.id))
+    if not shop_id:
+        await query.answer("Chat do'konga ulanmagan", show_alert=True)
+        return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        data = await state.get_data()
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=uuid.UUID(str(data["shop_id"])))
+        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
         if not row:
             await query.answer()
             return
@@ -246,11 +274,14 @@ async def prod_save_price(message: Message, state: FSMContext) -> None:
         await message.answer("Faqat raqam kiriting.")
         return
     price = int(digits)
+    shop_id = await _resolve_shop_id(state, int(message.chat.id))
+    if not shop_id:
+        await message.answer("Chat do'konga ulanmagan. /start bilan qayta ulang.")
+        await state.set_state(MerchantBotStates.ready)
+        return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(
-            uuid.UUID(pending_id), shop_id=uuid.UUID(str(data["shop_id"]))
-        )
+        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -274,11 +305,14 @@ async def prod_save_name(message: Message, state: FSMContext) -> None:
     if not pending_id or len(name) < 2:
         await message.answer("Nom kamida 2 belgi.")
         return
+    shop_id = await _resolve_shop_id(state, int(message.chat.id))
+    if not shop_id:
+        await message.answer("Chat do'konga ulanmagan. /start bilan qayta ulang.")
+        await state.set_state(MerchantBotStates.ready)
+        return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(
-            uuid.UUID(pending_id), shop_id=uuid.UUID(str(data["shop_id"]))
-        )
+        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -297,17 +331,23 @@ async def prod_save_name(message: Message, state: FSMContext) -> None:
 @prod_router.callback_query(F.data.startswith("prod:cancel:"))
 async def prod_cancel(query: CallbackQuery, state: FSMContext) -> None:
     pending_id = (query.data or "").split(":", 2)[2]
+    if not query.message:
+        await query.answer()
+        return
+    shop_id = await _resolve_shop_id(state, int(query.message.chat.id))
+    if not shop_id:
+        await query.answer("Chat do'konga ulanmagan", show_alert=True)
+        return
     async with AsyncSessionFactory() as session:
         settings = get_settings()
         notifier = TelegramNotifierGateway(settings.telegram_bot_token) if settings.telegram_bot_token else None
         svc = MerchantProductService(session, notifier=notifier)
-        data = await state.get_data()
         try:
             from app.application.merchant.schemas import RejectPendingProductRequest
 
             await svc.reject_pending_product(
                 uuid.UUID(pending_id),
-                shop_id=uuid.UUID(str(data["shop_id"])),
+                shop_id=shop_id,
                 payload=RejectPendingProductRequest(reason="merchant_cancelled"),
             )
         except Exception:
@@ -320,8 +360,13 @@ async def prod_cancel(query: CallbackQuery, state: FSMContext) -> None:
 @prod_router.callback_query(F.data.startswith("prod:pub:"))
 async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
     pending_id = (query.data or "").split(":", 2)[2]
-    data = await state.get_data()
-    shop_id = uuid.UUID(str(data["shop_id"]))
+    if not query.message:
+        await query.answer()
+        return
+    shop_id = await _resolve_shop_id(state, int(query.message.chat.id))
+    if not shop_id:
+        await query.answer("Chat do'konga ulanmagan", show_alert=True)
+        return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
         row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
