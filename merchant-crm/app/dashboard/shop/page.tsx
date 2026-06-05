@@ -17,6 +17,7 @@ function ShopHubContent() {
   const tabParam = useSearchParams().get("tab");
   const tab =
     tabParam === "profile" ||
+    tabParam === "share" ||
     tabParam === "map" ||
     tabParam === "analytics" ||
     tabParam === "billing"
