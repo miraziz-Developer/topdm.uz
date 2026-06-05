@@ -1,8 +1,8 @@
 import type { SaleMode, MarketZoneId } from "@/lib/home-catalog-filters";
 
-const VISIT_KEY = "topdim_visit_count";
-const LAST_SHOP_KEY = "topdim_last_shop";
-const SESSION_KEY = "topdim_session_id";
+const VISIT_KEY = "bozorliii_visit_count";
+const LAST_SHOP_KEY = "bozorliii_last_shop";
+const SESSION_KEY = "bozorliii_session_id";
 
 export type LastShopHint = { slug: string; name: string };
 
@@ -52,7 +52,7 @@ export function getLastShop(): LastShopHint | null {
 export function getFavoritesCount(): number {
   if (typeof window === "undefined") return 0;
   try {
-    const raw = localStorage.getItem("topdim-watchlist");
+    const raw = localStorage.getItem("bozorliii-watchlist");
     if (!raw) return 0;
     const parsed = JSON.parse(raw) as { state?: { favorites?: Record<string, true> } };
     const fav = parsed?.state?.favorites;
@@ -65,7 +65,7 @@ export function getFavoritesCount(): number {
 export function getRecentViewsCount(): number {
   if (typeof window === "undefined") return 0;
   try {
-    const raw = localStorage.getItem("topdim-watchlist");
+    const raw = localStorage.getItem("bozorliii-watchlist");
     if (!raw) return 0;
     const parsed = JSON.parse(raw) as { state?: { items?: Record<string, unknown> } };
     return parsed?.state?.items ? Object.keys(parsed.state.items).length : 0;

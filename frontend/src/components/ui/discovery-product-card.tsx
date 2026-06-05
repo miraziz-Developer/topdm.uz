@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ProductOptionModal } from "@/components/product/product-option-modal";
+import { ProductRatingStars } from "@/components/product/product-rating-stars";
 import { useCurrency } from "@/components/providers/currency-provider";
 import { ProductPinImage } from "@/components/ui/product-pin-image";
 import { useT } from "@/i18n/locale-provider";
 import { triggerHaptic } from "@/lib/haptics";
 import { isUuidLike } from "@/lib/media";
 import { extractSelectableOptions, type ProductSelectionOptions } from "@/lib/product-options";
+import { productDiscountPercent, formatSoldCount } from "@/lib/deal-pricing";
+import { isLowStock } from "@/lib/product-stock";
 import { getGroupPrice } from "@/lib/pricing";
 import { productPriceUzs } from "@/lib/product-price";
 import { cn } from "@/lib/utils";
@@ -70,10 +73,16 @@ export function DiscoveryProductCard({
   const aspectClass = uniformAspect ? "aspect-[3/4]" : isOptom ? "aspect-[4/3]" : pinAspectForIndex(index, product.id);
   const showGroupPrice = !isOptom && groupPriceUzs < basePriceUzs;
   const displayPriceUzs = isOptom ? basePriceUzs : showGroupPrice ? groupPriceUzs : basePriceUzs;
+  const reviewCount = product.review_summary?.review_count ?? 0;
+  const avgRating = product.review_summary?.average_rating ?? 0;
+  const discountPct = productDiscountPercent(product);
+  const soldLabel = formatSoldCount(product.sold_count ?? 0);
 
-  const open = () => router.push(`/product/${product.id}`);
+  const isChina = product.market_source === "china";
+  const open = () => router.push(product.detail_path ?? `/product/${product.id}`);
   const [optionOpen, setOptionOpen] = useState(false);
   const [pendingPoint, setPendingPoint] = useState<{ x: number; y: number } | null>(null);
+  const [pendingAction, setPendingAction] = useState<"cart" | "checkout">("cart");
 
   const addToCart = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -82,12 +91,30 @@ export function DiscoveryProductCard({
     const opts = extractSelectableOptions(product);
     if (opts.sizes.length || opts.colors.length) {
       setPendingPoint({ x: rect.left, y: rect.top });
+      setPendingAction("cart");
       setOptionOpen(true);
       return;
     }
     const thumb = product.images?.[0];
     launch({ image: thumb ?? "", x: rect.left, y: rect.top });
     addItem(product, 1, "group");
+  };
+
+  const buyNow = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    triggerHaptic();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const opts = extractSelectableOptions(product);
+    if (opts.sizes.length || opts.colors.length) {
+      setPendingPoint({ x: rect.left, y: rect.top });
+      setPendingAction("checkout");
+      setOptionOpen(true);
+      return;
+    }
+    const thumb = product.images?.[0];
+    launch({ image: thumb ?? "", x: rect.left, y: rect.top });
+    addItem(product, 1, "group");
+    router.push("/checkout");
   };
 
   const confirmOptions = (selectedOptions: ProductSelectionOptions) => {
@@ -98,6 +125,9 @@ export function DiscoveryProductCard({
     addItem(product, 1, "group", selectedOptions);
     setOptionOpen(false);
     setPendingPoint(null);
+    if (pendingAction === "checkout") {
+      router.push("/checkout");
+    }
   };
 
   const savePin = (event: React.MouseEvent) => {
@@ -130,26 +160,39 @@ export function DiscoveryProductCard({
           aspectClass={aspectClass}
         />
 
-        {isOptom ? (
+        {isChina ? (
+          <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-electric-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+            Xitoy
+          </span>
+        ) : isOptom ? (
           <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-electric-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
             {t("home.pin.optomMin", { qty: minQty })}
+          </span>
+        ) : discountPct != null && discountPct > 0 ? (
+          <span className="absolute left-2.5 top-2.5 z-10 rounded-md bg-neon-500 px-2 py-0.5 text-[10px] font-black text-white shadow-sm">
+            -{discountPct}%
           </span>
         ) : showGroupPrice ? (
           <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-neon-500/95 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
             {t("home.pin.groupPrice")}
           </span>
         ) : null}
+        {isLowStock(product) ? (
+          <span className="absolute bottom-2 left-2.5 z-10 rounded bg-black/70 px-2 py-0.5 text-[9px] font-bold text-amber-200">
+            Kam qoldi
+          </span>
+        ) : null}
 
         <div className="pointer-events-none absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/40 opacity-0 backdrop-blur-[2px] transition-all duration-300 ease-out group-hover:pointer-events-auto group-hover:opacity-100">
           <button
             type="button"
-            onClick={savePin}
+            onClick={buyNow}
             className={cn(
               "translate-y-1 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 ease-out group-hover:translate-y-0 hover:scale-105 active:scale-95",
-              isFavorite ? "bg-ink-800" : "bg-electric-500 hover:bg-electric-400",
+              "bg-electric-500 hover:bg-electric-400",
             )}
           >
-            {isFavorite ? t("home.pin.saved") : t("home.pin.save")}
+            Sotib olish
           </button>
           <button
             type="button"
@@ -157,7 +200,7 @@ export function DiscoveryProductCard({
             className="flex translate-y-1 items-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-900 shadow-md transition-all duration-300 ease-out group-hover:translate-y-0 hover:scale-105 hover:bg-slate-50 active:scale-95"
           >
             <ShoppingBag className="h-4 w-4" />
-            {t("home.pin.cart")}
+            Savatchaga
           </button>
           {onBand ? (
             <button
@@ -196,6 +239,12 @@ export function DiscoveryProductCard({
             {product.shop.location_label || product.shop.name}
           </p>
         ) : null}
+        {reviewCount > 0 ? (
+          <div className="mt-1 flex items-center gap-1.5" aria-label={`${avgRating} yulduz, ${reviewCount} ta sharh`}>
+            <ProductRatingStars rating={avgRating} size="sm" />
+            <span className="text-[11px] font-medium text-gray-500">({reviewCount})</span>
+          </div>
+        ) : null}
         <div className="mt-1.5 flex items-baseline gap-1.5">
           <p className="price-mono text-sm font-extrabold text-electric-500">
             {formatPrice(displayPriceUzs)}
@@ -204,6 +253,13 @@ export function DiscoveryProductCard({
             <p className="price-mono text-[11px] text-gray-400 line-through">{formatPrice(basePriceUzs)}</p>
           ) : null}
         </div>
+        {soldLabel || reviewCount > 0 ? (
+          <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+            {soldLabel ? `${soldLabel} sotilgan` : null}
+            {soldLabel && reviewCount > 0 ? " · " : null}
+            {reviewCount > 0 ? `${reviewCount} sharh` : null}
+          </p>
+        ) : null}
       </div>
     </motion.article>
     <ProductOptionModal isOpen={optionOpen} product={product} onClose={() => setOptionOpen(false)} onConfirm={confirmOptions} />

@@ -32,7 +32,7 @@ export function SellerBadges({ product }: SellerBadgesProps) {
         <span
           key={badge.label}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium shadow-sm",
+            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
             BADGE_STYLES[badge.label],
           )}
         >

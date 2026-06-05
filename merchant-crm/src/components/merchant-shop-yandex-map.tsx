@@ -5,7 +5,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { getMarketGeofenceBoundary } from "@/lib/api";
 import { IPPODROM_CENTER } from "@/lib/map/market-geo";
-import { isYandexMapsApiEnabled, loadYandexMaps, resolveYandexMapsApiKey } from "@/lib/map/yandex-maps-loader";
+import {
+  fetchYandexMapsApiKey,
+  isYandexMapsApiKeyValid,
+  loadYandexMaps,
+} from "@/lib/map/yandex-maps-loader";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -30,16 +34,21 @@ export function MerchantShopYandexMap({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isYandexMapsApiEnabled() || !hostRef.current) {
-      setError("Yandex xarita kaliti sozlanmagan (NEXT_PUBLIC_YANDEX_MAPS_API_KEY)");
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    const apiKey = resolveYandexMapsApiKey();
 
     (async () => {
+      const apiKey = await fetchYandexMapsApiKey();
+      if (cancelled) return;
+      if (!isYandexMapsApiKeyValid(apiKey)) {
+        setError("Yandex xarita kaliti serverda yo'q");
+        setLoading(false);
+        return;
+      }
+      if (!hostRef.current) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const [ymapsRaw, boundary] = await Promise.all([
           loadYandexMaps(apiKey),
@@ -131,7 +140,12 @@ export function MerchantShopYandexMap({
       <div className={cn("rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-center", className)}>
         <MapPin className="mx-auto h-8 w-8 text-amber-700" />
         <p className="mt-2 text-sm font-medium text-text-100">{error}</p>
-        <p className="mt-1 text-xs text-text-400">CRM uchun Yandex Maps API kalitini .env ga qo&apos;ying</p>
+        <p className="mt-1 text-xs text-text-400">
+          Server <code className="text-[10px]">.env</code> da{" "}
+          <code className="text-[10px]">NEXT_PUBLIC_YANDEX_MAPS_API_KEY=...</code> bo&apos;lishi va{" "}
+          <code className="text-[10px]">merchant-crm</code> qayta build qilinishi kerak. Yandex kabinetida referrer:{" "}
+          <strong className="text-text-300">crm.bozorliii.online</strong>
+        </p>
       </div>
     );
   }

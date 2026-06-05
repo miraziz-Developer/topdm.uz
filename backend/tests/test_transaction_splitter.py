@@ -49,10 +49,10 @@ def test_split_penny_reconciliation():
 def test_split_rejects_negative_merchant():
     with pytest.raises(ValueError, match="merchant_share negative"):
         compute_payment_split(
-            total_amount_received=Decimal("10000.00"),
-            product_subtotal=Decimal("50000.00"),
-            delivery_share=Decimal("40000.00"),
-            commission_rate_pct=Decimal("10"),
+            total_amount_received=Decimal("5000.00"),
+            product_subtotal=Decimal("4000.00"),
+            delivery_share=Decimal("500.00"),
+            commission_rate_pct=Decimal("150"),
         )
 
 

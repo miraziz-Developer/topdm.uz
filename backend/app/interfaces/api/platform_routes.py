@@ -66,10 +66,12 @@ async def list_shop_products(
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
     offset = (page - 1) * limit
+    from app.application.marketplace.product_list_enrichment import products_to_public_dicts
+
     products = await repo.list_shop_products(shop.id, limit=limit, offset=offset)
     return {
         "shop": shop_to_dict(shop),
-        "items": [product_to_dict(product) for product in products],
+        "items": await products_to_public_dicts(db, products),
         "page": page,
         "total": len(products),
     }
@@ -394,6 +396,8 @@ async def merchant_save_precision_location(
     if not shop:
         raise HTTPException(status_code=403, detail="Merchant shop not found")
 
+    from app.application.map.market_slugs import default_market_zone_label
+
     shop = await repo.update_shop_precision_location(
         shop,
         latitude=payload.latitude,
@@ -406,6 +410,9 @@ async def merchant_save_precision_location(
         pin_x=payload.indoor_pin_x,
         pin_y=payload.indoor_pin_y,
     )
+    zone_label = default_market_zone_label(payload.market_slug)
+    if zone_label and not (shop.market_zone or "").strip():
+        shop.market_zone = zone_label
     await db.commit()
     return {
         "status": "ok",
@@ -473,6 +480,21 @@ async def merchant_analytics_heatmap(
     return payload.to_dict()
 
 
+@router.get("/platform/pricing-rules")
+async def public_pricing_rules(db: AsyncSession = Depends(get_db_session)) -> dict:
+    """Dynamic business rules for storefront pricing (no hardcoded constants)."""
+    from app.application.billing.business_rule_service import BusinessRuleService
+
+    rules = BusinessRuleService(db)
+    group_rate = await rules.group_discount_rate()
+    markup_pct = await rules.platform_markup_pct()
+    return {
+        "group_discount_rate": group_rate,
+        "group_discount_percent": round(group_rate * 100),
+        "platform_product_markup_pct": markup_pct,
+    }
+
+
 @router.get("/platform/checkout-payment-options")
 async def checkout_payment_options() -> dict:
     """Public payment capabilities for customer checkout UI."""
@@ -480,6 +502,9 @@ async def checkout_payment_options() -> dict:
     enabled = settings.enable_online_checkout
     click_ready = enabled and bool(settings.click_service_id and settings.click_secret_key)
     payme_ready = enabled and bool(settings.payme_merchant_id and settings.payme_secret_key)
+    if settings.payment_sandbox_mode:
+        click_ready = enabled
+        payme_ready = enabled
     return {
         "in_store": ["cash", "terminal"],
         "online": {
@@ -539,10 +564,18 @@ async def customer_payment_redirect(
         pay_target = order_id  # type: ignore[assignment]
         bridge_query = f"order_id={order_id}&amount={amount}"
 
-    site = (settings.payment_checkout_base_url or settings.site_url or "https://topdim.uz").rstrip("/")
+    site = (settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.uz").rstrip("/")
+
+    click_service_id = settings.click_service_id
+    click_merchant_id = settings.click_merchant_id
+    payme_merchant_id = settings.payme_merchant_id
+    if settings.payment_sandbox_mode:
+        click_service_id = click_service_id or settings.payment_sandbox_click_service_id
+        click_merchant_id = click_merchant_id or click_service_id
+        payme_merchant_id = payme_merchant_id or settings.payment_sandbox_payme_merchant_id
 
     if prov == "click":
-        if not settings.click_service_id:
+        if not click_service_id:
             return {
                 "url": None,
                 "bridge_url": f"{site}/checkout/click?{bridge_query}",
@@ -551,15 +584,15 @@ async def customer_payment_redirect(
         return {
             "url": (
                 f"https://my.click.uz/services/pay"
-                f"?service_id={settings.click_service_id}"
-                f"&merchant_id={settings.click_merchant_id or settings.click_service_id}"
+                f"?service_id={click_service_id}"
+                f"&merchant_id={click_merchant_id or click_service_id}"
                 f"&amount={amount}"
                 f"&transaction_param={pay_target}"
             ),
             "bridge_url": f"{site}/checkout/click?{bridge_query}",
         }
 
-    if not settings.payme_merchant_id:
+    if not payme_merchant_id:
         return {
             "url": None,
             "bridge_url": f"{site}/checkout/payme?{bridge_query}",
@@ -567,7 +600,7 @@ async def customer_payment_redirect(
         }
 
     amount_tiyin = amount * 100
-    merchant_param = f"{settings.payme_merchant_id};{pay_target};{amount_tiyin}"
+    merchant_param = f"{payme_merchant_id};{pay_target};{amount_tiyin}"
     return {
         "url": f"https://checkout.paycom.uz/{merchant_param}",
         "bridge_url": f"{site}/checkout/payme?{bridge_query}",

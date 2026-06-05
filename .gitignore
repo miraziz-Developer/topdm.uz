@@ -1,4 +1,6 @@
 .env
+.env.production.local
+.env.production.ready
 .env.local
 .env.local-prod
 .env.*.local

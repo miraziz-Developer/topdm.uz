@@ -12,9 +12,10 @@ import { BandQilishModal } from "@/components/BandQilishModal";
 import { BottomNav } from "@/components/BottomNav";
 import { Navigation } from "@/components/Navigation";
 import { ProductDetail } from "@/components/product/ProductDetail";
+import { productPageBg, productSectionDivider, productThumb, productThumbActive, productVariantPanel } from "@/components/product/product-premium-ui";
 import { ShopLiveChat } from "@/components/product/shop-live-chat";
 import { AiStylistAdvice } from "@/components/product/ai-stylist-advice";
-import { InteractiveReviews } from "@/components/product/interactive-reviews";
+import { ProductReviewsSection } from "@/components/product/product-reviews-section";
 import { VisualSimilarityRail } from "@/components/product/visual-similarity-rail";
 import { emitProductView } from "@/components/providers/price-drop-listener";
 import { BundleOffer } from "@/components/ui/bundle-offer";
@@ -28,7 +29,7 @@ import { useTracking } from "@/hooks/useTracking";
 import { getProduct, getSimilarProducts } from "@/lib/api";
 import { extractSelectableOptions, sizesForColor } from "@/lib/product-options";
 import { saveLastShop } from "@/lib/personalization/client-hints";
-import { getRefToken } from "@/lib/utils";
+import { cn, getRefToken } from "@/lib/utils";
 import type { Product } from "@/types";
 
 function normalizeColor(value: string): string {
@@ -158,10 +159,10 @@ export default function ProductPage() {
   };
 
   return (
-    <main className="page-shell min-h-dvh bg-canvas md:pb-6">
+    <main className={cn("page-shell md:pb-6", productPageBg)}>
       <Navigation />
-      <div className="page-content-top mx-auto max-w-6xl px-4 py-6 sm:px-5">
-        <nav className="mb-6 flex items-center gap-2 text-sm text-text-400">
+      <div className="page-content-top mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
+        <nav className="mb-5 flex items-center gap-2 text-xs text-ink-400 sm:text-sm">
           <Link href="/" className="transition-colors hover:text-text-100">
             Bosh sahifa
           </Link>
@@ -187,31 +188,32 @@ export default function ProductPage() {
             </Button>
           </motion.div>
         ) : product ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
-            <motion.div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12">
-              <div className="space-y-3">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 sm:space-y-8">
+            <motion.div className="grid gap-8 lg:grid-cols-2 lg:items-start lg:gap-10 xl:gap-14">
+              <div className="space-y-4">
                 <ImageMagnifier src={imageUrl} alt={product.name} />
                 {galleryImages.length > 1 ? (
-                  <div className="flex gap-2 overflow-x-auto pb-1">
+                  <div className="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {galleryImages.map((img, index) => (
                       <button
                         key={index}
                         type="button"
                         onClick={() => setSelectedImage(index)}
-                        className={`relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
-                          selectedImage === index ? "border-electric-500 shadow-hover" : "border-border-subtle hover:border-border-strong"
-                        }`}
+                        className={cn(
+                          productThumb,
+                          selectedImage === index ? productThumbActive : "opacity-80 hover:opacity-100",
+                        )}
                       >
-                        <Image src={img} alt="" fill className="object-cover" sizes="64px" />
+                        <Image src={img} alt="" fill className="object-cover" sizes="72px" />
                       </button>
                     ))}
                   </div>
                 ) : null}
                 {(options.colors.length || options.sizes.length) ? (
-                  <div className="mt-2 space-y-3 rounded-2xl border border-border-subtle bg-white p-3">
+                  <div className={cn(productVariantPanel, "space-y-4")}>
                     {options.colors.length ? (
                       <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">Mavjud ranglar</p>
+                        <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-400">Rang</p>
                         <div className="flex flex-wrap gap-2">
                           {options.colors.map((color) => (
                             <button
@@ -221,11 +223,12 @@ export default function ProductPage() {
                                 setSelectedColor(color);
                                 setSelectedImage(0);
                               }}
-                              className={`rounded-full border px-3 py-1 text-xs ${
+                              className={cn(
+                                "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
                                 selectedColor === color
-                                  ? "border-electric-500 bg-electric-500/10 text-electric-600"
-                                  : "border-border-subtle text-ink-700"
-                              }`}
+                                  ? "border-ink-900 bg-ink-900 text-white shadow-sm"
+                                  : "border-black/[0.08] bg-white text-ink-700 hover:border-ink-300",
+                              )}
                             >
                               {color}
                             </button>
@@ -235,18 +238,19 @@ export default function ProductPage() {
                     ) : null}
                     {sizesForSelectedColor.length ? (
                       <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">Razmer tanlang</p>
+                        <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-400">Razmer</p>
                         <div className="flex flex-wrap gap-2">
                           {sizesForSelectedColor.map((size) => (
                             <button
                               key={size}
                               type="button"
                               onClick={() => setSelectedSize(size)}
-                              className={`rounded-lg border px-3 py-1.5 text-sm ${
+                              className={cn(
+                                "min-w-[2.75rem] rounded-xl border px-3 py-2 text-sm font-medium transition-all",
                                 selectedSize === size
-                                  ? "border-electric-500 bg-electric-500/10 text-electric-600"
-                                  : "border-border-subtle text-ink-700"
-                              }`}
+                                  ? "border-ink-900 bg-ink-900 text-white shadow-sm"
+                                  : "border-black/[0.08] bg-white text-ink-700 hover:border-ink-300",
+                              )}
                             >
                               {size}
                             </button>
@@ -256,16 +260,17 @@ export default function ProductPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    Bu mahsulot uchun rang/razmer variantlari hali kiritilmagan.
-                  </div>
+                  <p className="rounded-2xl border border-black/[0.05] bg-white/50 px-4 py-3 text-center text-xs text-ink-500">
+                    Rang va razmer variantlari tez orada qo&apos;shiladi
+                  </p>
                 )}
               </div>
 
+              <div className="lg:sticky lg:top-24 lg:self-start">
               <ProductDetail
                 product={product}
                 onCopyId={() => void copyProductId()}
-                onReserveGroup={() => push("Guruh buyurtmasi yaratildi", "success")}
+                onReserveGroup={() => push("Mahsulot savatchaga qo'shildi", "success")}
                 onBandOpen={() => setBandOpen(true)}
                 selectedOptions={{
                   size: selectedSize || undefined,
@@ -274,14 +279,24 @@ export default function ProductPage() {
                 forceInlineSelection={Boolean(options.sizes.length || options.colors.length)}
                 onRequireSelection={() => push("Avval rang/razmer tanlang", "error")}
               />
+              </div>
             </motion.div>
 
-            <ContextualAiSidebar product={product} />
-            <SizeRecommender />
-            <BundleOffer primary={product} related={similar} />
-            <AiStylistAdvice product={product} related={similar} />
-            <VisualSimilarityRail sourceImage={imageUrl} items={similar} />
-            <InteractiveReviews productName={product.name} />
+            <div className={cn(productSectionDivider, "space-y-6")}>
+              <SizeRecommender />
+              <ProductReviewsSection
+                productId={product.id}
+                productName={product.name}
+                initialSummary={product.review_summary}
+              />
+            </div>
+
+            <div className={cn(productSectionDivider, "space-y-8")}>
+              <ContextualAiSidebar product={product} />
+              <BundleOffer primary={product} related={similar} />
+              <AiStylistAdvice product={product} related={similar} />
+              <VisualSimilarityRail sourceImage={imageUrl} items={similar} />
+            </div>
           </motion.div>
         ) : (
           <div className="py-20 text-center text-ink-500">Tovar topilmadi.</div>

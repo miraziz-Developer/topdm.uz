@@ -144,7 +144,9 @@ class MarketplaceUseCases:
         if not product or not product.is_available:
             raise ValueError("Product not found or unavailable")
 
-        total_price = int(product.price) * quantity
+        from app.application.pricing.product_markup import order_line_totals
+
+        _merchant_sub, total_price, _markup = order_line_totals(int(product.price), quantity)
         order = await self._repo.create_order(
             customer_phone=customer_phone,
             product_id=product_id,
@@ -203,6 +205,12 @@ class MarketplaceUseCases:
             splitter = TransactionSplitterService(self._repo._session)
             try:
                 await splitter.release_escrow_to_merchant(order_id)
+            except Exception:
+                pass
+            from app.application.billing.merchant_debt_service import MerchantDebtService
+
+            try:
+                await MerchantDebtService(self._repo._session).process_cash_pickup_completion(order_id)
             except Exception:
                 pass
         return {"order_id": str(order.id), "status": order.status}

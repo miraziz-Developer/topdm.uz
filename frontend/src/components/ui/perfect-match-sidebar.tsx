@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { getSimilarProducts } from "@/lib/api";
@@ -11,9 +12,12 @@ import { useCartStore } from "@/stores/cart-store";
 import type { Product } from "@/types";
 
 export function PerfectMatchSidebar() {
+  const pathname = usePathname();
   const lastAdded = useCartStore((state) => state.lastAdded);
   const clearLastAdded = useCartStore((state) => state.clearLastAdded);
   const [matches, setMatches] = useState<Product[]>([]);
+  const blockedPath =
+    pathname.startsWith("/product/") || pathname.startsWith("/checkout") || pathname.startsWith("/payment");
 
   useEffect(() => {
     if (!lastAdded) return;
@@ -28,9 +32,14 @@ export function PerfectMatchSidebar() {
     void run();
   }, [lastAdded]);
 
+  useEffect(() => {
+    if (!blockedPath) return;
+    clearLastAdded();
+  }, [blockedPath, clearLastAdded]);
+
   return (
     <AnimatePresence>
-      {lastAdded ? (
+      {lastAdded && !blockedPath ? (
         <motion.aside
           initial={{ x: 360, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -40,8 +49,8 @@ export function PerfectMatchSidebar() {
         >
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-electric-500">Perfect Match</p>
-              <p className="text-sm font-medium text-ink-900">Savatchaga mos kombinatsiya</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-electric-500">O‘xshash tavsiyalar</p>
+              <p className="text-sm font-medium text-ink-900">Kategoriya va narxga yaqin mahsulotlar</p>
             </div>
             <button type="button" onClick={clearLastAdded} className="text-xs text-ink-500">
               Yopish

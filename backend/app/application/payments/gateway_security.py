@@ -39,6 +39,8 @@ def client_ip(request: Request) -> str:
 def assert_payment_callback_ip(request: Request, settings: Settings | None = None) -> None:
     """Reject callbacks not originating from configured provider IP ranges."""
     cfg = settings or get_settings()
+    if cfg.payment_sandbox_mode:
+        return
     raw = (cfg.payment_callback_ip_whitelist or "").strip()
     if not raw:
         if cfg.is_production:

@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, ImagePlus, Megaphone, RefreshCw, X } from "lucide-react";
+import { ImagePlus, Megaphone, RefreshCw, Wallet, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,7 +17,15 @@ import {
   renewCrmBanner,
   type CrmBannerCampaign,
   type CrmTariff,
+  type MerchantWallet,
 } from "@/lib/api";
+import {
+  BANNER_DAY_OPTIONS,
+  bannerPriceForDays,
+  bannerPricePerDay,
+  formatUzs,
+} from "@/lib/banner-pricing";
+import { canAffordSom, formatSom, walletBalanceUzs } from "@/lib/money";
 import { resolveMediaUrl } from "@/lib/media";
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -31,7 +39,7 @@ const STATUS_UZ: Record<string, { label: string; variant: "default" | "success" 
 function bannerErrorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : "";
   if (/Insufficient Coin/i.test(msg) || /insufficient_coins/i.test(msg)) {
-    return "Tangalar yetarli emas — avval balansni to'ldiring (Do'kon → Reja).";
+    return "Balans yetarli emas — Do'kon → Reja bo'limida to'ldiring.";
   }
   if (/image_required|empty_image/i.test(msg)) {
     return "Reklama rasmini tanlang (JPG yoki PNG).";
@@ -109,10 +117,11 @@ function BannerJournalRow({
 
 export function BannerCrmPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [wallet, setWallet] = useState<{ coin_balance: number; coin_uzs_rate: number } | null>(null);
+  const [wallet, setWallet] = useState<MerchantWallet | null>(null);
   const [tariffs, setTariffs] = useState<CrmTariff[]>([]);
   const [banners, setBanners] = useState<CrmBannerCampaign[]>([]);
   const [tariffCode, setTariffCode] = useState("gold");
+  const [bannerDays, setBannerDays] = useState<number>(30);
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -125,7 +134,7 @@ export function BannerCrmPanel() {
       getCrmBannerTariffs(),
       getCrmMyBanners(),
     ]);
-    setWallet({ coin_balance: w.coin_balance ?? w.coins_balance ?? 0, coin_uzs_rate: w.coin_uzs_rate ?? 0 });
+    setWallet(w);
     setTariffs(t.items);
     setBanners(b.items);
     if (t.items.length && !t.items.some((x) => x.code === tariffCode)) {
@@ -156,9 +165,12 @@ export function BannerCrmPanel() {
   }, [previewUrl]);
 
   const selectedTariff = tariffs.find((t) => t.code === tariffCode);
-  const coinCost = selectedTariff?.coin_cost ?? selectedTariff?.price_uzs ?? 0;
-  const balance = wallet?.coin_balance ?? 0;
-  const canAfford = balance >= (typeof coinCost === "number" ? coinCost : 0);
+  const quote = selectedTariff ? bannerPriceForDays(selectedTariff, bannerDays) : null;
+  const amountUzs = quote?.amountUzs ?? 0;
+  const balanceUzs = walletBalanceUzs(wallet);
+  const canAfford = canAffordSom(balanceUzs, amountUzs);
+  const dayOptions =
+    selectedTariff?.day_options?.length ? selectedTariff.day_options : [...BANNER_DAY_OPTIONS];
 
   const pickFile = (next: File | null) => {
     if (!next) return;
@@ -192,13 +204,14 @@ export function BannerCrmPanel() {
       return;
     }
     if (!canAfford) {
-      toast.error("Tangalar yetarli emas");
+      toast.error("Balans yetarli emas");
       return;
     }
     setSubmitting(true);
     try {
       await buyCrmBannerWithCoins({
         tariff_code: tariffCode,
+        duration_days: bannerDays,
         image: file,
         title: title.trim() || undefined,
       });
@@ -216,7 +229,7 @@ export function BannerCrmPanel() {
   const renew = async (bannerId: string) => {
     setSubmitting(true);
     try {
-      await renewCrmBanner({ banner_id: bannerId, tariff_code: tariffCode });
+      await renewCrmBanner({ banner_id: bannerId, tariff_code: tariffCode, duration_days: bannerDays });
       toast.success("Reklama uzaytirildi");
       await refresh();
     } catch (err) {
@@ -236,30 +249,32 @@ export function BannerCrmPanel() {
     <div className="space-y-4">
       <div className="crm-surface-card p-4 sm:p-5">
         <p className="text-sm leading-relaxed text-text-400">
-          <strong className="font-semibold text-text-100">Bosh sahifa reklamasi</strong> — mijozlar topdim.uz ga
-          kirganda sizning rasmingiz aylanma bannerda ko&apos;rinadi. To&apos;lov{" "}
-          <strong className="font-semibold text-text-100">tangalar</strong> bilan (1 tanga ≈{" "}
-          {formatNumber(wallet?.coin_uzs_rate ?? 0)} so&apos;m).
+          <strong className="font-semibold text-text-100">Bosh sahifa karuseli</strong> — mijozlar{" "}
+          <strong className="text-text-200">bozorliii.uz</strong> ga kirganda yuqoridagi aylanma bannerda sizning
+          rasmingiz chiqadi (Bronze/Silver/Gold — qaysi qatorda turishingizga qarab). Bu oylik obuna emas:{" "}
+          <strong className="text-text-200">necha kun kerak bo&apos;lsa, shuncha to&apos;laysiz</strong>.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="crm-surface-card p-4 sm:p-5">
-          <div className="flex items-center gap-2 text-electric-600">
-            <Coins className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-text-400">Balans</span>
+      <div className="crm-surface-card flex flex-wrap items-center justify-between gap-3 p-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-electric-500/10 text-electric-600">
+            <Wallet className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-400">Reklama balansi</p>
+            <p className="text-xl font-bold tabular-nums text-text-100">{formatSom(balanceUzs)}</p>
           </div>
-          <p className="mt-2 text-3xl font-bold tabular-nums text-text-100">{formatNumber(balance)}</p>
-          <p className="text-sm text-text-400">tanga</p>
-          {!canAfford && selectedTariff ? (
-            <Link
-              href="/dashboard/shop?tab=billing"
-              className="mt-3 inline-flex text-sm font-semibold text-electric-600 hover:underline"
-            >
-              Tangalar to&apos;ldirish →
-            </Link>
-          ) : null}
         </div>
+        <Link
+          href="/dashboard/billing?topup=1"
+          className="inline-flex h-9 items-center rounded-xl border border-border-subtle bg-canvas px-4 text-sm font-semibold text-text-100 hover:bg-surface"
+        >
+          Balans to&apos;ldirish
+        </Link>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="crm-surface-card p-4 sm:p-5">
           <div className="flex items-center gap-2 text-electric-600">
             <Megaphone className="h-5 w-5" />
@@ -267,6 +282,15 @@ export function BannerCrmPanel() {
           </div>
           <p className="mt-2 text-3xl font-bold tabular-nums text-text-100">{activeCount}</p>
           <p className="text-sm text-text-400">faol reklama</p>
+        </div>
+        <div className="crm-surface-card p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-400">Tanlangan paket</p>
+          <p className="mt-2 text-lg font-bold tabular-nums text-text-100">
+            {quote ? formatSom(amountUzs) : "—"}
+          </p>
+          <p className="text-sm text-text-400">
+            {quote ? `${quote.days} kun karuselda` : "Tarif va kun tanlang"}
+          </p>
         </div>
       </div>
 
@@ -278,9 +302,9 @@ export function BannerCrmPanel() {
 
         <div className="space-y-4 p-4 sm:p-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
+            <div className="sm:col-span-2">
               <label htmlFor="banner-tariff" className="text-xs font-semibold text-text-400">
-                Qancha kun ko&apos;rinsin?
+                Qaysi joy (karusel qatori)?
               </label>
               <select
                 id="banner-tariff"
@@ -290,10 +314,31 @@ export function BannerCrmPanel() {
               >
                 {tariffs.map((t) => (
                   <option key={t.code} value={t.code}>
-                    {t.name_uz} — {t.coin_cost ?? t.price_uzs} tanga · {t.duration_days} kun
+                    {t.name_uz} — karusel {t.carousel_slot ?? t.priority_weight ?? 1}-o&apos;rin · ~
+                    {formatUzs(bannerPricePerDay(t))} so&apos;m/kun
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs font-semibold text-text-400">Necha kun ko&apos;rinsin?</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {dayOptions.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setBannerDays(d)}
+                    className={cn(
+                      "rounded-full px-3.5 py-1.5 text-sm font-semibold transition",
+                      bannerDays === d
+                        ? "bg-electric-500 text-white"
+                        : "border border-border-subtle bg-canvas text-text-400 hover:text-text-100",
+                    )}
+                  >
+                    {d} kun
+                  </button>
+                ))}
+              </div>
             </div>
             <Input
               label="Sarlavha (ixtiyoriy)"
@@ -339,15 +384,23 @@ export function BannerCrmPanel() {
             </div>
           )}
 
-          {selectedTariff ? (
-            <div className="rounded-xl bg-canvas/80 px-3 py-2.5 text-sm text-text-400">
-              Tanlangan: <strong className="text-text-100">{selectedTariff.name_uz}</strong>
-              <span className="mx-1.5">·</span>
-              {selectedTariff.duration_days} kun
-              <span className="mx-1.5">·</span>
-              <strong className="text-text-100">{coinCost}</strong> tanga kerak
+          {selectedTariff && quote ? (
+            <div className="rounded-xl bg-canvas/80 px-3 py-3 text-sm text-text-400">
+              <p>
+                <strong className="text-text-100">{selectedTariff.name_uz}</strong>
+                <span className="mx-1.5">·</span>
+                {quote.days} kun karuselda
+                <span className="mx-1.5">·</span>
+                <strong className="text-text-100">{formatSom(amountUzs)}</strong>
+                <span className="text-text-400"> ({formatUzs(bannerPricePerDay(selectedTariff))} so&apos;m/kun)</span>
+              </p>
               {!canAfford ? (
-                <span className="mt-1 block text-amber-800">Balans yetarli emas ({balance} / {coinCost})</span>
+                <p className="mt-2 text-amber-800">
+                  Balans yetarli emas ({formatSom(balanceUzs)} / {formatSom(amountUzs)}) —{" "}
+                  <Link href="/dashboard/billing?topup=1" className="font-semibold text-electric-600 underline">
+                    balans to&apos;ldiring
+                  </Link>
+                </p>
               ) : null}
             </div>
           ) : null}

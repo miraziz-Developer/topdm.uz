@@ -12,10 +12,20 @@ export interface LiveStory {
   shop: ShopSummary;
 }
 
+/** Bosh sahifa story halqalari — har do'kon uchun bitta preview. */
+export interface StoryDockRing {
+  shop_id: string;
+  shop: ShopSummary;
+  preview_story: LiveStory;
+  active_count: number;
+  has_unseen?: boolean;
+}
+
 export interface ShopSummary {
   id: string;
   name: string;
   slug?: string;
+  logo_url?: string | null;
   ipadrom: string;
   floor: string;
   section?: string;
@@ -54,6 +64,9 @@ export interface ShopProfile {
 
 export interface Product {
   id: string;
+  /** Mahsulot sahifasi — mahalliy `/product/...`, Xitoy `/market/china/...` */
+  detail_path?: string;
+  market_source?: "china" | "local";
   name: string;
   price: number;
   /** Stored catalog price in UZS (always use for formatting when present). */
@@ -75,6 +88,12 @@ export interface Product {
   stock_count?: number;
   is_featured?: boolean;
   view_count?: number;
+  sold_count?: number;
+  review_summary?: {
+    average_rating: number;
+    review_count: number;
+    distribution: Record<string, number>;
+  };
   attributes?: Record<string, unknown>;
   shop: ShopSummary;
 }

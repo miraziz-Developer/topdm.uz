@@ -79,7 +79,7 @@ class AIInspectorService:
             return sharpness
 
         system = (
-            "You are Bozor AI Inspector for an Uzbekistan clothing marketplace. "
+            "You are Bozorliii Inspector for an Uzbekistan clothing marketplace. "
             "Analyze the product photo. Return strict JSON only with keys: "
             "allowed (boolean), reason (short Uzbek), flags (string array), "
             "is_clothing (boolean), is_inappropriate (boolean), detected_category (string). "

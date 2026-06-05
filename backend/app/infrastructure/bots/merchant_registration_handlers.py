@@ -5,7 +5,7 @@ import uuid
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from app.application.merchant.registration import (
     MARKET_ZONE_OPTIONS,
@@ -20,10 +20,40 @@ from app.infrastructure.bots.merchant_bot_ui import (
     merchant_menu_keyboard,
     start_inline_keyboard,
 )
+from app.application.map.geo_anchors import (
+    ABU_SAXIY_NODE_LAT,
+    ABU_SAXIY_NODE_LNG,
+    IPPODROM_CENTER_LAT,
+    IPPODROM_CENTER_LNG,
+)
 from app.infrastructure.bots.merchant_states import MerchantBotStates
 from app.infrastructure.db.session import AsyncSessionFactory
 
 reg_router = Router(name="merchant_registration")
+
+_LOCATION_STEP_HINT = (
+    "6/8 — Do'kon joylashuvi\n\n"
+    "📱 Telefon (Telegram mobil): pastdagi «Joylashuvni yuborish» → «Share».\n"
+    "💻 Kompyuter (Telegram Desktop): 📎 (Attach) → Location → nuqtani yuboring.\n"
+    "   (Desktopda pastdagi tugma ishlamasligi mumkin — bu Telegram cheklovi.)\n\n"
+    "Yoki «Keyinroq (CRM xaritadan)» — ro'yxatdan o'tgach xaritada aniqlasiz."
+)
+
+
+def _default_coords_for_market(market_zone: str) -> tuple[float, float]:
+    zone = (market_zone or "").strip().lower()
+    if "abu" in zone or "saxiy" in zone:
+        return ABU_SAXIY_NODE_LAT, ABU_SAXIY_NODE_LNG
+    return IPPODROM_CENTER_LAT, IPPODROM_CENTER_LNG
+
+
+async def _advance_after_location(message: Message, state: FSMContext, *, lat: float, lon: float, acc: float | None) -> None:
+    await state.update_data(reg_lat=lat, reg_lon=lon, reg_loc_acc=acc)
+    await state.set_state(MerchantBotStates.reg_storefront)
+    await message.answer(
+        "7/8 — Do'kon tashqi ko'rinishi (fasad) rasmini yuboring — majburiy:",
+        reply_markup=ReplyKeyboardRemove(),
+    )
 
 
 def _cancel_hint() -> str:
@@ -51,7 +81,7 @@ async def cmd_register(message: Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(MerchantBotStates.reg_name)
     await message.answer(
-        "Topdim — do'kon ro'yxatdan o'tish\n\n"
+        "Bozorliii — do'kon ro'yxatdan o'tish\n\n"
         "1/8 — Do'kon nomini yozing (masalan: Murod Fashion):",
         reply_markup=None,
     )
@@ -131,25 +161,52 @@ async def reg_location_comment(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(reg_location_comment=comment)
     await state.set_state(MerchantBotStates.reg_location)
-    await message.answer(
-        "6/8 — Telegram joylashuvni yuboring (📍 tugmasi):",
-        reply_markup=location_keyboard(),
-    )
+    await message.answer(_LOCATION_STEP_HINT, reply_markup=location_keyboard())
 
 
 @reg_router.message(MerchantBotStates.reg_location, F.location)
 async def reg_location(message: Message, state: FSMContext) -> None:
     if not message.location:
         return
-    await state.update_data(
-        reg_lat=message.location.latitude,
-        reg_lon=message.location.longitude,
-        reg_loc_acc=message.location.horizontal_accuracy,
+    await _advance_after_location(
+        message,
+        state,
+        lat=message.location.latitude,
+        lon=message.location.longitude,
+        acc=message.location.horizontal_accuracy,
     )
-    await state.set_state(MerchantBotStates.reg_storefront)
+
+
+@reg_router.message(MerchantBotStates.reg_location, F.text)
+async def reg_location_text(message: Message, state: FSMContext) -> None:
+    text = (message.text or "").strip()
+    lower = text.casefold()
+    if lower in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+    if lower.startswith("keyinroq") or lower in {"skip", "otkazib yuborish", "o'tkazib yuborish"}:
+        data = await state.get_data()
+        lat, lon = _default_coords_for_market(str(data.get("reg_market") or ""))
+        await message.answer(
+            "Joylashuv vaqtincha bozor markaziga qo'yildi. "
+            "Ro'yxatdan o'tgach CRM → Xarita orqali aniq nuqtani belgilang."
+        )
+        await _advance_after_location(message, state, lat=lat, lon=lon, acc=None)
+        return
+    if lower == "joylashuvni yuborish":
+        await message.answer(
+            "Bu tugma faqat telefonda joylashuv yuboradi.\n"
+            "Kompyuterda: 📎 → Location. Yoki «Keyinroq (CRM xaritadan)» tugmasini bosing.",
+            reply_markup=location_keyboard(),
+        )
+        return
     await message.answer(
-        "7/8 — Do'kon tashqi ko'rinishi (fasad) rasmini yuboring — majburiy:",
-        reply_markup=None,
+        "Joylashuv qabul qilinmadi.\n"
+        "📱 Mobil: «Joylashuvni yuborish»\n"
+        "💻 Desktop: 📎 → Location\n"
+        "Yoki «Keyinroq (CRM xaritadan)»",
+        reply_markup=location_keyboard(),
     )
 
 
@@ -269,9 +326,10 @@ async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
         f"CRM Login: {result.login_code}\n"
         f"Parol: {result.password_plain}\n"
         f"Do'kon ID: {shop.id}\n\n"
-        f"Brauzer: {crm_url}/login\n\n"
-        "⏳ Saytda chiqish: platforma tasdiqlagach (odatda 24 soat).\n"
-        "Hozir CRM va mahsulot yuklash ishlaydi — rasm yuboring, AI to'ldiradi."
+        f"📱 CRM Panel tugmasi — buyurtma va chat (ilova shart emas)\n"
+        f"🌐 Brauzer: {crm_url}/login\n\n"
+        "⏳ Mijoz saytida ko'rinish: platforma tasdiqlagach.\n"
+        "Hozir: rasm yuboring (AI), CRM Panel — boshqaruv."
     )
     await query.message.answer(text, reply_markup=merchant_menu_keyboard(shop.id))
     await query.message.answer("Tezkor:", reply_markup=start_inline_keyboard(shop.id))

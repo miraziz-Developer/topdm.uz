@@ -36,7 +36,7 @@ class MerchantCatalogProductService:
         product = await self._repo.get_shop_product(shop_id, product_id)
         if not product:
             raise CatalogProductError("not_found", "Mahsulot topilmadi")
-        payload = product_to_dict(product)
+        payload = product_to_dict(product, for_merchant=True)
         payload["variant_catalog"] = parse_variant_catalog(product.attributes)
         return payload
 

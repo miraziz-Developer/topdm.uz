@@ -84,7 +84,7 @@ class TelegramOtpGateway:
         if telegram_id is None:
             raise BotNotStartedError(settings.telegram_bot_username or "bot")
 
-        text = f"Bozor-AI tasdiqlash kodingiz: {otp}"
+        text = f"Bozorliii tasdiqlash kodingiz: {otp}"
         await self._send_message(telegram_id=telegram_id, text=text)
 
         await RedisCacheGateway().set(
@@ -97,7 +97,7 @@ class TelegramOtpGateway:
         settings = get_settings()
         if not settings.telegram_bot_token:
             raise TelegramOtpError("TELEGRAM_BOT_TOKEN sozlanmagan", code="telegram_not_configured")
-        text = f"Topdim CRM kirish kodingiz: {otp}"
+        text = f"Bozorliii CRM kirish kodingiz: {otp}"
         await self._send_message(telegram_id=int(chat_id), text=text)
         await RedisCacheGateway().set(
             _otp_chat_key(chat_id),

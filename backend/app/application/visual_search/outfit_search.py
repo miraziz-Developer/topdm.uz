@@ -52,7 +52,7 @@ async def detect_outfit_items(raw: bytes) -> list[dict[str, Any]]:
     """Taobao-style: detect wearables on a person with normalized bounding boxes."""
     vision_raw = _downscale_image_bytes(raw, max_edge=768)
     settings_prompt = (
-        "Sen O'zbekiston onlayn bozori (Topdim/Bozor AI) uchun vizual qidiruv AI sanaysan. "
+        "Sen O'zbekiston onlayn bozori (Bozorliii/Bozorliii) uchun vizual qidiruv AI sanaysan. "
         "To'liq komplekt/kostyum rasmda HAR BIR alohida parchani ajrat (Taobao): kurtka, ichki ko'ylak/sviter, "
         "shim, kamar (ko'rinsa), oyoq kiyim, sumka. Yuz, fon, qo'l — item emas. "
         "Har bir bbox faqat o'sha parchaning chegarasida; rang — aynan shu parchadagi asosiy rang. "

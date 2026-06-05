@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from app.application.stories.service import story_is_hot
 from app.core.client_context import apply_currency_to_product_dict
+from app.core.config import get_settings
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
@@ -78,17 +79,30 @@ def build_store_address_payload(shop) -> dict[str, str]:
     }
 
 
-def product_to_dict(product) -> dict:
+def product_to_dict(product, *, for_merchant: bool = False) -> dict:
+    from app.application.pricing.product_markup import (
+        customer_sale_price_uzs,
+        merchant_base_uzs,
+        platform_markup_uzs,
+    )
+
     shop = product.shop if hasattr(product, "shop") else None
     attrs = getattr(product, "attributes", None) or {}
     if not isinstance(attrs, dict):
         attrs = {}
     sale_type = getattr(product, "sale_type", None) or attrs.get("sale_type") or "Chakana"
     min_qty = getattr(product, "min_order_quantity", None) or attrs.get("min_order_quantity") or 1
+    base_merchant = merchant_base_uzs(int(product.price))
+    sale_uzs = customer_sale_price_uzs(base_merchant)
+    display_price = float(base_merchant if for_merchant else sale_uzs)
     base = {
         "id": str(product.id),
         "name": product.name,
-        "price": _as_number(product.price),
+        "price": display_price,
+        "merchant_price_uzs": base_merchant,
+        "sale_price_uzs": sale_uzs,
+        "platform_markup_uzs": platform_markup_uzs(base_merchant),
+        "platform_markup_pct": float(get_settings().platform_product_markup_pct),
         "weight_kg": _as_number(getattr(product, "weight_kg", 0) or 0),
         "length_cm": int(getattr(product, "length_cm", 0) or 0),
         "width_cm": int(getattr(product, "width_cm", 0) or 0),
@@ -105,11 +119,13 @@ def product_to_dict(product) -> dict:
         "is_available": product.is_available,
         "is_featured": product.is_featured,
         "view_count": product.view_count,
+        "sold_count": int(getattr(product, "sold_count", 0) or 0),
         "stock_count": int(getattr(product, "stock_count", 0) or 0),
         "shop": {
             "id": str(shop.id) if shop else "",
             "name": shop.name if shop else "",
             "slug": shop.slug if shop else "",
+            "logo_url": shop.logo_url if shop else None,
             "ipadrom": _ipadrom_name(shop),
             "floor": shop.floor if shop else "",
             "shop_number": shop.section if shop and shop.section else "",
@@ -143,6 +159,7 @@ def story_to_dict(story) -> dict:
             "id": str(shop.id) if shop else "",
             "name": shop.name if shop else "",
             "slug": slug,
+            "logo_url": shop.logo_url if shop else None,
             "floor": shop.floor if shop else "",
             "section": shop.section if shop else "",
             "shop_number": shop.section if shop else "",

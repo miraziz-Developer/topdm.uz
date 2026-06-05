@@ -7,7 +7,7 @@ from app.application.map.store_locations import shop_to_map_store, stores_to_geo
 from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 
-_CACHE_KEY = "map:stores:v4"
+_CACHE_KEY = "map:stores:v6"
 _CACHE_TTL = 300
 
 
@@ -24,7 +24,11 @@ class MapStoresService:
             return cached
 
         zone = market_zone_for_slug(market_slug)
-        shops = await self._repo.list_active_shops_for_map(limit=500, market_zone=zone)
+        shops = await self._repo.list_active_shops_for_map(
+            limit=500,
+            market_zone=zone,
+            market_slug=market_slug,
+        )
         stores = [shop_to_map_store(shop) for shop in shops]
         payload = stores_to_geojson(stores)
         payload["cached"] = False

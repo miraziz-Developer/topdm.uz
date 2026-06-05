@@ -40,7 +40,7 @@ def vision_search_hint(attributes: dict[str, Any]) -> str:
 
 
 class BozorToolRunner:
-    """Executes Bozor-AI agent tools against Postgres + indoor map fixtures."""
+    """Executes Bozorliii agent tools against Postgres + indoor map fixtures."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._db = session

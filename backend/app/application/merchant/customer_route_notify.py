@@ -50,7 +50,15 @@ async def notify_merchant_customer_en_route(
         f"Taxminiy masofa: {dist_label}."
     )
     try:
-        await notifier.send_message(int(shop.telegram_chat_id), text)
+        from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+
+        await notify_merchant_telegram(
+            notifier,
+            chat_id=int(shop.telegram_chat_id),
+            text=text,
+            shop_id=shop.id,
+            crm_next="/dashboard/shop",
+        )
         from app.application.merchant.workspace_hub import MerchantWorkspaceHub
 
         hub = MerchantWorkspaceHub(session)

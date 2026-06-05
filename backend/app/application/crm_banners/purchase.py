@@ -17,7 +17,12 @@ from app.infrastructure.storage.object_store import ObjectMediaStore
 from app.models.premium_banner import SponsoredBannerModel
 
 
-def resolve_tariff_coin_cost(tariff) -> int:
+def resolve_tariff_coin_cost(tariff, *, days: int | None = None) -> int:
+    from app.application.crm_banners.pricing import banner_price_for_days
+
+    if days is not None:
+        _, coin_cost, _ = banner_price_for_days(tariff, days)
+        return coin_cost
     if tariff.coin_cost and int(tariff.coin_cost) > 0:
         return int(tariff.coin_cost)
     from app.application.crm_banners.service import uzs_to_coins
@@ -39,6 +44,7 @@ class BannerPurchaseService:
         *,
         shop_id: UUID,
         tariff_code: str,
+        duration_days: int = 30,
         image_bytes: bytes | None,
         image_url: str | None,
         title: str | None,
@@ -62,9 +68,10 @@ class BannerPurchaseService:
         else:
             raise ValueError("image_required")
 
-        coin_price = resolve_tariff_coin_cost(tariff)
-        package_days = int(tariff.duration_days or 30)
-        amount = Decimal(str(tariff.price_uzs_monthly or 0))
+        from app.application.crm_banners.pricing import banner_price_for_days
+
+        amount_uzs, coin_price, package_days = banner_price_for_days(tariff, duration_days)
+        amount = Decimal(str(amount_uzs))
         queue_pos = await self._banners.next_queue_position(tariff.id)
         now = datetime.now(timezone.utc)
 
@@ -111,10 +118,12 @@ class BannerPurchaseService:
         await PremiumCarouselCache().bump_invalidation()
         await self._session.refresh(created, attribute_names=["tariff", "shop"])
 
+        from app.application.crm_banners.service import COIN_UZS_RATE
+
         return {
             "status": "active",
-            "coins_balance": int(shop.coins_balance),
-            "coins_spent": coin_price,
+            "balance_uzs": int(shop.coins_balance) * COIN_UZS_RATE,
+            "amount_uzs": amount_uzs,
             "banner": _banner_crm_dict(created),
             "carousel_slide": _banner_to_slide(created),
         }

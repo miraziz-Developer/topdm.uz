@@ -32,17 +32,17 @@ const dmMono = DM_Mono({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://topdim.uz";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.uz";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Topdim.UZ — Toshkent bozorlarini AI bilan toping",
+  title: "Bozorliii.uz — Toshkent bozorlarini AI bilan toping",
   description:
-    "Topdim.UZ — O'zbekistonning AI marketplace. 50,000+ tovar, 2,400+ do'kon. AI bilan 30 soniyada toping!",
-  keywords: ["topdim", "bozor", "AI", "marketplace", "Toshkent", "ipadrom", "tovar", "qidiruv"],
+    "Bozorliii.uz — O'zbekistonning AI marketplace. 50,000+ tovar, 2,400+ do'kon. AI bilan 30 soniyada toping!",
+  keywords: ["bozorliii", "bozor", "AI", "marketplace", "Toshkent", "ipadrom", "tovar", "qidiruv"],
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Topdim.UZ" },
-  applicationName: "Topdim.UZ",
+  appleWebApp: { capable: true, title: "Bozorliii.uz" },
+  applicationName: "Bozorliii.uz",
   other: { "mobile-web-app-capable": "yes" },
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
@@ -50,9 +50,9 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "Topdim.UZ — AI bilan bozor qidiruvi",
+    title: "Bozorliii.uz — AI bilan bozor qidiruvi",
     description: "50,000+ tovar orasidan AI bilan toping",
-    siteName: "Topdim.UZ",
+    siteName: "Bozorliii.uz",
     locale: "uz_UZ",
     type: "website",
   },
@@ -70,11 +70,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const siteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Topdim.UZ",
-    url: "https://topdim.uz",
+    name: "Bozorliii.uz",
+    url: "https://bozorliii.uz",
     potentialAction: {
       "@type": "SearchAction",
-      target: "https://topdim.uz/search?q={search_term_string}",
+      target: "https://bozorliii.uz/search?q={search_term_string}",
       "query-input": "required name=search_term_string",
     },
   };

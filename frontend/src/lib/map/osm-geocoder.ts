@@ -25,7 +25,7 @@ async function nominatimSearch(query: string, limit: number): Promise<OsmGeocode
 
   try {
     const res = await fetch(url.toString(), {
-      headers: { "User-Agent": "TopdimUZ/1.0 (map navigation)" },
+      headers: { "User-Agent": "BozorliiiUZ/1.0 (map navigation)" },
       next: { revalidate: 0 },
     });
     if (!res.ok) return [];

@@ -21,7 +21,11 @@ PAYME_ERRORS: dict[int, dict[str, Any]] = {
 
 def assert_payme_basic_auth(request: Request, settings: Settings | None = None) -> None:
     cfg = settings or get_settings()
-    secret = (cfg.payme_secret_key or "").strip()
+    secret = (
+        (cfg.payment_sandbox_payme_secret_key or "").strip()
+        if cfg.payment_sandbox_mode
+        else (cfg.payme_secret_key or "").strip()
+    )
     if not secret:
         if cfg.app_debug and not cfg.is_production:
             return

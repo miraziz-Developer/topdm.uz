@@ -8,7 +8,7 @@ QUICK_REPLIES: tuple[dict[str, str], ...] = (
     {"id": "other_color", "label": "Boshqa rang", "text": "Boshqa ranglar ham bor — qaysi rang kerak?"},
     {"id": "price", "label": "Narx", "text": "Narxi katalogdagi narxda. Savol bo'lsa yozing."},
     {"id": "reserve", "label": "Bron", "text": "Bron qilib qo'yaman — 2 soat ichida keling."},
-    {"id": "location", "label": "Joy", "text": "Joylashuv xaritada ko'rsatilgan. Topdim xaritadan yo'l oling."},
+    {"id": "location", "label": "Joy", "text": "Joylashuv xaritada ko'rsatilgan. Bozorliii xaritadan yo'l oling."},
     {"id": "thanks", "label": "Rahmat", "text": "Rahmat! Yordam kerak bo'lsa yozing."},
 )
 

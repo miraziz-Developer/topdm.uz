@@ -1,4 +1,4 @@
-"""Groq-only Bozor AI stylist — human conversation + real catalog."""
+"""Groq-only Bozorliii stylist — human conversation + real catalog."""
 
 from __future__ import annotations
 

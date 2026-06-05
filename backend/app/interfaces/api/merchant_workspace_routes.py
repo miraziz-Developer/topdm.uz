@@ -46,7 +46,7 @@ async def merchant_today(
 
 @router.get("/analytics/summary")
 async def merchant_analytics_summary(
-    days: int = Query(default=7, ge=1, le=90),
+    days: int = Query(default=7, ge=1, le=365),
     user: AuthUser = Depends(require_merchant),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:

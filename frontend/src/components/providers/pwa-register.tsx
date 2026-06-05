@@ -55,7 +55,7 @@ export function PwaRegister() {
       {!installed && (deferredPrompt || showIosTip) ? (
         <div className="fixed bottom-20 left-0 right-0 z-[70] mx-auto w-full max-w-lg px-4">
           <div className="rounded-2xl border border-electric-200 bg-white p-3 shadow-lg">
-            <p className="text-sm font-semibold text-ink-900">Topdim ilovasini o'rnating</p>
+            <p className="text-sm font-semibold text-ink-900">Bozorliii ilovasini o'rnating</p>
             {deferredPrompt ? (
               <button
                 type="button"

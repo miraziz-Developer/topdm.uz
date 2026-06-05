@@ -22,7 +22,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 env_val() {
-  grep -E "^${1}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed 's/^"//;s/"$//;s/^'"'"'//;s/'"'"'$//'
+  grep -E "^${1}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed 's/^"//;s/"$//;s/^'"'"'//;s/'"'"'$//' || true
 }
 
 check_not_placeholder() {
@@ -65,16 +65,23 @@ fi
 
 crm_url="$(env_val MERCHANT_CRM_WEBAPP_URL)"
 if [[ -z "$crm_url" ]] || [[ "$crm_url" == http://localhost* ]]; then
-  warn_msg "MERCHANT_CRM_WEBAPP_URL — productionda https://crm.topdim.uz bo'lishi kerak"
+  warn_msg "MERCHANT_CRM_WEBAPP_URL — productionda https://crm.bozorliii.uz bo'lishi kerak"
 else
   ok "MERCHANT_CRM_WEBAPP_URL"
 fi
 
 site_url="$(env_val SITE_URL)"
 if [[ -z "$site_url" ]] || [[ "$site_url" == http://localhost* ]]; then
-  warn_msg "SITE_URL — productionda https://topdim.uz"
+  warn_msg "SITE_URL — productionda https://bozorliii.uz"
 else
   ok "SITE_URL"
+fi
+
+yandex_maps="$(env_val NEXT_PUBLIC_YANDEX_MAPS_API_KEY)"
+if [[ -z "$yandex_maps" ]] || [[ "$yandex_maps" == your-yandex* ]]; then
+  warn_msg "NEXT_PUBLIC_YANDEX_MAPS_API_KEY — CRM xarita uchun kerak; merchant-crm rebuild qiling"
+else
+  ok "NEXT_PUBLIC_YANDEX_MAPS_API_KEY (CRM xarita)"
 fi
 
 if [[ -z "$(env_val RESEND_API_KEY)" ]]; then
@@ -101,7 +108,7 @@ if [[ "$media_backend" == "s3" ]]; then
   check_not_placeholder S3_SECRET_ACCESS_KEY
   s3_public="$(env_val S3_PUBLIC_BASE_URL)"
   if [[ -z "$s3_public" ]] || [[ "$s3_public" != https://* ]]; then
-    die "S3_PUBLIC_BASE_URL — https://media.topdim.uz (CDN) majburiy"
+    die "S3_PUBLIC_BASE_URL — https://media.bozorliii.uz (CDN) majburiy"
   else
     ok "S3_PUBLIC_BASE_URL (CDN)"
   fi

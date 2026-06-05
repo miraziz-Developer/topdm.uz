@@ -179,9 +179,14 @@ class MerchantProductService:
         shop = await self._repo.get_shop(shop_id)
         if shop and shop.telegram_chat_id and self._notifier:
             try:
-                await self._notifier.send_message(
-                    int(shop.telegram_chat_id),
-                    f"Mahsulot rad etildi: {payload.reason}",
+                from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+
+                await notify_merchant_telegram(
+                    self._notifier,
+                    chat_id=int(shop.telegram_chat_id),
+                    text=f"Mahsulot rad etildi: {payload.reason}",
+                    shop_id=shop_id,
+                    crm_next="/dashboard/products",
                 )
             except Exception:
                 logger.warning("reject_notify_failed", shop_id=str(shop_id), pending_id=str(pending_id))
@@ -211,9 +216,14 @@ class MerchantProductService:
         if not shop or not shop.telegram_chat_id:
             return
         try:
-            await self._notifier.send_message(
-                int(shop.telegram_chat_id),
-                f"Sizning '{product_name}' mahsulotingiz endi Bozor-AI'da LIVE!",
+            from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+
+            await notify_merchant_telegram(
+                self._notifier,
+                chat_id=int(shop.telegram_chat_id),
+                text=f"Sizning '{product_name}' mahsulotingiz endi Bozorliii.uz da LIVE!",
+                shop_id=shop_id,
+                crm_next="/dashboard/products",
             )
             logger.info("product_published_notify", shop_id=str(shop_id), product_name=product_name)
         except Exception:

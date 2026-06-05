@@ -14,6 +14,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { CrmFilterChip } from "@/components/crm/filter-chip";
 import { ProductEditorSheet } from "@/components/products/product-editor-sheet";
 import { ProductStatusToggle } from "@/components/products/product-status-toggle";
 import { Button } from "@/components/ui/button";
@@ -280,86 +281,110 @@ export function ProductsCatalogPanel() {
     return <div className="skeleton h-96 rounded-3xl" />;
   }
 
+  const hasCatalog = products.length > 0;
+
   return (
     <div className="space-y-0">
       <div className="crm-surface-card overflow-hidden">
-        {/* Toolbar */}
-        <div className="flex flex-col gap-4 border-b border-border-subtle p-4 sm:p-5 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1 lg:max-w-md">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-400" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Mahsulot qidirish..."
-              className="h-11 w-full rounded-full border border-border-subtle bg-canvas pl-10 pr-4 text-sm text-text-100 placeholder:text-text-400 focus:border-electric-500 focus:outline-none focus:ring-2 focus:ring-electric-500/15"
-            />
+        <div className="border-b border-border-subtle/80 bg-gradient-to-br from-surface via-surface to-canvas/40 p-4 sm:p-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+            <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Jami</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-text-100">{counts.all}</p>
+            </div>
+            <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Faol</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-emerald-700">{counts.live}</p>
+            </div>
+            <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Kam qolgan</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-amber-700">{counts.low_stock}</p>
+            </div>
+            <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Tugagan</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-text-100">{counts.out_of_stock}</p>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {selected.size > 0 ? (
-              <div className="flex items-center gap-2 rounded-full bg-canvas px-3 py-1.5 ring-1 ring-border-subtle">
-                <Input
-                  type="number"
-                  min={1}
-                  max={90}
-                  value={discountPct}
-                  onChange={(e) => setDiscountPct(e.target.value)}
-                  className="h-8 w-14 border-0 bg-transparent p-0 text-center text-sm"
-                  aria-label="Chegirma foizi"
-                />
-                <span className="text-xs text-text-400">%</span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={discountBusy}
-                  onClick={() => void applyBulkDiscount()}
-                >
-                  <Percent className="mr-1 h-3.5 w-3.5" />
-                  Chegirma
-                </Button>
-              </div>
-            ) : null}
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Nom, kategoriya yoki ID"
+                className="h-12 w-full rounded-2xl border-0 bg-canvas/90 pl-11 pr-4 text-sm font-medium text-text-100 shadow-inner ring-1 ring-border-subtle/80 placeholder:font-normal placeholder:text-text-400 focus:ring-2 focus:ring-electric-500/25"
+              />
+            </div>
             <button
               type="button"
               onClick={openCreate}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-text-100 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
+              className="crm-btn-primary inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl px-6"
             >
               <Plus className="h-4 w-4" />
-              Mahsulot qo&apos;shish
+              Qo&apos;shish
             </button>
+          </div>
+
+          {selected.size > 0 ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl bg-electric-500/[0.06] px-3 py-2.5 ring-1 ring-electric-500/15">
+              <span className="text-xs font-semibold text-electric-600">{selected.size} ta tanlandi</span>
+              <Input
+                type="number"
+                min={1}
+                max={90}
+                value={discountPct}
+                onChange={(e) => setDiscountPct(e.target.value)}
+                className="h-9 w-14 rounded-lg border-0 bg-surface text-center text-sm ring-1 ring-border-subtle"
+                aria-label="Chegirma foizi"
+              />
+              <span className="text-xs font-medium text-text-400">%</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={discountBusy}
+                onClick={() => void applyBulkDiscount()}
+              >
+                <Percent className="mr-1 h-3.5 w-3.5" />
+                Chegirma
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {TABS.map((tab) => (
+              <CrmFilterChip
+                key={tab.key}
+                active={filter === tab.key}
+                label={tab.label}
+                count={counts[tab.key]}
+                onClick={() => setFilter(tab.key)}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Tabs — underline style */}
-        <div className="flex gap-1 overflow-x-auto border-b border-border-subtle px-4 sm:gap-6 sm:px-5">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setFilter(tab.key)}
-              className={cn(
-                "shrink-0 border-b-2 py-3.5 text-sm font-medium transition",
-                filter === tab.key
-                  ? "border-text-100 text-text-100"
-                  : "border-transparent text-text-400 hover:text-text-200",
-              )}
-            >
-              {tab.label}
-              <span className="ml-1.5 tabular-nums text-text-400">({counts[tab.key]})</span>
-            </button>
-          ))}
-        </div>
-
         {!visible.length ? (
-          <div className="py-20 text-center">
-            <Package className="mx-auto h-10 w-10 text-text-400/40" />
-            <p className="mt-3 font-medium text-text-100">Mahsulot topilmadi</p>
-            <p className="mt-1 text-sm text-text-400">Filtr yoki qidiruvni o&apos;zgartiring</p>
-            <Button className="mt-4 rounded-full bg-text-100 text-white" onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Mahsulot qo&apos;shish
-            </Button>
+          <div className="px-6 py-16 text-center sm:py-20">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-electric-500/12 to-transparent ring-1 ring-electric-500/15">
+              <Package className="h-7 w-7 text-electric-500" strokeWidth={1.75} />
+            </div>
+            <p className="mt-5 text-lg font-bold tracking-tight text-text-100">
+              {hasCatalog ? "Bu filtrda mahsulot yo'q" : "Katalog hali bo'sh"}
+            </p>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-400">
+              {hasCatalog
+                ? "Boshqa filtrni tanlang yoki qidiruvni tozalang."
+                : "Telegram botga mahsulot rasmini yuboring — AI to'ldiradi, yoki qo'lda qo'shing."}
+            </p>
+            {!hasCatalog ? (
+              <button type="button" onClick={openCreate} className="crm-btn-primary mt-6 inline-flex h-11 items-center gap-2 px-6">
+                <Plus className="h-4 w-4" />
+                Birinchi mahsulot
+              </button>
+            ) : null}
           </div>
         ) : (
           <>
@@ -467,12 +492,16 @@ export function ProductsCatalogPanel() {
             </div>
 
             {/* Mobile list */}
-            <ul className="divide-y divide-border-subtle/80 md:hidden">
+            <ul className="space-y-3 p-4 md:hidden">
               {visible.map((product) => {
                 const thumb = resolveMediaUrl(product.images?.[0]);
                 const live = product.is_available !== false;
+                const stock = Number(product.stock_count ?? 0);
                 return (
-                  <li key={product.id} className="flex items-center gap-3 px-4 py-3.5">
+                  <li
+                    key={product.id}
+                    className="flex items-center gap-3 rounded-2xl bg-canvas/50 p-3.5 ring-1 ring-border-subtle/90"
+                  >
                     <input
                       type="checkbox"
                       checked={selected.has(product.id)}
@@ -482,10 +511,10 @@ export function ProductsCatalogPanel() {
                     <button
                       type="button"
                       onClick={() => openEdit(product)}
-                      className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-canvas ring-1 ring-border-subtle"
+                      className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface ring-1 ring-border-subtle"
                     >
                       {thumb ? (
-                        <Image src={thumb} alt="" fill className="object-cover" sizes="48px" unoptimized />
+                        <Image src={thumb} alt="" fill className="object-cover" sizes="56px" unoptimized />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
                           <Package className="h-5 w-5 text-text-400/40" />
@@ -493,9 +522,11 @@ export function ProductsCatalogPanel() {
                       )}
                     </button>
                     <button type="button" onClick={() => openEdit(product)} className="min-w-0 flex-1 text-left">
-                      <p className="truncate font-semibold text-text-100">{product.name}</p>
-                      <p className="text-xs text-text-400">
-                        {formatPrice(product.price)} · {shortId(product.id)}
+                      <p className="truncate font-bold tracking-tight text-text-100">{product.name}</p>
+                      <p className="mt-0.5 text-sm font-semibold tabular-nums text-text-100">{formatPrice(product.price)}</p>
+                      <p className="mt-0.5 text-xs text-text-400">
+                        {shortId(product.id)} · Ombor {stock}
+                        {product.is_featured ? " · Asosiyda" : ""}
                       </p>
                     </button>
                     <ProductStatusToggle

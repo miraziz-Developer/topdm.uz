@@ -80,7 +80,7 @@ async def merchant_list_products(
         offset=0,
         include_unavailable=include_hidden,
     )
-    return {"items": [product_to_dict(product) for product in products]}
+    return {"items": [product_to_dict(product, for_merchant=True) for product in products]}
 
 
 @router.get("/merchant/products/{product_id}")

@@ -6,9 +6,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, desc, select, text
+from sqlalchemy import and_, case, desc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
+from app.infrastructure.db.models import ShopModel
 from app.models.reels import ReelsVideoModel
 
 
@@ -64,40 +66,42 @@ async def get_personalized_feed(
     """
     offset = page * limit
 
-    # User qiziqishlari (oxirgi 7 kun)
-    user_cats = await _get_user_interest_categories(db, session_id)
+    has_remote_video = case(
+        (ReelsVideoModel.video_url.like("http%"), 1),
+        else_=0,
+    )
 
-    # Base query
-    stmt = select(ReelsVideoModel).where(
-        and_(
-            ReelsVideoModel.is_active.is_(True),
-            ReelsVideoModel.status == "active",
+    stmt = (
+        select(ReelsVideoModel)
+        .join(ShopModel, ReelsVideoModel.shop_id == ShopModel.id)
+        .options(joinedload(ReelsVideoModel.shop))
+        .where(
+            and_(
+                ReelsVideoModel.is_active.is_(True),
+                ReelsVideoModel.status == "active",
+                ShopModel.is_active.is_(True),
+                ShopModel.is_blocked.is_(False),
+            )
+        )
+        .order_by(
+            desc(has_remote_video),
+            desc(ReelsVideoModel.thumbnail_url.isnot(None)),
+            desc(ReelsVideoModel.algorithm_score),
+            desc(ReelsVideoModel.created_at),
         )
     )
 
     if shop_id:
         stmt = stmt.where(ReelsVideoModel.shop_id == shop_id)
 
-    # Category boost — user qiziqqan bo'lsa
-    if user_cats or category_hint:
-        hint_cats = [category_hint] if category_hint else []
-        all_cats = list(set(user_cats + hint_cats))
-        # algorithm_score ga qo'shimcha weight (SQL-level)
-        stmt = stmt.order_by(
-            desc(ReelsVideoModel.algorithm_score),
-            desc(ReelsVideoModel.created_at),
-        )
-    else:
-        stmt = stmt.order_by(
-            desc(ReelsVideoModel.algorithm_score),
-            desc(ReelsVideoModel.created_at),
-        )
-
     stmt = stmt.offset(offset).limit(limit)
     result = await db.execute(stmt)
-    videos = result.scalars().all()
+    videos = result.scalars().unique().all()
 
-    return [_video_to_dict(v) for v in videos]
+    from app.application.reels.feed_enrichment import enrich_reel_dict, sort_feed_items
+
+    items = [enrich_reel_dict(v, _video_to_dict(v)) for v in videos]
+    return sort_feed_items(items)
 
 
 async def record_interaction(

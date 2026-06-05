@@ -27,7 +27,10 @@ export function ImageMagnifier({ src, alt, className }: ImageMagnifierProps) {
   return (
     <div
       ref={containerRef}
-      className={cn("relative aspect-square overflow-hidden rounded-2xl border border-border-subtle bg-surface", className)}
+      className={cn(
+        "relative aspect-[4/5] w-full overflow-hidden rounded-[1.75rem] bg-[#f0eeea] ring-1 ring-black/[0.06] shadow-[0_24px_64px_-28px_rgba(15,23,42,0.22)] sm:aspect-square sm:rounded-[2rem]",
+        className,
+      )}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       onMouseMove={onMove}

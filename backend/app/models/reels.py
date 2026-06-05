@@ -1,4 +1,4 @@
-"""Topdim.UZ Reels — TikTok Shop uslubidagi video commerce."""
+"""Bozorliii.uz Reels — TikTok Shop uslubidagi video commerce."""
 from __future__ import annotations
 
 import uuid

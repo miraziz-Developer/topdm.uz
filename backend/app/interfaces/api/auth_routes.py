@@ -243,6 +243,8 @@ async def telegram_webapp_auth(
         bound_chat = int(shop.telegram_chat_id) if shop.telegram_chat_id else None
         if bound_chat is not None and bound_chat != telegram_id:
             raise HTTPException(status_code=403, detail="Bu do'kon boshqa Telegram chatga bog'langan")
+        if bound_chat is None:
+            await mrepo.bind_shop_telegram_chat(shop.id, telegram_id)
         shop_id = shop.id
     else:
         bound = await mrepo.get_shop_by_telegram_chat_id(telegram_id)

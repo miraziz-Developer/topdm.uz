@@ -21,7 +21,7 @@ function ContentHubInner() {
       tabs={CRM_CONTENT_TABS}
       activeTab={tab}
       title="Kontent markazi"
-      description="Reels, Stories va bosh sahifa reklamasi — mijozlar topdim.uz da ko'radi."
+      description="Reels, Stories va bosh sahifa reklamasi — banner so'mda, reels bepul."
     >
       {tab === "reels" ? (
         <div className="space-y-4">

@@ -65,23 +65,18 @@ class CrmBannerService:
         self._media = ObjectMediaStore()
 
     async def list_tariffs(self) -> list[dict[str, Any]]:
+        from app.application.crm_banners.pricing import tariff_public_dict
+
         rows = await self._repo.list_active_tariffs()
-        return [
-            {
-                "code": t.code,
-                "name_uz": t.name_uz,
-                "name_ru": t.name_ru,
-                "priority_weight": t.priority_weight,
-                "dwell_ms": t.dwell_ms,
-                "duration_days": t.duration_days,
-                "badge_label": t.badge_label,
-                "frame_style": t.frame_style,
-                "price_uzs": float(t.price_uzs_monthly) if t.price_uzs_monthly else None,
-                "coin_cost": int(t.coin_cost) if t.coin_cost else uzs_to_coins(t.price_uzs_monthly or 0),
-                "price_coins": int(t.coin_cost) if t.coin_cost else uzs_to_coins(t.price_uzs_monthly or 0),
-            }
-            for t in rows
-        ]
+        return [tariff_public_dict(t) for t in rows]
+
+    async def quote_tariff(self, tariff_code: str, days: int) -> dict[str, Any]:
+        from app.application.crm_banners.pricing import quote_banner
+
+        tariff = await self._repo.get_tariff_by_code(tariff_code)
+        if not tariff:
+            raise ValueError("unknown_tariff")
+        return quote_banner(tariff, days)
 
     async def get_wallet(self, shop_id: UUID) -> dict[str, Any]:
         from app.infrastructure.repositories.wallet_repo import WalletRepository
@@ -89,9 +84,9 @@ class CrmBannerService:
         balance = await WalletRepository(self._session).get_balance(shop_id)
         return {
             "shop_id": str(shop_id),
+            "balance_uzs": balance * COIN_UZS_RATE,
             "coin_balance": balance,
             "coins_balance": balance,
-            "coin_uzs_rate": COIN_UZS_RATE,
         }
 
     async def list_shop_campaigns(self, shop_id: UUID) -> dict[str, Any]:
@@ -109,6 +104,7 @@ class CrmBannerService:
         *,
         shop_id: UUID,
         tariff_code: str,
+        duration_days: int = 30,
         image_bytes: bytes | None,
         image_url: str | None,
         title: str | None,
@@ -136,8 +132,10 @@ class CrmBannerService:
         else:
             raise ValueError("image_required")
 
-        package_days = int(tariff.duration_days or 30)
-        amount = Decimal(str(tariff.price_uzs_monthly or 0))
+        from app.application.crm_banners.pricing import banner_price_for_days
+
+        amount_uzs, _coins, package_days = banner_price_for_days(tariff, duration_days)
+        amount = Decimal(str(amount_uzs))
         queue_pos = await self._repo.next_queue_position(tariff.id)
         now = datetime.now(timezone.utc)
 
@@ -240,15 +238,18 @@ class CrmBannerService:
         shop_id: UUID,
         banner_id: UUID,
         tariff_code: str | None = None,
+        duration_days: int | None = None,
     ) -> dict[str, Any]:
         """Clone an expired/near-expiry campaign into a new pending_payment slot."""
         old = await self._repo.get_banner(banner_id)
         if not old or old.shop_id != shop_id:
             raise ValueError("banner_not_found")
         code = (tariff_code or (old.tariff.code if old.tariff else "bronze")).lower()
+        days = duration_days if duration_days is not None else int(old.package_days or 30)
         return await self.create_pending_banner(
             shop_id=shop_id,
             tariff_code=code,
+            duration_days=days,
             image_bytes=None,
             image_url=old.image_url,
             title=old.title,

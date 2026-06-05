@@ -1,4 +1,4 @@
-export const ACCESS_TOKEN_KEY = "topdim_access_token";
+export const ACCESS_TOKEN_KEY = "bozorliii_access_token";
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;

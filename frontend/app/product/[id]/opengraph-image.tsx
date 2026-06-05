@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 import { getProduct } from "@/lib/api";
 
 export const runtime = "edge";
-export const alt = "Topdim.UZ tovar";
+export const alt = "Bozorliii.uz tovar";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -26,7 +26,7 @@ export default async function OpenGraphImage({ params }: { params: { id: string 
             fontFamily: "system-ui, sans-serif",
           }}
         >
-          <div style={{ fontSize: 28, opacity: 0.9 }}>Topdim.UZ</div>
+          <div style={{ fontSize: 28, opacity: 0.9 }}>Bozorliii.uz</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ fontSize: 56, fontWeight: 700, lineHeight: 1.1, maxWidth: 900 }}>{product.name}</div>
             <div style={{ fontSize: 36, color: "#fde68a" }}>{price}</div>
@@ -52,7 +52,7 @@ export default async function OpenGraphImage({ params }: { params: { id: string 
             fontWeight: 700,
           }}
         >
-          Topdim.UZ
+          Bozorliii.uz
         </div>
       ),
       { ...size },

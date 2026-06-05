@@ -30,11 +30,11 @@ def upgrade() -> None:
     op.add_column("shops", sa.Column("owner_email", sa.String(length=255), nullable=True))
     op.create_index("ix_shops_owner_email", "shops", ["owner_email"], unique=True)
     op.execute(
-        "UPDATE shops SET owner_email = 'samandar@topdim.uz' "
+        "UPDATE shops SET owner_email = 'samandar@bozorliii.uz' "
         "WHERE owner_phone = '+998901234567' AND owner_email IS NULL"
     )
     op.execute(
-        "UPDATE shops SET owner_email = 'techworld@topdim.uz' "
+        "UPDATE shops SET owner_email = 'techworld@bozorliii.uz' "
         "WHERE owner_phone = '+998901234568' AND owner_email IS NULL"
     )
 

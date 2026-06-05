@@ -316,6 +316,10 @@ class OrderPaymentService:
         if checkout.status == "success":
             return
 
+        if (checkout.purpose or "order") == "merchant_debt":
+            await self._fulfill_debt_checkout(checkout, provider_trans_id=provider_trans_id, billing=billing)
+            return
+
         order_ids = [UUID(str(x)) for x in (checkout.order_ids or [])]
         if not order_ids:
             raise ValueError("checkout_empty")
@@ -327,26 +331,63 @@ class OrderPaymentService:
             order = await self._marketplace.get_order_by_id(oid)
             if not order:
                 continue
-            share = int(order.total_price)
-            order_billing = self._order_billing(order, billing)
-            order_billing["idempotency_key"] = f"{billing.get('idempotency_key', 'pay')}:{oid}"
+            order_billing = {
+                **billing,
+                "idempotency_key": f"{billing.get('idempotency_key', 'pay')}:{oid}",
+            }
             await self._confirm_order_paid(order, order_billing)
 
     async def _fulfill_single_order(self, order: OrderModel, *, billing: dict[str, Any]) -> None:
-        await self._confirm_order_paid(order, self._order_billing(order, billing))
+        await self._confirm_order_paid(order, billing)
 
-    def _order_billing(self, order: OrderModel, billing: dict[str, Any]) -> dict[str, Any]:
-        product_subtotal = Decimal(int(order.total_price))
+    def _order_billing(
+        self,
+        order: OrderModel,
+        billing: dict[str, Any],
+        *,
+        merchant_base_unit_uzs: int,
+    ) -> dict[str, Any]:
+        from app.application.pricing.product_markup import order_line_totals
+
         delivery_share = Decimal(int(order.delivery_cost_uzs or 0))
-        total_received = product_subtotal + delivery_share
+        merchant_sub, customer_goods, markup = order_line_totals(
+            merchant_base_unit_uzs,
+            int(order.quantity),
+        )
+        total_received = Decimal(customer_goods) + delivery_share
         return {
             **billing,
             "amount": int(total_received),
             "total_received": total_received,
-            "product_subtotal": product_subtotal,
+            "product_subtotal": Decimal(customer_goods),
+            "merchant_subtotal_uzs": merchant_sub,
+            "platform_markup_uzs": markup,
             "delivery_share_uzs": delivery_share,
             "yandex_quote_uzs": delivery_share,
         }
+
+    async def _fulfill_debt_checkout(
+        self,
+        checkout: OrderCheckoutPaymentModel,
+        *,
+        provider_trans_id: str,
+        billing: dict[str, Any],
+    ) -> None:
+        from app.application.billing.merchant_debt_service import MerchantDebtService
+
+        if not checkout.shop_id:
+            raise ValueError("debt_checkout_missing_shop")
+
+        await self._checkout_repo.mark_success(checkout, provider_trans_id=provider_trans_id)
+        idempotency = billing.get("idempotency_key") or f"debt_checkout:{checkout.id}"
+        debt_svc = MerchantDebtService(self._session, self._settings)
+        await debt_svc.apply_debt_payment(
+            checkout.shop_id,
+            int(checkout.amount_uzs),
+            idempotency_key=str(idempotency),
+            reference_type="checkout",
+            reference_id=checkout.id,
+        )
 
     async def _confirm_order_paid(self, order: OrderModel, billing: dict[str, Any]) -> None:
         if order.status in (OrderStatus.cancelled.value, OrderStatus.completed.value):
@@ -357,6 +398,16 @@ class OrderPaymentService:
         locked = result.scalar_one_or_none()
         if not locked:
             return
+
+        product = await self._marketplace.get_product_by_id(locked.product_id)
+        if not product:
+            raise ValueError("product_not_found")
+
+        billing = self._order_billing(
+            locked,
+            billing,
+            merchant_base_unit_uzs=int(product.price),
+        )
 
         if locked.status == OrderStatus.reserved.value:
             locked.status = OrderStatus.confirmed.value

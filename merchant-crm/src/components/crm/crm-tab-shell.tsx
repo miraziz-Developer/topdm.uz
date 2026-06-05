@@ -43,10 +43,7 @@ export function CrmTabShell({ tabs, activeTab, title, description, children }: P
           </div>
         </div>
 
-        <div
-          className="mt-5 flex gap-1 overflow-x-auto rounded-xl bg-canvas/60 p-1 ring-1 ring-border-subtle/80"
-          role="tablist"
-        >
+        <div className="mt-5 flex gap-2" role="tablist">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const url = new URL(tab.href, "http://local");
@@ -62,13 +59,13 @@ export function CrmTabShell({ tabs, activeTab, title, description, children }: P
                 role="tab"
                 aria-selected={isActive}
                 className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-200",
+                  "inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold tracking-tight transition-all duration-200",
                   isActive
-                    ? "bg-surface text-electric-600 shadow-sm ring-1 ring-border-subtle"
-                    : "text-text-400 hover:text-text-100",
+                    ? "bg-text-100 text-white shadow-[0_6px_18px_rgba(10,12,18,0.15)]"
+                    : "bg-canvas/80 text-text-400 ring-1 ring-border-subtle hover:text-text-100",
                 )}
               >
-                {Icon ? <Icon className={cn("h-4 w-4", isActive && "text-electric-500")} /> : null}
+                {Icon ? <Icon className={cn("h-4 w-4", isActive ? "text-white/90" : "")} /> : null}
                 {tab.label}
               </Link>
             );

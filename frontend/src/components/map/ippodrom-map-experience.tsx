@@ -911,6 +911,11 @@ export function IppodromMapExperience({ mapTilerKey = "" }: IppodromMapExperienc
           <p className="pointer-events-auto mx-auto mt-2 max-w-sm rounded-xl bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700">
             {storesError}
           </p>
+        ) : !storesLoading && markers.length === 0 ? (
+          <p className="pointer-events-auto mx-auto mt-2 max-w-sm rounded-xl bg-amber-50 px-3 py-2 text-center text-xs font-medium text-amber-900">
+            Bu bozorda do&apos;kon topilmadi. CRM → Joylashuvda GPS va qavatni saqlang, yoki bozor filtri
+            to&apos;g&apos;riligini tekshiring.
+          </p>
         ) : null}
 
         <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:items-start md:justify-between">

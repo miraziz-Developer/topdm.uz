@@ -20,7 +20,7 @@ export type MessageKey =
 type CoreMessageKey = Exclude<MessageKey, HomeMessageKey>;
 
 const uz: Record<CoreMessageKey, string> = {
-  "app.name": "Topdim.UZ",
+  "app.name": "Bozorliii.uz",
   "nav.search": "Qidiruv",
   "nav.cart": "Savat",
   "nav.profile": "Profil",
@@ -35,7 +35,7 @@ const uz: Record<CoreMessageKey, string> = {
 };
 
 const ru: Record<CoreMessageKey, string> = {
-  "app.name": "Topdim.UZ",
+  "app.name": "Bozorliii.uz",
   "nav.search": "Поиск",
   "nav.cart": "Корзина",
   "nav.profile": "Профиль",
@@ -50,7 +50,7 @@ const ru: Record<CoreMessageKey, string> = {
 };
 
 const en: Record<CoreMessageKey, string> = {
-  "app.name": "Topdim.UZ",
+  "app.name": "Bozorliii.uz",
   "nav.search": "Search",
   "nav.cart": "Cart",
   "nav.profile": "Profile",

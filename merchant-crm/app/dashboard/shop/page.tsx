@@ -9,21 +9,28 @@ import { ShareHubPanel } from "@/components/hubs/share-hub-panel";
 import { CrmTip } from "@/components/crm/crm-section";
 import { IncomingVisitorsPanel } from "@/components/incoming-visitors-panel";
 import { PrecisionLocationWorkspace } from "@/components/precision-location-workspace";
+import { ShopBrandingPanel } from "@/components/shop-branding-panel";
 import { CRM_SHOP_TABS } from "@/lib/crm-nav";
 import BillingPage from "@/app/dashboard/billing/page";
 
 function ShopHubContent() {
   const tabParam = useSearchParams().get("tab");
   const tab =
-    tabParam === "map" || tabParam === "analytics" || tabParam === "billing" ? tabParam : "share";
+    tabParam === "profile" ||
+    tabParam === "map" ||
+    tabParam === "analytics" ||
+    tabParam === "billing"
+      ? tabParam
+      : "profile";
 
   return (
     <CrmTabShell
       tabs={CRM_SHOP_TABS}
       activeTab={tab}
       title="Do'kon"
-      description="Mijozlarga ulashish, joylashuv, statistika va obuna — hammasi bitta joyda, oddiy tilda."
+      description="Logo va brend, ulashish, joylashuv, statistika — hammasi bitta joyda."
     >
+      {tab === "profile" ? <ShopBrandingPanel /> : null}
       {tab === "share" ? <ShareHubPanel /> : null}
       {tab === "map" ? (
         <div className="space-y-4">

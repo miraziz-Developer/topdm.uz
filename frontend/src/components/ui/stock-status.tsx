@@ -13,12 +13,9 @@ export function StockStatus({ product }: StockStatusProps) {
   if (product.is_available && (stock === undefined || stock > 0)) {
     return (
       <span className="inline-flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-70" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          </span>
-          <PackageCheck className="h-3.5 w-3.5" />
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-100/80 bg-emerald-50/80 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <PackageCheck className="h-3 w-3" />
           Hozir sotuvda
         </span>
         {typeof stock === "number" && stock > 0 ? (

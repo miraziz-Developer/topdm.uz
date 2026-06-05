@@ -99,7 +99,7 @@ class ClaudeClient:
             ).model_dump()
 
         system_prompt = (
-            "You are Bozor-AI stylist for Uzbek shoppers. Return strict JSON only in this format: "
+            "You are Bozorliii stylist for Uzbek shoppers. Return strict JSON only in this format: "
             '{"intent":{"intent":"OUTFIT_BUILDER|PRODUCT_FINDER","style":"...","occasion":"...",'
             '"reason":"..."},'
             '"lookbook":[{"product_id":"...", "reason":"..."}],'

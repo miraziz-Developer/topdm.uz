@@ -9,7 +9,12 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.delivery.yandex_quote import YandexDeliveryQuoteEngine
-from app.application.finance.split_rules import PaymentSplit, assert_split_integrity, compute_payment_split
+from app.application.finance.split_rules import (
+    PaymentSplit,
+    assert_split_integrity,
+    compute_payment_split,
+    compute_payment_split_with_markup,
+)
 from app.core.config import Settings, get_settings
 from app.infrastructure.repositories.finance_repo import FinanceRepository
 from app.models.finance import PlatformTransactionStatus
@@ -70,12 +75,20 @@ class TransactionSplitterService:
                 session=self._session,
             )
 
-            split = compute_payment_split(
-                total_amount_received=total_received,
-                product_subtotal=product_subtotal,
-                delivery_share=delivery_share,
-                settings=self._settings,
-            )
+            merchant_goods = billing_payload.get("merchant_subtotal_uzs")
+            if merchant_goods is not None:
+                split = compute_payment_split_with_markup(
+                    total_amount_received=total_received,
+                    merchant_goods_subtotal=Decimal(str(merchant_goods)),
+                    delivery_share=delivery_share,
+                )
+            else:
+                split = compute_payment_split(
+                    total_amount_received=total_received,
+                    product_subtotal=product_subtotal,
+                    delivery_share=delivery_share,
+                    settings=self._settings,
+                )
             assert_split_integrity(split)
 
             log.info("split computed", **{k: str(v) for k, v in split.as_dict().items()})
@@ -211,8 +224,24 @@ class TransactionSplitterService:
         return None
 
     @staticmethod
+    def _json_safe(value: Any) -> Any:
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, dict):
+            return {str(k): TransactionSplitterService._json_safe(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [TransactionSplitterService._json_safe(v) for v in value]
+        if isinstance(value, tuple):
+            return [TransactionSplitterService._json_safe(v) for v in value]
+        return value
+
+    @staticmethod
     def _sanitize_billing_snapshot(billing_payload: dict[str, Any], split: PaymentSplit) -> dict[str, Any]:
-        safe = {k: billing_payload[k] for k in billing_payload if k not in {"card_number", "cvv", "secret"}}
+        safe = {
+            k: TransactionSplitterService._json_safe(v)
+            for k, v in billing_payload.items()
+            if k not in {"card_number", "cvv", "secret"}
+        }
         safe["computed_split"] = split.as_dict()
         return safe
 

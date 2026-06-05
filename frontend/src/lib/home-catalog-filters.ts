@@ -2,6 +2,9 @@ import type { Product, SearchParams } from "@/types";
 
 export type SaleMode = "Chakana" | "Optom";
 
+/** Mahalliy bozor yoki Xitoy (Taobao) vitrinasi */
+export type CatalogOrigin = "local" | "china";
+
 export type MarketZoneId = "all" | "Abu Sahiy" | "Ippodrom" | "Kozgalovka";
 
 export type BlockSectorId =
@@ -21,6 +24,7 @@ export type RootCategoryId =
   | "Bolalar & Maktab";
 
 export type BazaarCatalogFilters = {
+  catalogOrigin: CatalogOrigin;
   saleMode: SaleMode;
   marketZone: MarketZoneId;
   blockSector: BlockSectorId;
@@ -55,6 +59,7 @@ export const ROOT_CATEGORIES: Array<{ id: RootCategoryId; label: string }> = [
 ];
 
 export const DEFAULT_BAZAAR_FILTERS: BazaarCatalogFilters = {
+  catalogOrigin: "local",
   saleMode: "Chakana",
   marketZone: "all",
   blockSector: "all",
@@ -91,6 +96,7 @@ export function filterProductsClient(
   const max = filters.maxPrice.trim() ? Number(filters.maxPrice.replace(/\s/g, "")) : null;
 
   return products.filter((product) => {
+    if (filters.catalogOrigin === "china") return true;
     const saleType = product.sale_type ?? "Chakana";
     if (saleType !== filters.saleMode) return false;
     if (min !== null && !Number.isNaN(min) && product.price < min) return false;
@@ -119,6 +125,7 @@ export function filtersToSearchParams(filters: BazaarCatalogFilters): SearchPara
 
 export function filtersAnimationKey(filters: BazaarCatalogFilters): string {
   return [
+    filters.catalogOrigin,
     filters.saleMode,
     filters.marketZone,
     filters.blockSector,

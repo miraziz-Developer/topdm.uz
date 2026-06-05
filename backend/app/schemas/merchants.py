@@ -12,7 +12,7 @@ class MerchantSpatialSchema(BaseModel):
     logo_url: str | None = None
     latitude: float | None = None
     longitude: float | None = None
-    floor: int = Field(default=1, ge=1, le=3)
+    floor: int = Field(default=1, ge=1, le=99)
     block_id: str = Field(default="B", max_length=8)
     stall_number: str = Field(default="14", max_length=16)
     status: str = "active"

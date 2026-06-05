@@ -24,7 +24,7 @@ export function resetYandexMapsLoader(): void {
 /** Yandex Developer kabinetida «HTTP referrer» ro‘yxatiga qo‘shish kerak. */
 export function yandexMapsReferrerPatterns(): string[] {
   if (typeof window === "undefined") {
-    return ["http://localhost:3002/*", "https://topdim.uz/*", "https://www.topdim.uz/*"];
+    return ["http://localhost:3002/*", "https://bozorliii.uz/*", "https://www.bozorliii.uz/*"];
   }
   const { protocol, host } = window.location;
   const origin = `${protocol}//${host}`;
@@ -32,8 +32,8 @@ export function yandexMapsReferrerPatterns(): string[] {
     `${origin}/*`,
     "http://localhost/*",
     "http://127.0.0.1/*",
-    "https://topdim.uz/*",
-    "https://www.topdim.uz/*",
+    "https://bozorliii.uz/*",
+    "https://www.bozorliii.uz/*",
   ]);
   if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) {
     patterns.add(`http://${host}/*`);

@@ -1,9 +1,9 @@
 [
   {
     "AllowedOrigins": [
-      "https://topdim.uz",
-      "https://www.topdim.uz",
-      "https://crm.topdim.uz"
+      "https://bozorliii.uz",
+      "https://www.bozorliii.uz",
+      "https://crm.bozorliii.uz"
     ],
     "AllowedMethods": ["GET", "HEAD"],
     "AllowedHeaders": ["*"],

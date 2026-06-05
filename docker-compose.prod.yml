@@ -1,4 +1,4 @@
-# Bozor-AI production stack — immutable images, private DB network, Nginx edge.
+# Bozorliii production stack — immutable images, private DB network, Nginx edge.
 #
 #   cp .env.production.example .env   # fill secrets
 #   mkdir -p deploy/ssl deploy/certbot/www
@@ -49,14 +49,18 @@ services:
       - .env
     environment:
       APP_ENV: production
+      PRODUCTION: "true"
       APP_DEBUG: ${APP_DEBUG:-false}
+      ALLOW_DEV_MOCKS: "false"
       RUN_SEED: "false"
+      SENTRY_DSN: ${SENTRY_DSN:-}
       ENABLE_ONLINE_CHECKOUT: ${ENABLE_ONLINE_CHECKOUT:-false}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+    # Persistent media: stories, reels, review photos survive container redeploys.
     volumes:
       - bozor_uploads:/app/uploads
     depends_on:
@@ -102,8 +106,8 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
         NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://topdim.uz}
-        NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-https://crm.topdim.uz}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.uz}
+        NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-https://crm.bozorliii.uz}
         NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
         NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
         NEXT_PUBLIC_MEDIA_CDN_URL: ${NEXT_PUBLIC_MEDIA_CDN_URL:-}
@@ -129,12 +133,18 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
         NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.online}
+        NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-yandex-maps-api}
+        NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
     restart: always
     env_file:
       - .env
     environment:
       NODE_ENV: production
       BACKEND_API_URL: http://backend:8000
+      NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+      YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+      NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-yandex-maps-api}
     depends_on:
       backend:
         condition: service_healthy
@@ -162,7 +172,11 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsSk https://127.0.0.1/health -H 'Host: bozorliii.online' >/dev/null 2>&1 || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

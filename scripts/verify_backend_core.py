@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Exhaustive Bozor-AI backend verification against the live API + Redis + Postgres stack.
+Exhaustive Bozorliii backend verification against the live API + Redis + Postgres stack.
 
 Usage (inside backend container):
   python /app/scripts/verify_backend_core.py
@@ -84,7 +84,7 @@ class Verifier:
         return payload
 
     def run(self) -> int:
-        print(f"Bozor-AI verify_backend_core → {API_BASE}\n")
+        print(f"Bozorliii verify_backend_core → {API_BASE}\n")
 
         self.section("Infrastructure")
         hr = self.client.get(f"{ROOT}/health")

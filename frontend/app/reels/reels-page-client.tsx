@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { ReelsFeed } from "@/components/reels/reels-feed";
 
 /** Full-screen reels — header hidden via FloatingHeader route check */
@@ -25,7 +25,7 @@ export function ReelsPageClient() {
         >
           <ArrowLeft className="h-5 w-5 text-white" />
         </button>
-        <TopdimLogo
+        <BozorliiiLogo
           variant="wordmark"
           size="xs"
           href={null}

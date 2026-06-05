@@ -1,4 +1,4 @@
-"""Topdim.UZ Reels API — video feed, upload, interactions."""
+"""Bozorliii.uz Reels API — video feed, upload, interactions."""
 from __future__ import annotations
 
 import uuid
@@ -71,10 +71,22 @@ async def reels_feed(
             products_by_id[pid] for pid in v.get("tagged_product_ids", []) if pid in products_by_id
         ]
 
+    if not videos:
+        return {
+            "items": [],
+            "page": page,
+            "has_more": False,
+            "empty_state": {
+                "code": "no_reels",
+                "title": "Reels hozircha yo'q",
+                "message": "Do'konlar CRM → Kontent markazi orqali video yuklaganda feed shu yerda to'ladi.",
+            },
+        }
     return {
         "items": videos,
         "page": page,
         "has_more": len(videos) == limit,
+        "empty_state": None,
     }
 
 

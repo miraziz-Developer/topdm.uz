@@ -23,6 +23,7 @@ import {
   totalSkuStock,
   type VariantCatalog,
 } from "@/lib/product-variants";
+import { customerSalePriceUzs, formatUzs } from "@/lib/product-pricing";
 import { cn } from "@/lib/utils";
 
 type Mode = "create" | "edit";
@@ -229,12 +230,21 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
             <>
               <Input label="Nomi" value={name} onChange={(e) => setName(e.target.value)} placeholder="Masalan: Charm sumka" />
               <Input
-                label="Narxi (so'm)"
+                label="Sizning narxingiz (so'm) — bazaviy"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 inputMode="numeric"
                 placeholder="245000"
               />
+              {Number(price.replace(/\s/g, "")) > 0 ? (
+                <p className="rounded-xl bg-electric-500/10 px-3 py-2 text-xs text-text-300">
+                  Mijoz saytda ko&apos;radi:{" "}
+                  <span className="font-bold text-electric-600">
+                    {formatUzs(customerSalePriceUzs(Number(price.replace(/\s/g, ""))))}
+                  </span>{" "}
+                  <span className="text-text-400">(+15% platforma ustamasi)</span>
+                </p>
+              ) : null}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-text-300">Tavsif</label>
                 <textarea

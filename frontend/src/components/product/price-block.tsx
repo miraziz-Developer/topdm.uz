@@ -40,8 +40,8 @@ export function PriceBlock({ price, mode, onModeChange, className }: PriceBlockP
         className={cn(
           "rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric-500/40",
           mode === "single"
-            ? "border-ink-900 bg-ink-900 text-white shadow-card"
-            : "border-border-default bg-elevated text-ink-700 hover:border-ink-700/40",
+            ? "border-orange-400 bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-card"
+            : "border-orange-200 bg-amber-50/80 text-amber-900 hover:border-orange-300",
         )}
       >
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-80">Yakka narx</p>
@@ -56,8 +56,8 @@ export function PriceBlock({ price, mode, onModeChange, className }: PriceBlockP
         className={cn(
           "relative rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric-500/40",
           mode === "group"
-            ? "border-electric-500/70 bg-electric-500/8 shadow-[0_0_0_4px_rgba(10,124,255,0.08)]"
-            : "border-electric-500/30 bg-electric-500/5 hover:border-electric-500/50",
+            ? "border-sky-500/70 bg-sky-50 shadow-[0_0_0_4px_rgba(14,165,233,0.12)]"
+            : "border-sky-300/40 bg-sky-50/60 hover:border-sky-400/60",
         )}
       >
         <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-electric-500">

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 56" fill="none" role="img" aria-label="Bozorliii.uz">
+  <defs>
+    <linearGradient id="bl-mark-grad" x1="4" y1="4" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0066FF"/>
+      <stop offset="0.55" stop-color="#7B3FE4"/>
+      <stop offset="1" stop-color="#FF4D12"/>
+    </linearGradient>
+    <linearGradient id="bl-dot-grad" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#0066FF"/>
+      <stop offset="1" stop-color="#FF4D12"/>
+    </linearGradient>
+  </defs>
+  <rect width="56" height="56" rx="16" fill="url(#bl-mark-grad)"/>
+  <path fill="#fff" d="M12 26c0-7 5.5-12 16-12s16 5 16 12v2H12v-2z"/>
+  <path fill="#fff" d="M14 28h28v16c0 2.5-2 4-5 4H19c-3 0-5-1.5-5-4V28z"/>
+  <path fill="#fff" d="M26 16l2.4 4.8 5.2.8-3.8 3.7.9 5.3-4.7-2.5-4.7 2.5.9-5.3-3.8-3.7 5.2-.8L26 16z"/>
+  <text x="72" y="36" font-family="Outfit, system-ui, sans-serif" font-size="28" font-weight="800" fill="#030308" letter-spacing="-0.03em">Bozorliii</text>
+  <circle cx="248" cy="30" r="3" fill="#0066FF"/>
+  <circle cx="256" cy="30" r="3" fill="#7B3FE4"/>
+  <circle cx="264" cy="30" r="3" fill="#FF4D12"/>
+  <text x="276" y="36" font-family="Outfit, system-ui, sans-serif" font-size="22" font-weight="700" fill="url(#bl-dot-grad)">.uz</text>
+</svg>

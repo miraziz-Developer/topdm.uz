@@ -181,7 +181,7 @@ async def chat_agent_turn(
     body: ChatAgentTurnBody,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Bozor AI — human-like Groq stylist with conversation memory."""
+    """Bozorliii — human-like Groq stylist with conversation memory."""
     try:
         require_groq_api_key()
     except ValueError as exc:

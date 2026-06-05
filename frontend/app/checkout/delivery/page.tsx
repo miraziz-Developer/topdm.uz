@@ -1,5 +1,5 @@
-import { DeliveryCheckout } from "@/components/checkout/delivery-checkout";
+import { redirect } from "next/navigation";
 
-export default function DeliveryCheckoutPage() {
-  return <DeliveryCheckout />;
+export default function DeliveryCheckoutRedirectPage() {
+  redirect("/checkout?mode=delivery");
 }

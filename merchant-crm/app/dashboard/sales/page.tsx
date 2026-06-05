@@ -16,7 +16,7 @@ function SalesHubContent() {
       tabs={CRM_SALES_TABS}
       activeTab={tab}
       title="Savdo"
-      description="Buyurtmalar va leadlar — bitta joyda. Yangi band qilishlarni birinchi navbatda ko'ring."
+      description="Buyurtmalar va leadlar — tez filtrlash, aniq holatlar."
     >
       {tab === "leads" ? <LeadsPanel /> : <OrdersPanel />}
     </CrmTabShell>

@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Customer storefront smoke", () => {
   test("home page loads", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Bozor|Topdim/i);
+    await expect(page).toHaveTitle(/Bozor|Bozorliii/i);
   });
 
   test("search page loads", async ({ page }) => {

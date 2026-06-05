@@ -59,7 +59,8 @@ def _customer_online_checkout_url(
     settings = get_settings()
     if not settings.enable_online_checkout or provider not in ONLINE_PAYMENT_METHODS:
         return None
-    base = (settings.site_url or settings.payment_checkout_base_url or "https://topdim.uz").rstrip("/")
+    # Local/staging should be able to override frontend domain explicitly.
+    base = (settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.uz").rstrip("/")
     return (
         f"{base}/checkout/{provider.value}"
         f"?checkout_id={checkout_id}&amount={int(amount_uzs)}"
@@ -166,6 +167,7 @@ async def execute_pickup_reservation(
                     pickup_time=request.pickup_time,
                     note=line_note,
                     ref_token=request.ref_token,
+                    payment_method=request.payment_method.value,
                 )
 
                 if primary_shop is None:

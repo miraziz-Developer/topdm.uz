@@ -34,7 +34,7 @@ def get_groq_api_key(settings: Settings | None = None) -> str:
 def require_groq_api_key(settings: Settings | None = None) -> str:
     key = get_groq_api_key(settings)
     if not key:
-        raise ValueError("Missing GROQ_API_KEY — Bozor-AI stylist requires Groq Cloud.")
+        raise ValueError("Missing GROQ_API_KEY — Bozorliii stylist requires Groq Cloud.")
     return key
 
 

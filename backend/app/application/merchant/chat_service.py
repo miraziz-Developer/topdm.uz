@@ -136,7 +136,15 @@ class MerchantChatService:
             f"Xabar: {message.body[:500]}"
         )
         try:
-            await self._notifier.send_message(int(shop.telegram_chat_id), text)
+            from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+
+            await notify_merchant_telegram(
+                self._notifier,
+                chat_id=int(shop.telegram_chat_id),
+                text=text,
+                shop_id=shop_id,
+                crm_next="/dashboard/chat",
+            )
         except Exception:
             logger.warning("chat_telegram_forward_failed", shop_id=str(shop_id))
 

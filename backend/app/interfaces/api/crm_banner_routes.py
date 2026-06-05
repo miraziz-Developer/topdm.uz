@@ -48,6 +48,20 @@ async def crm_list_tariffs(
     return {"items": items}
 
 
+@router.get("/quote")
+async def crm_quote_banner(
+    tariff_code: str,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db_session),
+    _: UUID = Depends(_merchant_shop_id),
+) -> dict:
+    service = CrmBannerService(db)
+    try:
+        return await service.quote_tariff(tariff_code, days)
+    except ValueError as exc:
+        raise _map_service_error(exc) from exc
+
+
 @router.get("/wallet")
 async def crm_merchant_wallet(
     shop_id: UUID = Depends(_merchant_shop_id),
@@ -69,6 +83,7 @@ async def crm_list_my_banners(
 @router.post("/create")
 async def crm_create_banner(
     tariff_code: str = Form(..., pattern="^(bronze|silver|gold)$"),
+    duration_days: int = Form(30, ge=7, le=90),
     title: str | None = Form(None),
     image_url: str | None = Form(None),
     product_id: UUID | None = Form(None),
@@ -95,6 +110,7 @@ async def crm_create_banner(
         return await service.create_pending_banner(
             shop_id=shop_id,
             tariff_code=tariff_code,
+            duration_days=duration_days,
             image_bytes=image_bytes,
             image_url=image_url,
             title=title,
@@ -134,6 +150,7 @@ async def crm_verify_payment(
 class RenewBannerBody(BaseModel):
     banner_id: UUID
     tariff_code: str | None = Field(None, pattern="^(bronze|silver|gold)$")
+    duration_days: int | None = Field(None, ge=7, le=90)
 
 
 @router.post("/renew")
@@ -148,6 +165,7 @@ async def crm_renew_banner(
             shop_id=shop_id,
             banner_id=body.banner_id,
             tariff_code=body.tariff_code,
+            duration_days=body.duration_days,
         )
     except ValueError as exc:
         raise _map_service_error(exc) from exc
@@ -158,6 +176,7 @@ async def _purchase_banner_handler(
     shop_id: UUID,
     db: AsyncSession,
     tariff_code: str,
+    duration_days: int,
     title: str | None,
     image_url: str | None,
     product_id: UUID | None,
@@ -174,6 +193,7 @@ async def _purchase_banner_handler(
         return await service.purchase_with_coins(
             shop_id=shop_id,
             tariff_code=tariff_code,
+            duration_days=duration_days,
             image_bytes=image_bytes,
             image_url=image_url,
             title=title,
@@ -187,6 +207,7 @@ async def _purchase_banner_handler(
 @router.post("/purchase")
 async def crm_purchase_banner(
     tariff_code: str = Form(..., pattern="^(bronze|silver|gold)$"),
+    duration_days: int = Form(30, ge=7, le=90),
     title: str | None = Form(None),
     image_url: str | None = Form(None),
     product_id: UUID | None = Form(None),
@@ -199,6 +220,7 @@ async def crm_purchase_banner(
         shop_id=shop_id,
         db=db,
         tariff_code=tariff_code,
+        duration_days=duration_days,
         title=title,
         image_url=image_url,
         product_id=product_id,
@@ -210,6 +232,7 @@ async def crm_purchase_banner(
 @router.post("/buy-with-coins")
 async def crm_buy_banner_with_coins(
     tariff_code: str = Form(..., pattern="^(bronze|silver|gold)$"),
+    duration_days: int = Form(30, ge=7, le=90),
     title: str | None = Form(None),
     image_url: str | None = Form(None),
     product_id: UUID | None = Form(None),
@@ -222,6 +245,7 @@ async def crm_buy_banner_with_coins(
         shop_id=shop_id,
         db=db,
         tariff_code=tariff_code,
+        duration_days=duration_days,
         title=title,
         image_url=image_url,
         product_id=product_id,

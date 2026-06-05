@@ -31,7 +31,7 @@ def _message_implies_outfit(text: str) -> bool:
     return False
 
 
-SEMANTIC_SYSTEM_PROMPT = """Siz Bozor AI uchun o'zbek/rus/ingliz tilidagi moda so'rovlarini SEMANTIK tahlil qiluvchi parsersiz.
+SEMANTIC_SYSTEM_PROMPT = """Siz Bozorliii uchun o'zbek/rus/ingliz tilidagi moda so'rovlarini SEMANTIK tahlil qiluvchi parsersiz.
 Foydalanuvchi niyatini kontekstdan tushuning (xatolar, slang, aralash til).
 Oldingi suhbat va mijoz profilini hisobga oling — «yana», «arzonroq» deganda avvalgi budjet/uslub saqlansin.
 

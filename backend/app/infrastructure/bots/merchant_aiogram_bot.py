@@ -68,15 +68,16 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             await state.update_data(shop_id=str(existing.id))
             await message.answer(
                 f"Qayta xush kelibsiz, {existing.name}!\n\n"
-                "Rasm yuboring — AI to'ldiradi, tasdiqlang.\n"
-                "CRM Panel — buyurtma va chat.",
+                "📸 Rasm yuboring — AI mahsulot to'ldiradi\n"
+                "📱 CRM Panel — buyurtma, chat, statistika (ilova shart emas)\n"
+                "🗺 Xarita — rasta joylashuvi CRM bilan bir xil",
                 reply_markup=merchant_menu_keyboard(existing.id),
             )
             await message.answer("Tezkor:", reply_markup=start_inline_keyboard(existing.id))
             return
 
         await message.answer(
-            "Topdim Merchant bot\n\n"
+            "Bozorliii Merchant bot\n\n"
             "Yangi do'kon: /register — ro'yxatdan o'tish (8 qadam)\n"
             "Admin havolasi: /start shop_<UUID> + kontakt\n\n"
             "CRM: login + parol yoki Telegram OTP",

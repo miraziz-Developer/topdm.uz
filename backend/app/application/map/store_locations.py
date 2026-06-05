@@ -44,7 +44,8 @@ def parse_shop_spatial(shop) -> dict[str, Any]:
     stall = loc["stall_number"]
     if stall == "—":
         stall = str(8 + (ord(block) % 4) * 3)
-    floor = loc["floor_level"] if loc["floor_level"] is not None else 1
+    raw_floor = loc["floor_level"] if loc["floor_level"] is not None else 1
+    floor = max(1, min(99, int(raw_floor)))
     return {
         "block_id": block,
         "stall_number": stall,

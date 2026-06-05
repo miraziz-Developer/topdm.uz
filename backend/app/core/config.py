@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,9 +13,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Bozor-AI Engine"
+    app_name: str = "Bozorliii Engine"
     app_env: str = "dev"
+    production: bool = Field(default=False, validation_alias=AliasChoices("PRODUCTION", "production"))
     app_debug: bool = True
+    allow_dev_mocks: bool = True
+    sentry_dsn: str = ""
+    groq_api_key_backup: str = ""
     api_prefix: str = "/api/v1"
     uvicorn_workers: int = 1
 
@@ -28,12 +32,27 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
     groq_api_key: str = ""
-    """Required for Bozor-AI stylist — Groq Cloud 70B (see app.ai.config)."""
+    """Required for Bozorliii stylist — Groq Cloud 70B (see app.ai.config)."""
     groq_model: str = "llama-3.3-70b-versatile"
     groq_agent_model: str = ""
     groq_vision_model: str = "llama-3.2-11b-vision-preview"
     usd_to_uzs_rate: int = 13_000
     eur_to_uzs_rate: int = 14_000
+    rapidapi_key: str = ""
+    taobao_datahub_host: str = "taobao-datahub.p.rapidapi.com"
+    taobao_datahub_base_url: str = "https://taobao-datahub.p.rapidapi.com"
+    premium_cny_to_uzs_rate: float = 1_950.0
+    premium_margin_pct: float = 15.0
+    premium_margin_multiplier: float = 1.15
+    premium_cargo_rate_usd_per_kg: float = 8.0
+    premium_price_round_uzs: int = 1_000
+    premium_local_courier_base_uzs: int = 25_000
+    """Vergul bilan Taobao item ID — bo'sh bo'lsa showcase ro'yxati ishlatiladi."""
+    premium_china_catalog_ids: str = ""
+    """true = Taobao API bo'lmasa ham demo vitrina (BTS/uchrashuv). Productionda o'chiring."""
+    premium_china_demo_mode: bool = False
+    """Xitoy (Taobao) market API — hozircha o'chiq, faqat mahalliy bozor."""
+    enable_china_market: bool = False
     google_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
     gemini_embedding_model: str = "models/gemini-embedding-2"
@@ -41,7 +60,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-3-5-sonnet-20241022"
     embedding_model: str = "text-embedding-3-small"
-    site_url: str = "https://topdim.uz"
+    site_url: str = "https://bozorliii.uz"
     external_api_timeout_seconds: float = 20.0
     user_rate_limit_per_minute: int = 10
     order_reserve_rate_limit_per_minute: int = 8
@@ -51,7 +70,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_bot_username: str = ""
     resend_api_key: str = ""
-    resend_from_email: str = "Bozor AI <onboarding@resend.dev>"
+    resend_from_email: str = "Bozorliii <onboarding@resend.dev>"
     openai_api_key: str = ""
     openai_whisper_model: str = "whisper-1"
     merchant_alert_idle_days: int = 3
@@ -66,9 +85,19 @@ class Settings(BaseSettings):
     payme_secret_key: str = ""
     payment_callback_ip_whitelist: str = ""
     payment_callback_max_age_seconds: int = 900
+    payment_sandbox_mode: bool = False
+    payment_sandbox_click_service_id: str = "sandbox-service"
+    payment_sandbox_click_secret_key: str = "sandbox-click-secret"
+    payment_sandbox_payme_merchant_id: str = "sandbox-merchant"
+    payment_sandbox_payme_secret_key: str = "sandbox-payme-secret"
 
     # Order settlement splitter (UZS)
     finance_order_commission_rate_pct: float = 5.0
+    # Mahsulot: do'konchi bazaviy narx + ustama (mijoz narxi). Obuna o'rniga.
+    platform_product_markup_pct: float = 15.0
+    subscriptions_enabled: bool = False
+    """Naqd/terminal pickup: qarz shu limitdan oshsa do'kon avtomatik bloklanadi (UZS)."""
+    merchant_debt_block_threshold_uzs: int = 100_000
     finance_delivery_fallback_uzs: int = 25_000
     finance_delivery_base_uzs: int = 12_000
     finance_delivery_uzs_per_km: int = 3_500
@@ -89,6 +118,20 @@ class Settings(BaseSettings):
         """Backward-compatible alias."""
         return self.yandex_delivery_token
 
+    # topdmbozor.uz — P2P Click + SMS webhook + BTS
+    tdb_click_p2p_card_number: str = ""
+    tdb_sms_webhook_secret: str = ""
+    tdb_bts_api_base_url: str = "https://api.bts.uz"
+    tdb_bts_api_token: str = ""
+    tdb_bts_api_mock: bool = True
+    tdb_bts_fee_uzs: int = 25_000
+    tdb_bts_payout_card_number: str = ""
+    tdb_platform_commission_pct: float = 10.0
+    tdb_bts_poll_interval_seconds: int = 2700
+    tdb_p2p_provider_url: str = "https://api.provayder.uz"
+    tdb_p2p_provider_api_key: str = ""
+    tdb_p2p_provider_mock: bool = True
+
     admin_api_key: str = ""
     price_outlier_multiplier: float = 20.0
     supabase_url: str = ""
@@ -96,6 +139,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_storage_bucket: str = "products"
     media_storage_backend: str = "local"
+    """Merchant story ko'rinish muddati (soat)."""
+    story_ttl_hours: int = 24
     s3_endpoint_url: str = ""
     s3_bucket: str = ""
     s3_access_key_id: str = ""
@@ -109,7 +154,20 @@ class Settings(BaseSettings):
 
     @property
     def is_production(self) -> bool:
+        if self.production:
+            return True
         return self.app_env.strip().lower() in {"production", "prod"}
+
+    @model_validator(mode="after")
+    def _enforce_production_safety(self) -> "Settings":
+        if self.is_production:
+            object.__setattr__(self, "allow_dev_mocks", False)
+            if self.premium_china_demo_mode:
+                object.__setattr__(self, "premium_china_demo_mode", False)
+            object.__setattr__(self, "tdb_bts_api_mock", False)
+            object.__setattr__(self, "tdb_p2p_provider_mock", False)
+            object.__setattr__(self, "payment_sandbox_mode", False)
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

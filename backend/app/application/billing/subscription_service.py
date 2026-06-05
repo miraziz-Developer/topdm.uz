@@ -174,6 +174,16 @@ class SubscriptionService:
 
     async def check_product_limit(self, shop_id: UUID, current_count: int) -> dict[str, Any]:
         """Do'kon obunasi mahsulot limitini tekshirish."""
+        if not self._settings.subscriptions_enabled:
+            return {
+                "can_add": True,
+                "current_count": current_count,
+                "limit": FREE_PLAN.max_products,
+                "plan_code": "free",
+                "upgrade_required": False,
+                "message": None,
+                "pricing_model": "product_markup",
+            }
         sub = await self.get_shop_subscription(shop_id)
         plan = PLAN_BY_CODE.get(sub["plan"]["code"], FREE_PLAN)
         limit = plan.max_products

@@ -19,6 +19,7 @@ from app.core.logging_config import configure_logging
 from app.infrastructure.db.session import AsyncSessionFactory
 from app.interfaces.api.routes import router as api_router
 from app.interfaces.api.billing_routes import router as billing_router
+from app.interfaces.api.billing_routes import vendors_router
 from app.interfaces.api.reels_routes import router as reels_router
 from app.interfaces.middlewares.exception_handlers import (
     database_exception_handler,
@@ -34,6 +35,36 @@ from app.interfaces.ws.chat_ws import router as ws_router
 configure_logging()
 settings = get_settings()
 validate_settings(settings)
+
+
+def _init_sentry() -> None:
+    dsn = settings.sentry_dsn.strip()
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+    except ImportError:
+        return
+
+    traces_sample_rate = 0.15 if settings.is_production else 1.0
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=settings.app_env,
+        release=settings.app_name,
+        traces_sample_rate=traces_sample_rate,
+        send_default_pii=False,
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+            SqlalchemyIntegration(),
+        ],
+    )
+
+
+_init_sentry()
 
 _openapi = "/openapi.json" if settings.app_debug else None
 _docs = "/docs" if settings.app_debug else None
@@ -93,6 +124,7 @@ app.middleware("http")(client_context_middleware)
 app.middleware("http")(request_id_middleware)
 app.include_router(api_router, prefix=settings.api_prefix)
 app.include_router(billing_router, prefix=settings.api_prefix)
+app.include_router(vendors_router, prefix=settings.api_prefix)
 app.include_router(reels_router, prefix=settings.api_prefix)
 app.include_router(ws_router)
 

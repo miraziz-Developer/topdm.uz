@@ -22,6 +22,8 @@ class OrderCheckoutPaymentModel(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True)
     provider_trans_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False, default="order", server_default="order", index=True)
+    shop_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     meta: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

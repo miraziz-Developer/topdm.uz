@@ -38,7 +38,7 @@ def build_share_kit(
 ) -> dict[str, Any]:
     site = settings.site_url.rstrip("/")
     shop_url = f"{site}/shop/{shop.slug}"
-    tg_bot = (settings.telegram_bot_username or "topdim_bot").lstrip("@")
+    tg_bot = (settings.telegram_bot_username or "bozorliii_bot").lstrip("@")
     bot_deep_link = f"https://t.me/{tg_bot}?start=shop_{shop.id}"
 
     location = _location_line(shop)
@@ -50,7 +50,7 @@ def build_share_kit(
 
     invite_long = (
         f"Assalomu alaykum!\n\n"
-        f"«{shop.name}» do'konimizni Topdim orqali onlayn ko'ring 👇\n"
+        f"«{shop.name}» do'konimizni Bozorliii orqali onlayn ko'ring 👇\n"
         f"{shop_url}\n\n"
         f"Nima qilishingiz mumkin:\n"
         f"• Mahsulotlar va narxlarni ko'rish\n"
@@ -63,7 +63,7 @@ def build_share_kit(
     ).strip()
 
     invite_short = (
-        f"«{shop.name}» — Topdimda ko'ring 👇\n"
+        f"«{shop.name}» — Bozorliiida ko'ring 👇\n"
         f"{shop_url}\n"
         f"{hours_line}"
     )
@@ -78,7 +78,7 @@ def build_share_kit(
     poster_text = (
         f"━━━━━━━━━━━━━━━━\n"
         f"  {shop.name.upper()}\n"
-        f"  Topdim — onlayn vitrina\n"
+        f"  Bozorliii — onlayn vitrina\n"
         f"━━━━━━━━━━━━━━━━\n\n"
         f"Skanerlang 👇 yoki havola:\n"
         f"{shop_url}\n\n"
@@ -124,7 +124,7 @@ def build_share_kit(
         "qr_image_url": f"{qr_base}&size=480&text={encoded_url}",
         "qr_download_url": f"{qr_base}&size=900&text={encoded_url}",
         "qr_poster_url": f"{qr_base}&size=640&captionFontSize=22&text={encoded_url}",
-        "copy_lines": [f"Do'kon: {shop.name}", f"Topdim: {shop_url}", hours_line],
+        "copy_lines": [f"Do'kon: {shop.name}", f"Bozorliii: {shop_url}", hours_line],
         "share_messages": messages,
         "default_message": invite_long,
     }

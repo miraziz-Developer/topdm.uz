@@ -6,6 +6,7 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
 from app.domain.interfaces.notifier_gateway import NotifierGateway
 from app.infrastructure.db.models import OrderModel, ProductModel, ShopModel
 from app.models.merchant_notification import MerchantCrmNotificationModel
@@ -81,7 +82,14 @@ class ReservationCrmDispatcher:
             f"📍 {payload.store_location}"
         )
         try:
-            sent = await self._notifier.send_message(int(chat_id), message)
+            await notify_merchant_telegram(
+                self._notifier,
+                chat_id=int(chat_id),
+                text=message,
+                shop_id=payload.shop.id,
+                crm_next="/dashboard/sales",
+            )
+            sent = True
             logger.info(
                 "reservation_telegram_dispatched",
                 extra={

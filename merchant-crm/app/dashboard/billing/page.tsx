@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
   TrendingUp,
@@ -8,14 +9,30 @@ import {
   Megaphone,
   Rocket,
   ChevronRight,
-  Coins,
 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 
+import { BalanceTopUpModal, type TopUpPackage } from "@/components/balance-top-up-modal";
+import { BillingWalletCard } from "@/components/billing-wallet-card";
+import { MerchantBillingStatusCard } from "@/components/dashboard/merchant-billing-status-card";
 import { CrmPageHeader } from "@/components/crm-page-header";
 import { Button } from "@/components/ui/button";
-import { getJson, getMerchantProducts, postJson } from "@/lib/api";
+import {
+  generateCoinTopUpInvoice,
+  getCoinPackages,
+  getCrmMerchantWallet,
+  getJson,
+  getMerchantProducts,
+  postJson,
+  type CoinPackage,
+  type MerchantWallet,
+} from "@/lib/api";
+import { bannerPricePerDay } from "@/lib/banner-pricing";
+import { canAffordSom, formatSom, walletBalanceUzs } from "@/lib/money";
 import { cn } from "@/lib/utils";
+
+const SOM = "so'm";
 
 /* ─── Types ───────────────────────────────────────────────────── */
 interface Plan {
@@ -41,12 +58,21 @@ interface BannerTariff {
   code: string;
   name_uz: string;
   price_uzs: number;
+  reference_price_uzs?: number;
+  reference_days?: number;
+  price_per_day_uzs?: number;
   duration_days: number;
   badge: string;
   priority: number;
+  carousel_slot?: number;
+  description?: string;
 }
 interface Revenue {
   period_days: number;
+  merchant_earnings_uzs?: number;
+  customer_sales_uzs?: number;
+  platform_markup_uzs?: number;
+  markup_pct?: number;
   gross_revenue_uzs: number;
   net_revenue_uzs: number;
   platform_fee_uzs: number;
@@ -165,11 +191,16 @@ function PlanCard({
 }
 
 /* ─── Main page ───────────────────────────────────────────────── */
+function mapTopUpPackages(items: CoinPackage[]): TopUpPackage[] {
+  return items.map((p) => ({ id: p.id, name_uz: p.name_uz, amount_uzs: p.amount_uzs }));
+}
+
 export default function BillingPage({
   searchParams,
 }: {
   searchParams?: { embedded?: string };
 }) {
+  const urlSearch = useSearchParams();
   const embedded = searchParams?.embedded === "1" || searchParams?.embedded === "true";
   const [plans, setPlans] = useState<Plan[]>([]);
   const [boosts, setBoosts] = useState<Boost[]>([]);
@@ -181,9 +212,26 @@ export default function BillingPage({
   const [loading, setLoading] = useState(true);
   const [planActionLoading, setPlanActionLoading] = useState<string | null>(null);
   const [boostLoadingCode, setBoostLoadingCode] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<MerchantWallet | null>(null);
+  const [topUpOpen, setTopUpOpen] = useState(false);
+  const [topUpLoading, setTopUpLoading] = useState(false);
+  const [topUpPackages, setTopUpPackages] = useState<TopUpPackage[]>([]);
+
+  const refreshWallet = async () => {
+    try {
+      const w = await getCrmMerchantWallet();
+      setWallet(w);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const balanceUzs = walletBalanceUzs(wallet);
 
   useEffect(() => {
     Promise.all([
+      refreshWallet(),
+      getCoinPackages().then((d) => setTopUpPackages(mapTopUpPackages(d.items))).catch(() => {}),
       getJson<{ plans: Plan[] }>("/billing/plans").then((d) => setPlans(d.plans)).catch(() => {}),
       getJson<{ packages: Boost[] }>("/billing/boost/packages").then((d) => setBoosts(d.packages)).catch(() => {}),
       getJson<{ tariffs: BannerTariff[] }>("/billing/banners/tariffs").then((d) => setBanners(d.tariffs)).catch(() => {}),
@@ -199,6 +247,9 @@ export default function BillingPage({
     ]).finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (urlSearch.get("topup") === "1") setTopUpOpen(true);
+  }, [urlSearch]);
 
   const handlePlanSelect = async (plan: Plan) => {
     if (plan.code === "free") return;
@@ -222,20 +273,52 @@ export default function BillingPage({
     }
   };
 
-  const handleBoost = async (boostCode: string) => {
+  const handleTopUp = async (packageId: string, provider: "click" | "payme") => {
+    setTopUpLoading(true);
+    try {
+      const res = await generateCoinTopUpInvoice({ coin_package_id: packageId, provider });
+      if (res.checkout_url) {
+        window.open(res.checkout_url, "_blank", "noopener,noreferrer");
+        toast.message("To'lov oynasi ochildi", {
+          description: "To'lovdan keyin balans avtomatik yangilanadi.",
+        });
+        setTopUpOpen(false);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "To'lov havolasi yaratilmadi");
+    } finally {
+      setTopUpLoading(false);
+    }
+  };
+
+  const handleBoost = async (boostCode: string, priceUzs: number) => {
     if (!selectedProductId) {
       toast.error("Avval mahsulot tanlang");
       return;
     }
+    if (!canAffordSom(balanceUzs, priceUzs)) {
+      toast.error("Balans yetarli emas — avval to'ldiring");
+      setTopUpOpen(true);
+      return;
+    }
     setBoostLoadingCode(boostCode);
     try {
-      const res = await postJson<{ message?: string }>("/billing/boost/product", {
+      const res = await postJson<{ message?: string; balance_uzs?: number }>("/billing/boost/product", {
         product_id: selectedProductId,
         boost_code: boostCode,
       });
+      if (typeof res.balance_uzs === "number") {
+        setWallet((prev) => (prev ? { ...prev, balance_uzs: res.balance_uzs! } : prev));
+      } else await refreshWallet();
       toast.success(res.message ?? "Mahsulot boost qilindi");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Boost qilishda xatolik");
+      const msg = err instanceof Error ? err.message : "Boost qilishda xatolik";
+      if (/Insufficient Coin/i.test(msg)) {
+        toast.error("Balans yetarli emas");
+        setTopUpOpen(true);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBoostLoadingCode(null);
     }
@@ -255,10 +338,32 @@ export default function BillingPage({
       {!embedded ? (
         <CrmPageHeader
           eyebrow="Billing"
-          title="Reja va to'lovlar"
-          description="Do'koningizni kengaytiring — obuna, reklama, featured mahsulotlar"
+          title="Reklama balansi"
+          description="Click yoki Payme — barcha narxlar so'mda. Banner va boost shu balansdan."
         />
       ) : null}
+
+      <BalanceTopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        packages={topUpPackages}
+        loading={topUpLoading}
+        onCheckout={(id, provider) => void handleTopUp(id, provider)}
+      />
+
+      <BillingWalletCard wallet={wallet} onTopUp={() => setTopUpOpen(true)} />
+
+      <MerchantBillingStatusCard />
+
+      <section className="rounded-2xl border border-electric-500/30 bg-electric-500/10 p-5">
+        <h2 className="text-base font-bold text-text-100">Sizning narxingiz — alohida</h2>
+        <p className="mt-2 text-sm leading-relaxed text-text-400">
+          Mahsulotga <strong className="text-text-200">o&apos;z narxingizni</strong> kiriting — statistikada shu summa
+          ko&apos;rinadi. Mijoz saytda +15% ustama bilan ko&apos;radi; bu 15%{" "}
+          <strong className="text-text-200">platforma daromadi</strong>, sizning &laquo;sof foydangiz&raquo; emas va
+          sizdan yechib olinmaydi.
+        </p>
+      </section>
 
       {/* Revenue summary */}
       {revenue && (
@@ -267,34 +372,56 @@ export default function BillingPage({
             <TrendingUp className="h-5 w-5 text-electric-500" />
             <h2 className="text-lg font-bold text-text-100">30 kunlik ko&apos;rsatkichlar</h2>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
             {[
-              { label: "Jami savdo", value: `${fmt(revenue.gross_revenue_uzs)} so\u0027m` },
-              { label: "Sof daromad", value: `${fmt(revenue.net_revenue_uzs)} so\u0027m` },
-              { label: "Buyurtmalar", value: String(revenue.order_count) },
-              { label: "Leadlar", value: String(revenue.lead_count) },
+              {
+                label: "Sizning savdongiz",
+                hint: "Kiritgan narxlaringiz bo'yicha",
+                value: `${fmt(revenue.merchant_earnings_uzs ?? revenue.gross_revenue_uzs)} so'm`,
+              },
+              {
+                label: "Buyurtmalar",
+                hint: `${revenue.period_days} kun ichida`,
+                value: String(revenue.order_count),
+              },
+              {
+                label: "Murojaatlar (lead)",
+                hint: "Faol leadlar",
+                value: String(revenue.lead_count),
+              },
+              ...(revenue.customer_sales_uzs && revenue.customer_sales_uzs > (revenue.merchant_earnings_uzs ?? 0)
+                ? [
+                    {
+                      label: "Mijozlar to'ladi",
+                      hint: `Narxingiz + ~${revenue.markup_pct ?? 15}% ustama`,
+                      value: `${fmt(revenue.customer_sales_uzs)} so'm`,
+                    },
+                  ]
+                : []),
             ].map((kpi) => (
               <div key={kpi.label} className="rounded-2xl border border-border-subtle bg-white p-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-400">{kpi.label}</p>
                 <p className="mt-1 text-xl font-black text-text-100">{kpi.value}</p>
+                <p className="mt-0.5 text-[11px] text-text-400">{kpi.hint}</p>
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-text-400">
-            Platforma komissiyasi: {revenue.commission_rate_pct}% — hozirda 0% (merchant onboarding bosqichi)
+          <p className="mt-3 text-xs leading-relaxed text-text-400">
+            Platforma ustamasi ({revenue.markup_pct ?? 15}%) mijoz to&apos;loviga qo&apos;shiladi — bu yerda faqat siz
+            belgilagan mahsulot narxlari yig&apos;indisi ko&apos;rsatiladi.
           </p>
         </section>
       )}
 
-      {/* Subscription plans */}
-      <section>
+      {/* Subscription plans (o'chirilgan — faqat ma'lumot) */}
+      <section className="hidden">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-electric-500/10 text-electric-500">
             <Rocket className="h-5 w-5" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-text-100">Obuna rejalari</h2>
-            <p className="text-sm text-text-400">Bepuldan Pro ga — mahsulotlar, AI, analitika</p>
+            <p className="text-sm text-text-400">Arxiv — hozir faqat mahsulot ustamasi</p>
             {subscription ? (
               <p className="mt-1 text-xs text-text-400">
                 Joriy holat: <span className="font-semibold text-text-200">{subscription.plan.name_uz}</span> ({subscription.status})
@@ -323,7 +450,9 @@ export default function BillingPage({
           </div>
           <div>
             <h2 className="text-xl font-bold text-text-100">Mahsulot boost</h2>
-            <p className="text-sm text-text-400">Mahsulotingizni katalog tepasiga chiqaring</p>
+            <p className="text-sm text-text-400">
+              Balansdan yechiladi — mahsulot qidiruvda yuqoriroq chiqadi (video emas, mahsulot kartochkasi)
+            </p>
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -346,71 +475,58 @@ export default function BillingPage({
             </select>
           </div>
           {boosts.map((b) => (
-            <div key={b.code} className="rounded-3xl border border-border-subtle bg-surface p-6 shadow-card">
-              <p className="font-bold text-text-100">{b.name_uz}</p>
-              <p className="mt-1 text-sm text-text-400">{b.description_uz}</p>
-              <div className="mt-4 flex items-center justify-between">
-                <div>
-                  <span className="text-2xl font-black text-gold-600">{fmt(b.price_uzs)}</span>
-                  <span className="ml-1 text-sm text-text-400">so\u0027m / {b.duration_days} kun</span>
+              <div key={b.code} className="rounded-3xl border border-border-subtle bg-surface p-6 shadow-card">
+                <p className="font-bold text-text-100">{b.name_uz}</p>
+                <p className="mt-1 text-sm text-text-400">{b.description_uz}</p>
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-2xl font-black tabular-nums text-electric-600">{formatSom(b.price_uzs)}</span>
+                    <p className="text-xs text-text-400">{b.duration_days} kun</p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void handleBoost(b.code, b.price_uzs)}
+                    disabled={!selectedProductId || boostLoadingCode === b.code}
+                  >
+                    <Star className="mr-1 h-4 w-4" />
+                    {boostLoadingCode === b.code ? "Yuborilmoqda..." : "Boost qilish"}
+                  </Button>
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void handleBoost(b.code)}
-                  disabled={!selectedProductId || boostLoadingCode === b.code}
-                >
-                  <Star className="mr-1 h-4 w-4" />
-                  {boostLoadingCode === b.code ? "Yuborilmoqda..." : "Boost"}
-                </Button>
               </div>
-              <p className="mt-2 flex items-center gap-1 text-xs text-text-400">
-                <Coins className="h-3 w-3" />
-                {Math.max(1, Math.round(b.price_uzs / 10_000))} Coin
-              </p>
-            </div>
           ))}
         </div>
       </section>
 
-      {/* Premium banner tariffs */}
-      <section>
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neon-500/10 text-neon-500">
+      <section className="rounded-3xl border border-border-subtle bg-surface p-6 shadow-card">
+        <div className="flex flex-wrap items-start gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neon-500/10 text-neon-500">
             <Megaphone className="h-5 w-5" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-text-100">Premium reklama banner</h2>
-            <p className="text-sm text-text-400">Bosh sahifa karuselida do&apos;koningizni ko&apos;rsating</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-bold text-text-100">Bosh sahifa banner (karusel)</h2>
+            <p className="mt-1 text-sm text-text-400">
+              Bronze / Silver / Gold — faqat karuseldagi navbat farqi. Kun tanlaysiz (7–90), narx so&apos;m da.
+              {banners.length ? (
+                <>
+                  {" "}
+                  Kunlik narxlar:{" "}
+                  {banners
+                    .map((t) => {
+                      const perDay = t.price_per_day_uzs ?? bannerPricePerDay(t);
+                      return `${t.badge} ~${fmt(perDay)} ${SOM}/kun`;
+                    })
+                    .join(" · ")}
+                </>
+              ) : null}
+            </p>
+            <Link
+              href="/dashboard/content?tab=banners"
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-lg border border-border-default bg-surface px-5 text-sm font-semibold text-text-100 hover:border-gold-500/50 hover:bg-elevated"
+            >
+              Kontentda banner yaratish →
+            </Link>
           </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {banners.map((t) => {
-            const colors = {
-              bronze: "from-amber-700/10 border-amber-700/30 text-amber-800",
-              silver: "from-slate-400/10 border-slate-400/30 text-slate-700",
-              gold: "from-amber-400/15 border-amber-400/40 text-amber-700",
-            }[t.code] ?? "";
-            return (
-              <div key={t.code} className={cn("rounded-3xl border bg-gradient-to-br to-surface p-6 shadow-card", colors)}>
-                <span className={cn("inline-block rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider", colors.split(" ").slice(-1)[0])}>
-                  {t.badge}
-                </span>
-                <p className="mt-3 text-2xl font-black">{fmt(t.price_uzs)}</p>
-                <p className="text-sm font-medium opacity-70">so\u0027m / {t.duration_days} kun</p>
-                <p className="mt-2 text-xs opacity-60">
-                  Karuselda {t.priority}-o&apos;rin · Coin: {Math.max(1, Math.round(t.price_uzs / 10_000))}
-                </p>
-                <Button
-                  className="mt-4 w-full"
-                  variant="secondary"
-                  onClick={() => window.location.assign("/dashboard/banners")}
-                >
-                  Banner joylash →
-                </Button>
-              </div>
-            );
-          })}
         </div>
       </section>
 
@@ -419,10 +535,26 @@ export default function BillingPage({
         <h3 className="mb-4 font-bold text-text-100">Tez-tez beriladigan savollar</h3>
         <div className="space-y-4 text-sm">
           {[
-            ["Coin nima?", "1 Coin = 10,000 so\u0027m. Coin bilan obuna, boost va banner sotib olasiz."],
-            ["Sinov davri bor?", "Starter va Pro uchun 14 kunlik bepul sinov. Karta talab qilinmaydi."],
-            ["Komissiya qancha?", "Hozirda 0%. Kelajakda buyurtma summadan 2.5% platforma haqqi."],
-            ["Obunani bekor qilsa?", "Istalgan vaqt to'xtatish mumkin. Qolgan kunlar Coin sifatida qaytariladi."],
+            [
+              "Balans qanday to'ldiriladi?",
+              "Click yoki Payme orqali paket tanlaysiz — summa to'g'ridan-to'g'ri so'm da ko'rsatiladi. To'lovdan keyin reklama balansi yangilanadi.",
+            ],
+            [
+              "Nima uchun bitta balans?",
+              "Bosh sahifa banneri va mahsulot boost shu hisobdan to'lanadi. Reels va Stories hozir bepul.",
+            ],
+            [
+              "To'lovdan keyin qachon ko'rinadi?",
+              "Click/Payme tasdiqlangach (odatda bir necha soniya) balans yangilanadi. Banner «chop etish» — summa darhol yechiladi.",
+            ],
+            [
+              "Banner qayerda chiqadi?",
+              "Faqat bozorliii.uz bosh sahifasidagi premium karusel (aylanma banner). Mahsulot boost — alohida, katalog tepasida.",
+            ],
+            [
+              "Oylik obuna bormi?",
+              "Yo'q. Banner uchun necha kun (7, 14, 30, 60, 90) tanlaysiz — narx kuniga qarab hisoblanadi.",
+            ],
           ].map(([q, a]) => (
             <div key={q} className="rounded-2xl bg-canvas p-4">
               <p className="font-semibold text-text-100">{q}</p>

@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss";
 
-/** Topdim.UZ — mijoz sayti bilan bir xil tokenlar */
+/** Bozorliii.uz — mijoz sayti bilan bir xil tokenlar */
 export default {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   theme: {

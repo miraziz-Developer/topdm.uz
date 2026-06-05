@@ -231,7 +231,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-electric-500">Hisob</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink-900 md:text-[2rem]">Shaxsiy kabinet</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-500">
-            Topdim.UZ profilingiz, Bozor Coin va AI Stilist uchun shaxsiy sozlamalar — barchasi bir panelda.
+            Bozorliii.uz profilingiz, Bozor Coin va AI Stilist uchun shaxsiy sozlamalar — barchasi bir panelda.
           </p>
         </motion.div>
       </header>
@@ -263,7 +263,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
               </span>
             </div>
             <div className="relative mt-12 flex items-center justify-between border-t border-white/10 pt-5">
-              <span className="price-mono text-[10px] tracking-[0.18em] text-white/40">TOPDIM PASS</span>
+              <span className="price-mono text-[10px] tracking-[0.18em] text-white/40">BOZORLIII PASS</span>
               <Link
                 href="/checkout"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-white/12 px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/18"
@@ -506,7 +506,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
           </motion.section>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-2">
-            <p className="text-[11px] text-ink-400">Topdim.UZ · xavfsiz hisob</p>
+            <p className="text-[11px] text-ink-400">Bozorliii.uz · xavfsiz hisob</p>
             <Button
               variant="ghost"
               className="text-ink-500 hover:text-red"

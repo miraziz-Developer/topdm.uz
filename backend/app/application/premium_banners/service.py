@@ -115,6 +115,12 @@ class PremiumBannerService:
 
         fallback = await self._fallback_from_featured_shops()
         fallback.update(base)
+        if not fallback.get("items"):
+            fallback["empty_state"] = {
+                "code": "no_sponsored_banners",
+                "title": "Reklama bannerlari yo'q",
+                "message": "Do'konlar CRM → Kontent markazi → Banners bo'limidan joylashtiradi.",
+            }
         if not carousel_cfg.get("enabled", True):
             fallback["items"] = []
             fallback["slides"] = []
@@ -131,7 +137,7 @@ class PremiumBannerService:
         for idx, shop in enumerate(shops):
             code = tiers[idx % len(tiers)]
             weight = {"gold": 3, "silver": 2, "bronze": 1}[code]
-            image = shop.logo_url or "https://picsum.photos/seed/topdim-shop-banner/800/450"
+            image = shop.logo_url or "/brand/bozorliii-product-placeholder.svg"
             base = {
                 "id": f"fallback-{shop.id}",
                 "shop_id": str(shop.id),

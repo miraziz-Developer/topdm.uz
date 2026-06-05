@@ -143,6 +143,65 @@ export async function getSimilarProducts(id: string): Promise<{ items: Product[]
   return getJson<{ items: Product[] }>(`/products/${id}/similar`);
 }
 
+export type ProductReviewSummary = {
+  average_rating: number;
+  review_count: number;
+  distribution: Record<string, number>;
+};
+
+export type ProductReview = {
+  id: string;
+  product_id: string;
+  author_name: string;
+  rating: number;
+  body: string | null;
+  photo_urls: string[];
+  is_verified_purchase: boolean;
+  created_at: string | null;
+};
+
+export type ProductReviewsResponse = ProductReviewSummary & {
+  items: ProductReview[];
+  limit: number;
+  offset: number;
+};
+
+export async function getProductReviews(
+  productId: string,
+  limit = 12,
+  offset = 0,
+): Promise<ProductReviewsResponse> {
+  return getJson<ProductReviewsResponse>(
+    `/products/${productId}/reviews?limit=${limit}&offset=${offset}`,
+  );
+}
+
+export async function submitProductReview(
+  productId: string,
+  fields: {
+    rating: number;
+    body?: string;
+    /** Odatda yuborilmaydi — backend profildan oladi. */
+    author_name?: string;
+    customer_phone?: string;
+  },
+  photos: File[] = [],
+): Promise<{ review: ProductReview; summary: ProductReviewSummary }> {
+  const form = new FormData();
+  form.append("rating", String(fields.rating));
+  if (fields.author_name?.trim()) form.append("author_name", fields.author_name.trim());
+  if (fields.body) form.append("body", fields.body);
+  if (fields.customer_phone?.trim()) form.append("customer_phone", fields.customer_phone.trim());
+  for (const file of photos) {
+    form.append("photos", file);
+  }
+  return apiFetch(`/products/${productId}/reviews`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+}
+
 export async function getShopBySlug(slug: string): Promise<ShopProfile> {
   return getJson<ShopProfile>(`/shops/${slug}`);
 }
@@ -155,8 +214,36 @@ export async function getFeaturedProducts(): Promise<{ items: Product[] }> {
   return getJson<{ items: Product[] }>("/products/featured");
 }
 
+export async function getLightningDeals(limit = 16): Promise<{ items: Product[] }> {
+  return getJson<{ items: Product[] }>(`/products/deals/lightning?limit=${limit}`, false, true);
+}
+
+export async function getClearanceDeals(limit = 16): Promise<{ items: Product[] }> {
+  return getJson<{ items: Product[] }>(`/products/deals/clearance?limit=${limit}`, false, true);
+}
+
 export async function getLiveStories(limit = 40): Promise<{ items: LiveStory[] }> {
   return getJson<{ items: LiveStory[] }>(`/market/stories/live?limit=${limit}`, false, true);
+}
+
+export async function getStoryDock(limit = 15): Promise<{
+  items: import("@/types").StoryDockRing[];
+  empty_state?: { code: string; title: string; message: string } | null;
+}> {
+  return getJson(`/market/stories/dock?limit=${limit}`, false, true);
+}
+
+export async function getShopStories(shopId: string): Promise<{
+  shop_id: string;
+  shop: import("@/types").ShopSummary;
+  items: LiveStory[];
+  count: number;
+}> {
+  return getJson(`/market/stories/shop/${encodeURIComponent(shopId)}`, false, true);
+}
+
+export async function getMerchantStories(): Promise<{ items: LiveStory[] }> {
+  return getJson<{ items: LiveStory[] }>("/merchants/stories", true);
 }
 
 export async function getPremiumBanners(limit = 24) {

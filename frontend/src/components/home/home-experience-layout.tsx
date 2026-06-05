@@ -5,11 +5,16 @@ import type { ReactNode } from "react";
 import type { HomeExperience } from "@/lib/api";
 
 type SectionKey =
+  | "trust"
+  | "sale_hero"
   | "banner"
+  | "lightning"
+  | "clearance"
   | "reels"
   | "visual_search"
   | "toolbar"
   | "categories"
+  | "recommended"
   | "banners"
   | "stories"
   | "spotlight"
@@ -25,12 +30,17 @@ type Props = {
  * Filter → Category → Products → Banners → Spotlight
  */
 const FIXED_ORDER: SectionKey[] = [
+  "trust",
+  "sale_hero",
   "banner",
-  "reels",          // TikTok-style video strip — darhol ko'rinadi
-  "visual_search",
+  "lightning",
+  "clearance",
   "stories",
+  "reels",
+  "visual_search",
   "toolbar",
   "categories",
+  "recommended",
   "products",
   "banners",
   "spotlight",

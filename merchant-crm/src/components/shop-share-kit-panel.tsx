@@ -62,7 +62,7 @@ export function ShopShareKitPanel({ compact = false }: Props) {
               alt={`${kit.shop_name} QR`}
               className="mt-4 w-full max-w-[220px] rounded-xl bg-white p-2 shadow-md ring-1 ring-border-subtle"
             />
-            <a href={kit.qr_download_url} download={`${kit.shop_slug}-qr-topdim.png`} className="mt-4 w-full max-w-[220px]">
+            <a href={kit.qr_download_url} download={`${kit.shop_slug}-qr-bozorliii.png`} className="mt-4 w-full max-w-[220px]">
               <button type="button" className="crm-btn-primary w-full">
                 <Download className="mr-2 inline h-4 w-4" />
                 QR yuklab olish

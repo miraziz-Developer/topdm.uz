@@ -11,17 +11,19 @@ type ProductLayoutProps = {
 export async function generateMetadata({ params }: ProductLayoutProps): Promise<Metadata> {
   try {
     const product = await getProduct(params.id);
+    const shopName = product.shop?.name ?? "do'kon";
+    const market = product.shop?.ipadrom ?? "bozor";
     return {
-      title: `${product.name} — Topdim.UZ`,
-      description: `${product.name} ${product.shop.name} do'konida. ${product.shop.ipadrom} bozorida AI orqali toping.`,
+      title: `${product.name} — Bozorliii.uz`,
+      description: `${product.name} ${shopName} do'konida. ${market} bozorida AI orqali toping.`,
       openGraph: {
         title: product.name,
-        description: `${formatPrice(product.price)} • ${product.shop.ipadrom}`,
+        description: `${formatPrice(product.price)} • ${market}`,
         images: product.images?.[0] ? [{ url: product.images[0] }] : undefined,
       },
     };
   } catch {
-    return { title: "Tovar — Topdim.UZ" };
+    return { title: "Tovar — Bozorliii.uz" };
   }
 }
 
@@ -46,7 +48,7 @@ export default async function ProductLayout({ children, params }: ProductLayoutP
         availability: product.is_available ? "https://schema.org/InStock" : "https://schema.org/PreOrder",
         seller: {
           "@type": "Organization",
-          name: product.shop.name,
+          name: product.shop?.name ?? "Bozorliii.uz",
         },
       },
     };

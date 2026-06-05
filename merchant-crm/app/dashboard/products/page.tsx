@@ -16,7 +16,7 @@ function ProductsHubInner() {
       tabs={CRM_PRODUCT_TABS}
       activeTab={tab}
       title="Mahsulotlar"
-      description="Mahsulot qo'shish, tahrirlash, o'chirish va botdan kelgan rasmlarni tasdiqlash"
+      description="Katalog, narx va ombor — botdan AI yoki qo'lda."
     >
       {tab === "moderation" ? <ModerationQueue /> : <ProductsCatalogPanel />}
     </CrmTabShell>

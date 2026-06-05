@@ -29,6 +29,14 @@ export type HomeMessageKey =
   | "home.sale.modeLabel"
   | "home.sale.chakana"
   | "home.sale.optom"
+  | "home.sale.china"
+  | "home.discovery.noChinaResults"
+  | "home.china.searchLabel"
+  | "home.china.searchPlaceholder"
+  | "home.china.importBtn"
+  | "home.china.importError"
+  | "home.china.apiMissing"
+  | "home.china.partialErrors"
   | "home.filter.market"
   | "home.filter.block"
   | "home.filter.category"
@@ -64,7 +72,7 @@ const uz: Record<HomeMessageKey, string> = {
     "Ippodrom va Abu Saxiy bozorlaridagi real do'konlar katalogidan eng mos variantlarni aqlli algoritm yordamida bir zumda ajratib beradi.",
   "home.stories.eyebrow": "Jonli oqim",
   "home.stories.title": "Hozir Ippodromda nima trend?",
-  "home.stories.description": "Sotuvchilar yuborgan jonli storylar — 24 soat ichida yangilanadi.",
+  "home.stories.description": "Sotuvchilar yuborgan jonli storylar — 48 soat ko'rinadi.",
   "home.stories.empty": "Hozircha jonli storylar yo'q. Tez orada sotuvchilar yangi kiyimlar bilan chiqadi.",
   "home.stories.liveBadge": "JONLI",
   "home.stories.wowwDock": "Woww Live",
@@ -90,6 +98,14 @@ const uz: Record<HomeMessageKey, string> = {
   "home.sale.modeLabel": "Savdo rejimi",
   "home.sale.chakana": "Chakana (Dona)",
   "home.sale.optom": "Ulgurji (Optom)",
+  "home.sale.china": "Xitoydan tovarlar",
+  "home.discovery.noChinaResults": "Xitoy tovarlari topilmadi. Taobao ID yoki havola kiriting.",
+  "home.china.searchLabel": "Taobao ID orqali import",
+  "home.china.searchPlaceholder": "690885025678 yoki taobao.com/...?id=",
+  "home.china.importBtn": "Import",
+  "home.china.importError": "Tovar import qilinmadi — ID yoki API kalitini tekshiring",
+  "home.china.apiMissing": "RAPIDAPI_KEY sozlanmagan — backend .env faylini to'ldiring",
+  "home.china.partialErrors": "Ba'zi tovarlar yuklanmadi",
   "home.filter.market": "Bozor hududi",
   "home.filter.block": "Sektor / Blok",
   "home.filter.category": "Kategoriya",
@@ -155,6 +171,14 @@ const ru: Record<HomeMessageKey, string> = {
   "home.sale.modeLabel": "Режим продаж",
   "home.sale.chakana": "В розницу",
   "home.sale.optom": "Оптом",
+  "home.sale.china": "Товары из Китая",
+  "home.discovery.noChinaResults": "Товары из Китая не найдены. Введите Taobao ID или ссылку.",
+  "home.china.searchLabel": "Импорт по Taobao ID",
+  "home.china.searchPlaceholder": "690885025678 или taobao.com/...?id=",
+  "home.china.importBtn": "Импорт",
+  "home.china.importError": "Не удалось импортировать — проверьте ID или API ключ",
+  "home.china.apiMissing": "RAPIDAPI_KEY не настроен — заполните backend .env",
+  "home.china.partialErrors": "Некоторые товары не загрузились",
   "home.filter.market": "Рынок",
   "home.filter.block": "Сектор / Блок",
   "home.filter.category": "Категория",
@@ -219,6 +243,14 @@ const en: Record<HomeMessageKey, string> = {
   "home.sale.modeLabel": "Sale mode",
   "home.sale.chakana": "Retail (unit)",
   "home.sale.optom": "Wholesale (bulk)",
+  "home.sale.china": "From China",
+  "home.discovery.noChinaResults": "No China products found. Enter a Taobao ID or link.",
+  "home.china.searchLabel": "Import by Taobao ID",
+  "home.china.searchPlaceholder": "690885025678 or taobao.com/...?id=",
+  "home.china.importBtn": "Import",
+  "home.china.importError": "Import failed — check ID or API key",
+  "home.china.apiMissing": "RAPIDAPI_KEY is not set — configure backend .env",
+  "home.china.partialErrors": "Some items failed to load",
   "home.filter.market": "Market zone",
   "home.filter.block": "Sector / Block",
   "home.filter.category": "Category",

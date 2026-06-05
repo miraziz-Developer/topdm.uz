@@ -1,61 +1,103 @@
 "use client";
 
 import { BarChart3, Eye, Route, ShoppingBag, TrendingUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AnalyticsLineChart, type DailyPoint } from "@/components/charts/analytics-line-chart";
 import { CrmSection, CrmTip } from "@/components/crm/crm-section";
 import { getMerchantAnalyticsSummary } from "@/lib/api";
+import {
+  ANALYTICS_PERIODS,
+  analyticsGranularityHint,
+  analyticsPeriodLabel,
+} from "@/lib/analytics-period";
 import { cn, formatPrice } from "@/lib/utils";
 
 export function AnalyticsHubPanel() {
   const [data, setData] = useState<Awaited<ReturnType<typeof getMerchantAnalyticsSummary>> | null>(null);
   const [days, setDays] = useState(7);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
-      const res = await getMerchantAnalyticsSummary(days);
-      if (!cancelled) setData(res);
+      try {
+        const res = await getMerchantAnalyticsSummary(days);
+        if (!cancelled) setData(res);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [days]);
 
+  const periodLabel = data?.period_label ?? analyticsPeriodLabel(days);
+  const granularityHint = analyticsGranularityHint(data?.granularity);
+
+  const series: DailyPoint[] = useMemo(
+    () =>
+      (data?.daily_series ?? []).map((row) => ({
+        date: row.date,
+        label: row.label,
+        views: Number(row.views ?? 0),
+        leads: Number(row.leads ?? 0),
+        orders: Number(row.orders ?? 0),
+        map_routes: Number(row.map_routes ?? 0),
+      })),
+    [data?.daily_series],
+  );
+
   const totals = data?.totals;
-  const series: DailyPoint[] = (data?.daily_series ?? []).map((row) => ({
-    date: row.date,
-    views: Number(row.views ?? 0),
-    leads: Number(row.leads ?? 0),
-    orders: Number(row.orders ?? 0),
-    map_routes: Number(row.map_routes ?? 0),
-  }));
   const hasSeries = series.length > 0;
-  const seriesHasActivity = hasSeries && series.some((p) => p.views + p.leads + p.orders + p.map_routes > 0);
+  const seriesHasActivity =
+    hasSeries && series.some((p) => p.views + p.leads + p.orders + p.map_routes > 0);
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <CrmTip className="flex-1 min-w-[200px]">
-          Nechta odam ko&apos;rdi, nechta buyurtma berdi — kunma-kun chiziqli grafikda ko&apos;ring.
+      <div className="space-y-3">
+        <CrmTip>
+          Nechta odam ko&apos;rdi, nechta buyurtma berdi — davrni tanlang (kun, oy yoki yil). Uzoq davrda grafik{" "}
+          <strong className="text-text-200">{granularityHint}</strong> ko&apos;rinadi.
         </CrmTip>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm font-semibold text-text-100 shadow-sm"
-          aria-label="Davr"
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Statistika davri"
         >
-          <option value={7}>So&apos;nggi 7 kun</option>
-          <option value={14}>14 kun</option>
-          <option value={30}>30 kun</option>
-        </select>
+          {ANALYTICS_PERIODS.map((p) => (
+            <button
+              key={p.days}
+              type="button"
+              onClick={() => setDays(p.days)}
+              className={cn(
+                "rounded-full px-4 py-2 text-sm font-semibold transition",
+                days === p.days
+                  ? "bg-electric-500 text-white shadow-sm"
+                  : "border border-border-subtle bg-surface text-text-400 hover:border-electric-500/30 hover:text-text-100",
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {!totals ? (
+      {loading && !totals ? (
         <div className="skeleton h-48 rounded-2xl" />
+      ) : !totals ? (
+        <div className="crm-surface-card p-6 text-center text-sm text-text-400">Ma&apos;lumot yuklanmadi</div>
       ) : (
         <>
+          <p className="text-xs font-medium text-text-400">
+            Tanlangan davr: <strong className="text-text-100">{periodLabel}</strong>
+            {data?.granularity && data.granularity !== "day" ? (
+              <span className="text-text-400"> · {granularityHint} kesim</span>
+            ) : null}
+          </p>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: "Ko'rishlar", value: totals.views, icon: Eye, tone: "text-electric-600" },
@@ -65,7 +107,7 @@ export function AnalyticsHubPanel() {
             ].map((card) => {
               const Icon = card.icon;
               return (
-                <article key={card.label} className="crm-stat-tile">
+                <article key={card.label} className={cn("crm-stat-tile", loading && "opacity-60")}>
                   <Icon className={cn("h-5 w-5", card.tone)} />
                   <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-text-100">{card.value}</p>
                   <p className="text-sm font-medium text-text-400">{card.label}</p>
@@ -75,15 +117,15 @@ export function AnalyticsHubPanel() {
           </div>
 
           {hasSeries ? (
-            <div className="space-y-4">
+            <div className={cn("space-y-4", loading && "pointer-events-none opacity-60")}>
               <AnalyticsLineChart
-                title={`Ko'rishlar — ${days} kun`}
+                title={`Ko'rishlar — ${periodLabel}`}
                 points={series}
                 lines={[{ key: "views", label: "Ko'rishlar", color: "#2563eb" }]}
                 height={220}
               />
               <AnalyticsLineChart
-                title={`Buyurtma va murojaat — ${days} kun`}
+                title={`Buyurtma va murojaat — ${periodLabel}`}
                 points={series}
                 lines={[
                   { key: "orders", label: "Buyurtmalar", color: "#059669" },
@@ -92,14 +134,14 @@ export function AnalyticsHubPanel() {
                 height={200}
               />
               <AnalyticsLineChart
-                title={`Xarita yo'li — ${days} kun`}
+                title={`Xarita yo'li — ${periodLabel}`}
                 points={series}
                 lines={[{ key: "map_routes", label: "Yo'nalishlar", color: "#d97706" }]}
                 height={180}
               />
               {!seriesHasActivity ? (
                 <p className="text-center text-xs text-text-400">
-                  Bu davrda kunlik harakat hali kam — mijozlar saytga kirganda grafik to&apos;ladi.
+                  Bu davrda harakat hali kam — mijozlar saytga kirganda grafik to&apos;ladi.
                 </p>
               ) : null}
             </div>

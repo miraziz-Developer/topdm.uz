@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Date, cast, func, select
+from sqlalchemy import Date, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.slug import slugify
@@ -37,6 +37,18 @@ class ShopDashboardStats:
 class MarketplaceRepository:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
+
+    @staticmethod
+    def _public_shop_exists():
+        """Mijoz katalogi: faqat faol, tasdiqlangan va qarzi bloklanmagan do'konlar."""
+        from sqlalchemy import exists
+
+        return exists().where(
+            ShopModel.id == ProductModel.shop_id,
+            ShopModel.is_active == True,
+            ShopModel.is_verified == True,
+            ShopModel.is_blocked == False,
+        )
 
     async def create_product(
         self,
@@ -210,16 +222,82 @@ class MarketplaceRepository:
             .where(
                 ProductModel.is_available == True,
                 ProductModel.is_featured == True,
-                exists().where(
-                    ShopModel.id == ProductModel.shop_id,
-                    ShopModel.is_active == True,
-                    ShopModel.is_verified == True,
-                ),
+                self._public_shop_exists(),
             )
             .order_by(ProductModel.view_count.desc(), ProductModel.id.desc())
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def list_lightning_deal_products(self, limit: int = 16) -> Sequence[ProductModel]:
+        """Faol lightning_deals jadvalidan; bo'sh bo'lsa trending."""
+        from app.infrastructure.repositories.campaign_repo import CampaignRepository
+
+        campaign = CampaignRepository(self._db)
+        rows = list(await campaign.list_active_lightning_products(limit=limit))
+        if len(rows) >= 4:
+            return rows
+        seen = {p.id for p in rows}
+        for p in await self.list_trending_products(limit=limit):
+            if p.id not in seen:
+                rows.append(p)
+                seen.add(p.id)
+            if len(rows) >= limit:
+                break
+        return rows[:limit]
+
+    async def list_trending_products(self, limit: int = 16) -> Sequence[ProductModel]:
+        """Trend skor: ko'rishlar + featured + yangilik."""
+        from sqlalchemy.orm import selectinload
+
+        result = await self._db.execute(
+            select(ProductModel)
+            .options(selectinload(ProductModel.shop))
+            .where(ProductModel.is_available == True, self._public_shop_exists())
+            .order_by(
+                ProductModel.is_featured.desc(),
+                ProductModel.view_count.desc(),
+                ProductModel.lead_count.desc(),
+                ProductModel.id.desc(),
+            )
+            .limit(limit)
+        )
+        return result.scalars().all()
+
+    async def list_clearance_deal_products(self, limit: int = 16) -> Sequence[ProductModel]:
+        """Faol flash_sales; yetmasa kam zaxira / arzon fallback."""
+        from sqlalchemy import and_
+        from sqlalchemy.orm import selectinload
+
+        from app.infrastructure.repositories.campaign_repo import CampaignRepository
+
+        campaign = CampaignRepository(self._db)
+        flash_rows = list(await campaign.list_active_flash_sale_products(limit=limit))
+        if len(flash_rows) >= 4:
+            return flash_rows
+
+        result = await self._db.execute(
+            select(ProductModel)
+            .options(selectinload(ProductModel.shop))
+            .where(
+                ProductModel.is_available == True,
+                self._public_shop_exists(),
+                and_(ProductModel.stock_count >= 1, ProductModel.stock_count <= 10),
+            )
+            .order_by(ProductModel.stock_count.asc(), ProductModel.view_count.desc())
+            .limit(limit)
+        )
+        rows = list(result.scalars().all())
+        if len(rows) >= 4:
+            return rows
+        fallback = await self._db.execute(
+            select(ProductModel)
+            .options(selectinload(ProductModel.shop))
+            .where(ProductModel.is_available == True, self._public_shop_exists())
+            .order_by(ProductModel.price.asc(), ProductModel.view_count.desc())
+            .limit(limit)
+        )
+        return fallback.scalars().all()
 
     async def set_product_featured(self, *, shop_id: UUID, product_id: UUID, featured: bool) -> ProductModel | None:
         from sqlalchemy import update
@@ -414,6 +492,145 @@ class MarketplaceRepository:
             total_visits=int(visit_count or 0),
         )
 
+    async def count_shop_orders_since(self, shop_id: UUID, *, since: datetime) -> int:
+        count = await self._db.scalar(
+            select(func.count(OrderModel.id)).where(
+                OrderModel.shop_id == shop_id,
+                OrderModel.created_at >= since,
+            )
+        )
+        return int(count or 0)
+
+    @staticmethod
+    def _analytics_granularity(days: int) -> str:
+        if days <= 31:
+            return "day"
+        if days <= 120:
+            return "week"
+        return "month"
+
+    @staticmethod
+    def _period_label_uz(days: int) -> str:
+        if days == 7:
+            return "7 kun"
+        if days == 14:
+            return "14 kun"
+        if days == 30:
+            return "1 oy"
+        if days == 90:
+            return "3 oy"
+        if days == 180:
+            return "6 oy"
+        if days == 365:
+            return "1 yil"
+        return f"{days} kun"
+
+    @staticmethod
+    def _bucket_keys_for_range(*, days: int, granularity: str, end: date) -> list[str]:
+        since = end - timedelta(days=days)
+        keys: list[str] = []
+        if granularity == "day":
+            cursor = end - timedelta(days=days - 1)
+            while cursor <= end:
+                keys.append(cursor.isoformat())
+                cursor += timedelta(days=1)
+            return keys
+        if granularity == "week":
+            cursor = since - timedelta(days=since.weekday())
+            while cursor <= end:
+                keys.append(cursor.isoformat())
+                cursor += timedelta(days=7)
+            return keys
+        y, m = since.year, since.month
+        cursor = date(y, m, 1)
+        while cursor <= end:
+            keys.append(cursor.isoformat())
+            if m == 12:
+                y, m = y + 1, 1
+            else:
+                m += 1
+            cursor = date(y, m, 1)
+        return keys
+
+    @staticmethod
+    def _bucket_chart_label(key: str, granularity: str) -> str:
+        start = date.fromisoformat(key)
+        if granularity == "week":
+            end = min(start + timedelta(days=6), date.today())
+            return f"{start.day}–{end.day}"
+        return start.isoformat()
+
+    async def shop_analytics_time_series(
+        self,
+        shop_id: UUID,
+        *,
+        days: int,
+        market_slug: str,
+        stall_goal_node_id: str | None = None,
+    ) -> dict[str, Any]:
+        days = max(1, min(days, 365))
+        granularity = self._analytics_granularity(days)
+        now = datetime.now(timezone.utc)
+        since = now - timedelta(days=days)
+        bucket_keys = self._bucket_keys_for_range(days=days, granularity=granularity, end=now.date())
+        buckets: dict[str, dict[str, Any]] = {}
+        for k in bucket_keys:
+            buckets[k] = {
+                "date": k,
+                "label": self._bucket_chart_label(k, granularity),
+                "views": 0,
+                "leads": 0,
+                "orders": 0,
+                "map_routes": 0,
+            }
+
+        trunc = func.date_trunc(granularity, TrackingEventModel.created_at)
+
+        def merge_rows(rows: Sequence[tuple[Any, Any]], field: str) -> None:
+            for period_val, count in rows:
+                key = period_val.isoformat() if hasattr(period_val, "isoformat") else str(period_val)
+                if key in buckets:
+                    buckets[key][field] = int(count or 0)
+
+        for event_type, field in (("view", "views"), ("lead", "leads")):
+            result = await self._db.execute(
+                select(cast(trunc, Date), func.count())
+                .where(
+                    TrackingEventModel.shop_id == shop_id,
+                    TrackingEventModel.event_type == event_type,
+                    TrackingEventModel.created_at >= since,
+                )
+                .group_by(cast(trunc, Date))
+            )
+            merge_rows(result.all(), field)
+
+        order_trunc = func.date_trunc(granularity, OrderModel.created_at)
+        order_rows = await self._db.execute(
+            select(cast(order_trunc, Date), func.count())
+            .where(OrderModel.shop_id == shop_id, OrderModel.created_at >= since)
+            .group_by(cast(order_trunc, Date))
+        )
+        merge_rows(order_rows.all(), "orders")
+
+        if stall_goal_node_id:
+            route_trunc = func.date_trunc(granularity, RouteStatModel.created_at)
+            route_rows = await self._db.execute(
+                select(cast(route_trunc, Date), func.count())
+                .where(
+                    RouteStatModel.market_slug == market_slug.lower().strip(),
+                    RouteStatModel.goal_node_id == stall_goal_node_id,
+                    RouteStatModel.created_at >= since,
+                )
+                .group_by(cast(route_trunc, Date))
+            )
+            merge_rows(route_rows.all(), "map_routes")
+
+        return {
+            "granularity": granularity,
+            "period_label": self._period_label_uz(days),
+            "series": [buckets[k] for k in bucket_keys],
+        }
+
     async def shop_analytics_daily_series(
         self,
         shop_id: UUID,
@@ -422,57 +639,13 @@ class MarketplaceRepository:
         market_slug: str,
         stall_goal_node_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        days = max(1, min(days, 90))
-        now = datetime.now(timezone.utc)
-        since = now - timedelta(days=days)
-        start_date = (now - timedelta(days=days - 1)).date()
-        day_keys: list[str] = []
-        cursor = start_date
-        for _ in range(days):
-            day_keys.append(cursor.isoformat())
-            cursor += timedelta(days=1)
-        buckets: dict[str, dict[str, Any]] = {
-            k: {"date": k, "views": 0, "leads": 0, "orders": 0, "map_routes": 0} for k in day_keys
-        }
-
-        def merge_rows(rows: Sequence[tuple[Any, Any]], field: str) -> None:
-            for day_val, count in rows:
-                key = day_val.isoformat() if hasattr(day_val, "isoformat") else str(day_val)
-                if key in buckets:
-                    buckets[key][field] = int(count or 0)
-
-        for event_type, field in (("view", "views"), ("lead", "leads")):
-            result = await self._db.execute(
-                select(cast(TrackingEventModel.created_at, Date), func.count())
-                .where(
-                    TrackingEventModel.shop_id == shop_id,
-                    TrackingEventModel.event_type == event_type,
-                    TrackingEventModel.created_at >= since,
-                )
-                .group_by(cast(TrackingEventModel.created_at, Date))
-            )
-            merge_rows(result.all(), field)
-
-        order_rows = await self._db.execute(
-            select(cast(OrderModel.created_at, Date), func.count())
-            .where(OrderModel.shop_id == shop_id, OrderModel.created_at >= since)
-            .group_by(cast(OrderModel.created_at, Date))
+        payload = await self.shop_analytics_time_series(
+            shop_id,
+            days=days,
+            market_slug=market_slug,
+            stall_goal_node_id=stall_goal_node_id,
         )
-        merge_rows(order_rows.all(), "orders")
-
-        if stall_goal_node_id:
-            route_rows = await self._db.execute(
-                select(cast(RouteStatModel.created_at, Date), func.count())
-                .where(
-                    RouteStatModel.market_slug == market_slug.lower().strip(),
-                    RouteStatModel.goal_node_id == stall_goal_node_id,
-                    RouteStatModel.created_at >= since,
-                )
-                .group_by(cast(RouteStatModel.created_at, Date))
-            )
-            merge_rows(route_rows.all(), "map_routes")
-
-        return [buckets[k] for k in day_keys]
+        return payload["series"]
 
     async def list_shop_leads(self, shop_id: UUID, limit: int = 20) -> Sequence[LeadModel]:
         result = await self._db.execute(
@@ -533,11 +706,7 @@ class MarketplaceRepository:
             .options(selectinload(ProductModel.shop))
             .where(
                 ProductModel.is_available == True,
-                exists().where(
-                    ShopModel.id == ProductModel.shop_id,
-                    ShopModel.is_active == True,
-                    ShopModel.is_verified == True,
-                ),
+                self._public_shop_exists(),
             )
         )
         if query:
@@ -640,28 +809,72 @@ class MarketplaceRepository:
         from sqlalchemy import func
         from sqlalchemy.orm import selectinload
 
-        has_embedding = await self._db.scalar(
-            select(func.count(ProductModel.id)).where(ProductModel.id == product_id, ProductModel.embedding.is_not(None))
-        )
-        if not has_embedding:
-            stmt = (
+        base = (
+            await self._db.execute(
+                select(ProductModel.id, ProductModel.category_id, ProductModel.price, ProductModel.embedding).where(
+                    ProductModel.id == product_id
+                )
+            )
+        ).one_or_none()
+        if base is None:
+            return []
+
+        _, base_category_id, base_price, base_embedding = base
+        selected_ids: list[UUID] = []
+        collected: list[ProductModel] = []
+
+        def _base_stmt():
+            return (
                 select(ProductModel)
                 .options(selectinload(ProductModel.shop))
-                .where(ProductModel.is_available == True, ProductModel.id != product_id)
-                .order_by(ProductModel.id.desc())
-                .limit(limit)
+                .where(
+                    ProductModel.is_available == True,
+                    ProductModel.id != product_id,
+                    self._public_shop_exists(),
+                )
+            )
+
+        price_distance = func.abs(ProductModel.price - int(base_price))
+
+        # 1) Primary pass: same category first for tighter relevance.
+        stmt = _base_stmt()
+        if base_category_id is not None:
+            stmt = stmt.where(ProductModel.category_id == base_category_id)
+        if base_embedding is not None:
+            stmt = stmt.order_by(
+                ProductModel.embedding.cosine_distance(base_embedding),
+                price_distance,
+                ProductModel.view_count.desc(),
+                ProductModel.id.desc(),
             )
         else:
-            target_embedding_sq = select(ProductModel.embedding).where(ProductModel.id == product_id).scalar_subquery()
-            stmt = (
-                select(ProductModel)
-                .options(selectinload(ProductModel.shop))
-                .where(ProductModel.is_available == True, ProductModel.id != product_id)
-                .order_by(ProductModel.embedding.cosine_distance(target_embedding_sq))
-                .limit(limit)
+            stmt = stmt.order_by(price_distance, ProductModel.view_count.desc(), ProductModel.id.desc())
+        stmt = stmt.limit(limit)
+        primary_result = await self._db.execute(stmt)
+        primary_items = primary_result.scalars().all()
+        collected.extend(primary_items)
+        selected_ids.extend(item.id for item in primary_items)
+
+        if len(collected) >= limit:
+            return collected[:limit]
+
+        # 2) Fallback pass: fill remaining slots from all products.
+        fallback_stmt = _base_stmt()
+        if selected_ids:
+            fallback_stmt = fallback_stmt.where(ProductModel.id.notin_(selected_ids))
+        if base_embedding is not None:
+            fallback_stmt = fallback_stmt.order_by(
+                ProductModel.embedding.cosine_distance(base_embedding),
+                price_distance,
+                ProductModel.view_count.desc(),
+                ProductModel.id.desc(),
             )
-        result = await self._db.execute(stmt)
-        return result.scalars().all()
+        else:
+            fallback_stmt = fallback_stmt.order_by(price_distance, ProductModel.view_count.desc(), ProductModel.id.desc())
+        fallback_stmt = fallback_stmt.limit(max(0, limit - len(collected)))
+        fallback_result = await self._db.execute(fallback_stmt)
+        collected.extend(fallback_result.scalars().all())
+        return collected[:limit]
 
     async def bind_shop_telegram_chat(self, shop_id: UUID, telegram_chat_id: int) -> ShopModel | None:
         shop = await self.get_shop(shop_id)
@@ -711,17 +924,32 @@ class MarketplaceRepository:
         *,
         limit: int = 500,
         market_zone: str | None = None,
+        market_slug: str = "ippodrom",
     ) -> list[ShopModel]:
+        from app.application.map.market_slugs import normalize_market_slug
+
         stmt = (
             select(ShopModel)
-            .where(ShopModel.is_active == True)
+            .where(
+                ShopModel.is_active == True,
+                ShopModel.is_blocked.is_(False),
+            )
             .order_by(ShopModel.is_featured.desc(), ShopModel.rating.desc(), ShopModel.name.asc())
             .limit(limit)
         )
         if market_zone:
             zone = market_zone.strip()
             if zone:
-                stmt = stmt.where(ShopModel.market_zone.ilike(f"%{zone}%"))
+                zone_match = ShopModel.market_zone.ilike(f"%{zone}%")
+                # Legacy CRM shops often have NULL market_zone — treat as Ippodrom default.
+                if normalize_market_slug(market_slug) == "ippodrom":
+                    legacy = or_(
+                        ShopModel.market_zone.is_(None),
+                        ShopModel.market_zone == "",
+                    )
+                    stmt = stmt.where(or_(zone_match, legacy))
+                else:
+                    stmt = stmt.where(zone_match)
         result = await self._db.execute(stmt)
         return list(result.scalars().all())
 

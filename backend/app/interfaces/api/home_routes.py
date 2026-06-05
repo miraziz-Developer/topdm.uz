@@ -6,10 +6,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.marketplace.home_feed_service import HomeFeedService
 from app.application.premium_banners.service import PremiumBannerService
 from app.infrastructure.db.session import get_db_session
 
 router = APIRouter(prefix="/home", tags=["home"])
+
+
+@router.get("/deal-feed")
+async def home_deal_feed(limit: int = 16, db: AsyncSession = Depends(get_db_session)) -> dict:
+    """Lightning + clearance + tavsiya (bitta so'rov, fallback ichida)."""
+    svc = HomeFeedService(db)
+    return await svc.get_deal_feed(limit=min(max(limit, 4), 24))
 
 
 @router.get("/premium-banners")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -13,6 +14,8 @@ from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 from app.infrastructure.db.models import OrderModel, ProductModel, ShopModel
 from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
+
+logger = logging.getLogger(__name__)
 
 PICKUP_SETTINGS_KEY = "pickup_completion_settings"
 ARRIVAL_TTL_SECONDS = 4 * 60 * 60
@@ -161,6 +164,7 @@ class OrderPickupCompletionService:
         )
         if not order:
             raise ValueError("order_not_found")
+        await self._accrue_offline_pickup_debt(order.id)
         await self._clear_tracking(order_id, shop_id)
         hub = MerchantWorkspaceHub(self._session)
         await hub.push_alert(
@@ -190,6 +194,7 @@ class OrderPickupCompletionService:
         )
         if not order:
             return False
+        await self._accrue_offline_pickup_debt(order.id)
         hub = MerchantWorkspaceHub(self._session)
         await hub.push_alert(
             shop_id,
@@ -200,6 +205,14 @@ class OrderPickupCompletionService:
             },
         )
         return True
+
+    async def _accrue_offline_pickup_debt(self, order_id: UUID) -> None:
+        from app.application.billing.merchant_debt_service import MerchantDebtService
+
+        try:
+            await MerchantDebtService(self._session).process_cash_pickup_completion(order_id)
+        except Exception:
+            logger.exception("merchant_debt_accrual_failed order_id=%s", order_id)
 
     async def _clear_tracking(self, order_id: UUID, shop_id: UUID) -> None:
         await self._cache.delete(f"approach:order:{order_id}")
@@ -239,7 +252,15 @@ class OrderPickupCompletionService:
                 f"Olib ketilgan bo'lsa CRMda «Olib ketdi» bosing."
             )
             try:
-                await notifier.send_message(int(shop.telegram_chat_id), text)
+                from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+
+                await notify_merchant_telegram(
+                    notifier,
+                    chat_id=int(shop.telegram_chat_id),
+                    text=text,
+                    shop_id=shop.id,
+                    crm_next="/dashboard/sales",
+                )
             except Exception:
                 pass
 

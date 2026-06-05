@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -21,7 +21,7 @@ export function BrandEmptyState({ title, description, icon: Icon, children, clas
       )}
     >
       <div className="mx-auto flex flex-col items-center gap-4">
-        <TopdimLogo variant="icon" size="md" href={null} badge="CRM" />
+        <BozorliiiLogo variant="icon" size="md" href={null} badge="CRM" />
         {Icon ? (
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-500/10 text-gold-600">
             <Icon className="h-6 w-6" />

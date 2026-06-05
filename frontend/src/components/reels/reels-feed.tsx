@@ -9,7 +9,8 @@ import {
   Volume2, VolumeX, X,
 } from "lucide-react";
 import Link from "next/link";
-import { resolveMediaUrl } from "@/lib/media";
+import { resolveReelPosterUrl, resolveReelVideoUrl } from "@/lib/media";
+import { isUnreliableShopMedia } from "@/lib/shop-branding";
 import { cn } from "@/lib/utils";
 
 /* ─── Types ─────────────────────────────────────────────────── */
@@ -30,6 +31,8 @@ interface ReelsVideoItem {
   shares_count: number;
   saves_count?: number;
   comments_count?: number;
+  playable?: boolean;
+  media_status?: string;
 }
 
 interface ReelsComment {
@@ -195,9 +198,9 @@ function CommentsSheet({
 
 /* ─── Single Reel ───────────────────────────────────────────── */
 function ReelCard({
-  video, active, sessionId, muted, onToggleMute, onPrev, onNext, hasPrev, hasNext,
+  video, active, mounted, sessionId, muted, onToggleMute, onPrev, onNext, hasPrev, hasNext,
 }: {
-  video: ReelsVideoItem; active: boolean; sessionId: string; muted: boolean;
+  video: ReelsVideoItem; active: boolean; mounted: boolean; sessionId: string; muted: boolean;
   onToggleMute: () => void; onPrev: () => void; onNext: () => void;
   hasPrev: boolean; hasNext: boolean;
 }) {
@@ -219,20 +222,24 @@ function ReelCard({
   const [commentActionBusyId, setCommentActionBusyId] = useState<string | null>(null);
   const [capExpanded, setCapExpanded] = useState(false);
   const caption = video.caption || "";
-  const videoSrc = resolveMediaUrl(video.video_url);
-  const posterSrc = video.thumbnail_url ? resolveMediaUrl(video.thumbnail_url) : undefined;
+  const canPlay = video.playable !== false;
+  const videoSrc = canPlay ? resolveReelVideoUrl(video.video_url) : "";
+  const [videoError, setVideoError] = useState(false);
+  const posterRaw =
+    video.thumbnail_url ||
+    (isUnreliableShopMedia(video.shop?.logo_url) ? null : video.shop?.logo_url);
+  const posterSrc = posterRaw ? resolveReelPosterUrl(posterRaw) : undefined;
   const short = caption.length > 80 ? caption.slice(0, 80) + "…" : caption;
   const hasProducts = (video.tagged_products?.length ?? 0) > 0;
 
   useEffect(() => {
     const el = videoRef.current;
-    if (!el) return;
-    if (active) {
+    if (!el || !mounted) return;
+    if (active && canPlay && videoSrc) {
       el.muted = muted;
-      el.currentTime = 0;
       void el.play().catch(() => {});
       setPaused(false);
-      watchStart.current = Date.now();
+      if (!watchStart.current) watchStart.current = Date.now();
     } else {
       el.pause();
       if (watchStart.current > 0) {
@@ -242,7 +249,11 @@ function ReelCard({
         ping(video.id, sessionId, { watch_seconds: secs, watch_pct: pct });
       }
     }
-  }, [active]); // eslint-disable-line
+  }, [active, mounted, muted, sessionId, video.id, canPlay, videoSrc]);
+
+  useEffect(() => {
+    setVideoError(false);
+  }, [video.id, videoSrc]);
 
   useEffect(() => { if (videoRef.current) videoRef.current.muted = muted; }, [muted]);
 
@@ -345,11 +356,11 @@ function ReelCard({
         style={{ width: "min(calc(100dvh * 9 / 16), 100vw)", maxWidth: "430px" }}
       >
         {/* Blurred background for landscape videos */}
-        {video.thumbnail_url && (
+        {posterSrc && (
           <div
             className="absolute inset-0"
             style={{
-              backgroundImage: `url(${video.thumbnail_url})`,
+              backgroundImage: `url(${posterSrc})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
               filter: "blur(28px) brightness(0.35) saturate(1.3)",
@@ -358,26 +369,41 @@ function ReelCard({
           />
         )}
 
-        {/* Main video */}
-        <video
-          ref={videoRef}
-          src={videoSrc}
-          poster={posterSrc}
-          loop
-          playsInline
-          muted={muted}
-          preload={active ? "auto" : "none"}
-          onClick={tapVideo}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            display: "block",
-            cursor: "pointer",
-          }}
-        />
+        {mounted && canPlay && videoSrc && !videoError ? (
+          <video
+            ref={videoRef}
+            key={videoSrc}
+            src={videoSrc}
+            poster={posterSrc}
+            loop
+            playsInline
+            muted={muted}
+            preload={active ? "auto" : "metadata"}
+            onClick={tapVideo}
+            onError={() => setVideoError(true)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              display: "block",
+              cursor: "pointer",
+            }}
+          />
+        ) : posterSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={posterSrc} alt="" className="absolute inset-0 h-full w-full object-contain" />
+        ) : (
+          <div className="absolute inset-0 bg-neutral-900" />
+        )}
+        {!canPlay || videoError ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/50 px-6 text-center text-sm font-medium text-white">
+            {videoError
+              ? "Video yuklanmadi — sahifani yangilang yoki keyinroq urinib ko\u2018ring"
+              : "Video vaqtincha mavjud emas — boshqa reellarni ko\u2018ring"}
+          </div>
+        ) : null}
 
         {/* Vignette */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
@@ -410,9 +436,15 @@ function ReelCard({
             href={`/shop/${video.shop.slug}`}
             className="flex w-fit items-center gap-2"
           >
-            {video.shop.logo_url ? (
-              <img src={video.shop.logo_url} alt={video.shop.name}
-                className="h-9 w-9 rounded-full border-2 border-white object-cover" />
+            {video.shop.logo_url && !isUnreliableShopMedia(video.shop.logo_url) ? (
+              <img
+                src={resolveReelPosterUrl(video.shop.logo_url)}
+                alt={video.shop.name}
+                className="h-9 w-9 rounded-full border-2 border-white object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
             ) : (
               <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 to-indigo-600">
                 <Store className="h-4 w-4 text-white" />
@@ -539,9 +571,15 @@ function ReelCard({
         {/* Shop avatar */}
         <div className="relative mb-1">
           <Link href={`/shop/${video.shop.slug}`}>
-            {video.shop.logo_url ? (
-              <img src={video.shop.logo_url} alt={video.shop.name}
-                className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-lg" />
+            {video.shop.logo_url && !isUnreliableShopMedia(video.shop.logo_url) ? (
+              <img
+                src={resolveReelPosterUrl(video.shop.logo_url)}
+                alt={video.shop.name}
+                className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-lg"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
             ) : (
               <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
                 <Store className="h-5 w-5 text-white" />
@@ -629,6 +667,8 @@ export function ReelsFeed({ shopSlug, category }: { shopSlug?: string; category?
   const sessionId = useRef(`s-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const busy = useRef(false);
   const pageRef = useRef(0);
+  const keyboardNav = useRef(false);
+  const observerDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (p: number) => {
     if (busy.current) return;
@@ -661,35 +701,48 @@ export function ReelsFeed({ shopSlug, category }: { shopSlug?: string; category?
     const el = containerRef.current;
     if (!el) return;
     const cards = el.querySelectorAll("[data-reel]");
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const idx = Number((e.target as HTMLElement).dataset.reelIdx ?? 0);
-          setActiveIdx(idx);
-          if (idx >= videos.length - 2 && hasMore && !busy.current) void load(pageRef.current);
-        }
-      });
-    }, { threshold: 0.6, root: el });
+    const obs = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((e) => e.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      const idx = Number((visible.target as HTMLElement).dataset.reelIdx ?? 0);
+      if (observerDebounce.current) clearTimeout(observerDebounce.current);
+      observerDebounce.current = setTimeout(() => {
+        setActiveIdx(idx);
+        if (idx >= videos.length - 2 && hasMore && !busy.current) void load(pageRef.current);
+      }, 80);
+    }, { threshold: 0.72, root: el });
     cards.forEach(c => obs.observe(c));
-    return () => obs.disconnect();
+    return () => {
+      obs.disconnect();
+      if (observerDebounce.current) clearTimeout(observerDebounce.current);
+    };
   }, [videos, hasMore, load]);
 
   /* Keyboard nav */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") setActiveIdx(i => Math.min(i + 1, videos.length - 1));
-      if (e.key === "ArrowUp") setActiveIdx(i => Math.max(i - 1, 0));
+      if (e.key === "ArrowDown") {
+        keyboardNav.current = true;
+        setActiveIdx((i) => Math.min(i + 1, videos.length - 1));
+      }
+      if (e.key === "ArrowUp") {
+        keyboardNav.current = true;
+        setActiveIdx((i) => Math.max(i - 1, 0));
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [videos.length]);
 
-  /* Scroll to active on keyboard nav */
   useEffect(() => {
+    if (!keyboardNav.current) return;
     const el = containerRef.current;
     if (!el) return;
     const card = el.querySelector(`[data-reel-idx="${activeIdx}"]`) as HTMLElement | null;
     card?.scrollIntoView({ behavior: "smooth", block: "start" });
+    keyboardNav.current = false;
   }, [activeIdx]);
 
   if (!loading && !videos.length) {
@@ -708,27 +761,37 @@ export function ReelsFeed({ shopSlug, category }: { shopSlug?: string; category?
       className="scrollbar-hide overflow-y-scroll snap-y snap-mandatory"
       style={{ height: "100dvh" }}
     >
-      {videos.map((v, idx) => (
-        <div
-          key={v.id}
-          data-reel
-          data-reel-idx={idx}
-          className="snap-start snap-always"
-          style={{ height: "100dvh" }}
-        >
-          <ReelCard
-            video={v}
-            active={activeIdx === idx}
-            sessionId={sessionId.current}
-            muted={muted}
-            onToggleMute={() => setMuted(m => !m)}
-            onPrev={() => setActiveIdx(i => Math.max(0, i - 1))}
-            onNext={() => setActiveIdx(i => Math.min(videos.length - 1, i + 1))}
-            hasPrev={idx > 0}
-            hasNext={idx < videos.length - 1}
-          />
-        </div>
-      ))}
+      {videos.map((v, idx) => {
+        const near = Math.abs(idx - activeIdx) <= 1;
+        return (
+          <div
+            key={v.id}
+            data-reel
+            data-reel-idx={idx}
+            className="snap-start snap-always"
+            style={{ height: "100dvh" }}
+          >
+            <ReelCard
+              video={v}
+              active={activeIdx === idx}
+              mounted={near}
+              sessionId={sessionId.current}
+              muted={muted}
+              onToggleMute={() => setMuted((m) => !m)}
+              onPrev={() => {
+                keyboardNav.current = true;
+                setActiveIdx((i) => Math.max(0, i - 1));
+              }}
+              onNext={() => {
+                keyboardNav.current = true;
+                setActiveIdx((i) => Math.min(videos.length - 1, i + 1));
+              }}
+              hasPrev={idx > 0}
+              hasNext={idx < videos.length - 1}
+            />
+          </div>
+        );
+      })}
       {loading && (
         <div className="flex snap-start snap-always items-center justify-center bg-black" style={{ height: "100dvh" }}>
           <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-white/20 border-t-white" />

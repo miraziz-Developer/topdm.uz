@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { resolveMediaUrl } from "@/lib/media";
+import { captureVideoPoster } from "@/lib/capture-video-poster";
+import { resolveReelPosterUrl, resolveReelVideoUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import { getMerchantProducts, getJson, postFormData } from "@/lib/api";
 
@@ -92,6 +93,8 @@ export function ReelsUploadWizard({ onSuccess }: { onSuccess?: (v: ReelsVideo) =
     try {
       const fd = new FormData();
       fd.append("video", videoFile);
+      const poster = await captureVideoPoster(videoFile);
+      if (poster) fd.append("thumbnail", poster, "poster.jpg");
       if (caption) fd.append("caption", caption);
       if (hashtags.length) fd.append("hashtags", hashtags.join(","));
       if (tagged.length) fd.append("tagged_product_ids", tagged.map((p) => p.id).join(","));
@@ -291,6 +294,7 @@ function MerchantReelViewerModal({
 }) {
   const video = videos[index];
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoError, setVideoError] = useState(false);
   const hasPrev = index > 0;
   const hasNext = index < videos.length - 1;
 
@@ -325,10 +329,14 @@ function MerchantReelViewerModal({
     void el.play().catch(() => undefined);
   }, [video?.id]);
 
+  useEffect(() => {
+    setVideoError(false);
+  }, [video?.id]);
+
   if (!video) return null;
 
-  const videoSrc = resolveMediaUrl(video.video_url);
-  const posterSrc = video.thumbnail_url ? resolveMediaUrl(video.thumbnail_url) : undefined;
+  const videoSrc = resolveReelVideoUrl(video.video_url);
+  const posterSrc = video.thumbnail_url ? resolveReelPosterUrl(video.thumbnail_url) : undefined;
 
   return (
     <AnimatePresence>
@@ -360,17 +368,26 @@ function MerchantReelViewerModal({
           </header>
 
           <div className="relative mx-4 flex-1 overflow-hidden rounded-3xl bg-black">
-            <video
-              ref={videoRef}
-              key={videoSrc}
-              src={videoSrc}
-              poster={posterSrc}
-              className="h-full w-full object-contain"
-              playsInline
-              loop
-              controls
-              autoPlay
-            />
+            {videoError ? (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-white/80">
+                <p>Video yuklanmadi.</p>
+                <p className="text-xs text-white/50">Internetni tekshiring yoki qayta yuklang.</p>
+              </div>
+            ) : (
+              <video
+                ref={videoRef}
+                key={videoSrc}
+                src={videoSrc}
+                poster={posterSrc}
+                className="h-full w-full object-contain"
+                playsInline
+                loop
+                muted
+                controls
+                autoPlay
+                onError={() => setVideoError(true)}
+              />
+            )}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
               {video.caption ? <p className="text-sm font-medium text-white">{video.caption}</p> : null}
               {video.hashtags?.length ? (
@@ -475,7 +492,8 @@ export function MerchantReelsGallery({ shopSlug: _shopSlug }: { shopSlug?: strin
       <p className="mb-3 text-xs text-text-400">Reel ustiga bosing — to&apos;liq ekranda ko&apos;ring (Instagram/TikTok kabi)</p>
       <div className="grid grid-cols-3 gap-1">
         {videos.map((v, i) => {
-          const thumb = v.thumbnail_url ? resolveMediaUrl(v.thumbnail_url) : resolveMediaUrl(v.video_url);
+          const videoSrc = resolveReelVideoUrl(v.video_url);
+          const poster = v.thumbnail_url ? resolveReelPosterUrl(v.thumbnail_url) : "";
           return (
             <button
               key={v.id}
@@ -484,16 +502,24 @@ export function MerchantReelsGallery({ shopSlug: _shopSlug }: { shopSlug?: strin
               style={{ aspectRatio: "9/16" }}
               onClick={() => setViewerIndex(i)}
             >
-              {v.thumbnail_url ? (
-                <img src={thumb} alt={v.caption || "Reel"} className="h-full w-full object-cover" />
-              ) : (
+              {videoSrc ? (
                 <video
-                  src={resolveMediaUrl(v.video_url)}
+                  src={videoSrc}
                   className="h-full w-full object-cover"
                   muted
                   playsInline
                   preload="metadata"
+                  poster={poster || undefined}
+                  onLoadedData={(e) => {
+                    const el = e.currentTarget;
+                    if (el.duration > 0.15) el.currentTime = 0.12;
+                  }}
                 />
+              ) : poster ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={poster} alt={v.caption || "Reel"} className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full bg-neutral-900" />
               )}
 
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25 transition group-hover:bg-black/35">

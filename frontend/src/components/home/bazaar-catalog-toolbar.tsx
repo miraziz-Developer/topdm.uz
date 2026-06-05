@@ -1,23 +1,26 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronDown, Package, ShoppingBag, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Globe2, Package, ShoppingBag, SlidersHorizontal, X } from "lucide-react";
 import { useState } from "react";
 
 import { useT } from "@/i18n/locale-provider";
 import {
   BLOCK_SECTORS,
   type BazaarCatalogFilters,
+  type CatalogOrigin,
   MARKET_ZONES,
   ROOT_CATEGORIES,
   type SaleMode,
 } from "@/lib/home-catalog-filters";
+import { isChinaMarketEnabled } from "@/lib/runtime-flags";
 import { cn } from "@/lib/utils";
 
 type BazaarCatalogToolbarProps = {
   filters: BazaarCatalogFilters;
   onChange: (next: BazaarCatalogFilters) => void;
   className?: string;
+  /** Xitoy rejimi — qorong'u premium toolbar */
 };
 
 function SelectField({
@@ -67,6 +70,9 @@ export function BazaarCatalogToolbar({ filters, onChange, className }: BazaarCat
     z.id === "all" ? { ...z, label: t("home.filter.allCategories") } : z,
   );
 
+  const chinaEnabled = isChinaMarketEnabled();
+  const isChina = chinaEnabled && filters.catalogOrigin === "china";
+
   const activeFiltersCount = [
     filters.marketZone !== "all",
     filters.blockSector !== "all",
@@ -79,53 +85,76 @@ export function BazaarCatalogToolbar({ filters, onChange, className }: BazaarCat
     <section className={cn("w-full", className)} aria-label="Bozor filtrlari">
       {/* Compact top bar — always visible */}
       <div className="flex h-11 items-center gap-2 px-4 sm:px-6">
-        {/* Sale mode pills */}
-        <div className="flex rounded-full border border-border-subtle bg-white p-0.5 shadow-sm">
-          {(
-            [
-              { id: "Chakana" as SaleMode, label: t("home.sale.chakana"), icon: ShoppingBag },
-              { id: "Optom" as SaleMode, label: t("home.sale.optom"), icon: Package },
-            ] as const
-          ).map(({ id, label, icon: Icon }) => {
-            const active = filters.saleMode === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => set({ saleMode: id })}
-                className={cn(
-                  "relative flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200",
-                  active ? "text-white" : "text-ink-500 hover:text-ink-900",
-                )}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="sale-mode-pill"
-                    className="absolute inset-0 rounded-full bg-electric-500 shadow-sm"
-                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-1.5">
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto scrollbar-none">
+          {/* Chakana / Ulgurji */}
+          <div
+            className={cn(
+              "flex shrink-0 rounded-full border border-border-subtle bg-white p-0.5 shadow-sm transition-opacity",
+              isChina && "pointer-events-none opacity-45",
+            )}
+          >
+            {(
+              [
+                { id: "Chakana" as SaleMode, label: t("home.sale.chakana"), icon: ShoppingBag },
+                { id: "Optom" as SaleMode, label: t("home.sale.optom"), icon: Package },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => {
+              const active = !isChina && filters.saleMode === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => set({ catalogOrigin: "local", saleMode: id })}
+                  className={cn(
+                    "relative flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-all duration-200 sm:px-3",
+                    active ? "text-white" : "text-ink-500 hover:text-ink-900",
+                  )}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="sale-mode-pill"
+                      className="absolute inset-0 rounded-full bg-electric-500 shadow-sm"
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5 whitespace-nowrap">
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Spacer */}
-        <div className="flex-1" />
+          {chinaEnabled ? (
+            <button
+              type="button"
+              onClick={() => set({ catalogOrigin: "china" as CatalogOrigin })}
+              className={cn(
+                "relative flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-all duration-300 sm:px-3",
+                isChina
+                  ? "border-electric-500/40 bg-electric-500 text-white shadow-sm"
+                  : "border-border-subtle bg-white text-ink-600 hover:border-electric-500/35 hover:text-electric-500",
+              )}
+            >
+              <Globe2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="whitespace-nowrap">{t("home.sale.china")}</span>
+            </button>
+          ) : null}
+        </div>
 
         {/* Filter toggle button */}
         <button
           type="button"
+          disabled={isChina}
           onClick={() => setExpanded((v) => !v)}
           className={cn(
-            "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all",
-            expanded || activeFiltersCount > 0
-              ? "border-electric-500 bg-electric-500/10 text-electric-600"
-              : "border-border-subtle bg-white text-ink-600 hover:border-electric-500/40",
+            "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all",
+            isChina && "cursor-not-allowed opacity-40",
+            !isChina &&
+              (expanded || activeFiltersCount > 0
+                ? "border-electric-500 bg-electric-500/10 text-electric-600"
+                : "border-border-subtle bg-white text-ink-600 hover:border-electric-500/40"),
           )}
         >
           {expanded ? (

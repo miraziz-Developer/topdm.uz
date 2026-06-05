@@ -37,7 +37,7 @@ export function PersonalizedHomeBanner({ experience }: Props) {
   const Icon = ICONS[banner.icon ?? "search"] ?? Search;
 
   return (
-    <section className="mx-auto max-w-7xl px-4 pb-2 sm:px-5">
+    <section className="mx-auto max-w-7xl px-4 pb-3 pt-1 sm:px-6 sm:pb-4">
       <div className={cn("relative rounded-2xl border p-4 md:flex md:items-center md:justify-between md:gap-6", tone)}>
         {/* Close button */}
         <button

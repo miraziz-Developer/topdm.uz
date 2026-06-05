@@ -7,9 +7,12 @@ import { QrCode, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Navigation } from "@/components/Navigation";
 import { ShopProductShowcase } from "@/components/shop/shop-product-showcase";
+import { ShopStoriesStrip } from "@/components/shop/shop-stories-strip";
 import { ShopStorefrontHero } from "@/components/shop/shop-storefront-hero";
 import { getShopProducts } from "@/lib/api";
-import { resolveMediaUrl } from "@/lib/media";
+import { buildMockShopProducts } from "@/lib/mock-shop-demo";
+import { hasReliableProductImage, resolveMediaUrl } from "@/lib/media";
+import { allowDemoFakeData } from "@/lib/runtime-flags";
 import { saveLastShop } from "@/lib/personalization/client-hints";
 import type { Product, ShopProfile } from "@/types";
 
@@ -33,10 +36,19 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
       .finally(() => setLoading(false));
   }, [params.slug]);
 
+  const displayItems = useMemo(() => {
+    if (items.length > 0) return { products: items, isDemo: false };
+    if (shop && allowDemoFakeData()) {
+      return { products: buildMockShopProducts(shop), isDemo: true };
+    }
+    return { products: [], isDemo: false };
+  }, [items, shop]);
+
   const coverFromProduct = useMemo(() => {
-    const first = items.find((p) => p.images?.[0]);
-    return first?.images?.[0] ? resolveMediaUrl(first.images[0]) : null;
-  }, [items]);
+    const first = displayItems.products.find((p) => hasReliableProductImage(p.images));
+    const raw = first?.images?.[0];
+    return raw ? resolveMediaUrl(raw) : null;
+  }, [displayItems.products]);
 
   return (
     <main className="shop-page min-h-dvh bg-canvas md:pb-6">
@@ -69,16 +81,36 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
               </div>
             ) : null}
 
-            <ShopStorefrontHero shop={shop} productCount={items.length} coverFromProduct={coverFromProduct} />
+            <ShopStorefrontHero
+              shop={shop}
+              productCount={displayItems.products.length}
+              coverFromProduct={coverFromProduct}
+            />
+
+            <ShopStoriesStrip
+              shopId={shop.id}
+              shopName={shop.name}
+              shopSlug={shop.slug}
+              ipadrom={shop.ipadrom_name || shop.ipadrom}
+            />
 
             {shop.is_featured ? (
               <div className="flex items-center gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-900">
                 <Sparkles className="h-4 w-4 shrink-0" />
-                Bu do&apos;kon Topdim tavsiyasi — mashhur sotuvchilar qatorida
+                Bu do&apos;kon Bozorliii tavsiyasi — mashhur sotuvchilar qatorida
               </div>
             ) : null}
 
-            <ShopProductShowcase products={items} shopName={shop.name} />
+            {displayItems.isDemo ? (
+              <p className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-2.5 text-center text-xs font-medium text-amber-900">
+                Demo katalog — haqiqiy mahsulotlar CRM dan qo&apos;shilganda almashtiriladi
+              </p>
+            ) : null}
+            <ShopProductShowcase
+              products={displayItems.products}
+              shopName={shop.name}
+              isDemo={displayItems.isDemo}
+            />
           </div>
         ) : null}
       </div>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Bozor-AI merchant Telegram bot (aiogram). Requires TELEGRAM_BOT_TOKEN and database."""
+"""Run Bozorliii merchant Telegram bot (aiogram). Requires TELEGRAM_BOT_TOKEN and database."""
 
 from __future__ import annotations
 

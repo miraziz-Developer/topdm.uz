@@ -178,7 +178,7 @@ class MerchantWorkspaceHub:
         }
 
     async def analytics_summary(self, shop_id: UUID, *, days: int = 7) -> dict[str, Any]:
-        days = max(1, min(days, 90))
+        days = max(1, min(days, 365))
         shop = await self._repo.get_shop(shop_id)
         if not shop:
             raise ValueError("shop_not_found")
@@ -198,14 +198,13 @@ class MerchantWorkspaceHub:
         except Exception:
             routes_to_shop = 0
 
-        orders = await self._repo.list_shop_orders(shop_id, limit=100)
-        week_ago = datetime.now(timezone.utc) - timedelta(days=days)
-        recent_orders = [o for o in orders if getattr(o, "created_at", week_ago) >= week_ago]
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        orders_period = await self._repo.count_shop_orders_since(shop_id, since=since)
 
         block = (shop.block_sector or "A")[:1].upper()
         stall_no = shop.stall_number or "12"
         stall_goal = f"stall-{block}-{stall_no}"
-        daily_series = await self._repo.shop_analytics_daily_series(
+        series_payload = await self._repo.shop_analytics_time_series(
             shop_id,
             days=days,
             market_slug=slug,
@@ -214,13 +213,15 @@ class MerchantWorkspaceHub:
 
         return {
             "days": days,
-            "daily_series": daily_series,
+            "granularity": series_payload["granularity"],
+            "period_label": series_payload["period_label"],
+            "daily_series": series_payload["series"],
             "totals": {
                 "products": stats.total_products,
                 "leads": stats.total_leads,
                 "views": stats.total_views,
                 "visits": stats.total_visits,
-                "orders_period": len(recent_orders),
+                "orders_period": orders_period,
                 "map_routes_period": routes_to_shop,
             },
             "top_products": [
@@ -234,7 +235,8 @@ class MerchantWorkspaceHub:
                 for p in top_views
             ],
             "conversion_hint": (
-                f"{stats.total_views} ko'rish → {stats.total_leads} lead → {len(recent_orders)} buyurtma ({days} kun)"
+                f"{stats.total_views} ko'rish → {stats.total_leads} lead → {orders_period} buyurtma "
+                f"({series_payload['period_label']})"
             ),
         }
 
@@ -295,10 +297,17 @@ class MerchantWorkspaceHub:
         if shop and shop.telegram_chat_id and self._settings.telegram_bot_token:
             notifier = TelegramNotifierGateway(self._settings.telegram_bot_token)
             phones = ", ".join({l.customer_phone for l in targets[:8]})
-            await notifier.send_message(
-                int(shop.telegram_chat_id),
-                f"Qayta stok xabari tayyor ({product.name}).\n"
-                f"Mijozlarga qo'ng'iroq qiling:\n{phones or '—'}\n\nMatn: {text}",
+            from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+
+            await notify_merchant_telegram(
+                notifier,
+                chat_id=int(shop.telegram_chat_id),
+                text=(
+                    f"Qayta stok xabari tayyor ({product.name}).\n"
+                    f"Mijozlarga qo'ng'iroq qiling:\n{phones or '—'}\n\nMatn: {text}"
+                ),
+                shop_id=shop_id,
+                crm_next="/dashboard/sales",
             )
 
         await self.push_alert(

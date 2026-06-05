@@ -49,6 +49,9 @@ class OrderPaymentRepository:
         amount_uzs: int,
         provider: str,
         customer_phone: str | None = None,
+        purpose: str = "order",
+        shop_id: UUID | None = None,
+        meta: dict | None = None,
     ) -> OrderCheckoutPaymentModel:
         row = OrderCheckoutPaymentModel(
             order_ids=[str(oid) for oid in order_ids],
@@ -56,6 +59,9 @@ class OrderPaymentRepository:
             provider=provider.strip().lower(),
             status="pending",
             customer_phone=customer_phone,
+            purpose=purpose,
+            shop_id=shop_id,
+            meta=meta or {},
         )
         self._session.add(row)
         await self._session.flush()

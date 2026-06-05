@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
-/** Topdim.UZ — app icon (brauzer tab) */
+/** Bozorliii.uz — app icon (brauzer tab) */
 export default function Icon() {
   return new ImageResponse(
     (

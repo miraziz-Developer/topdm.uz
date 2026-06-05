@@ -7,13 +7,14 @@ import { Sparkles } from "lucide-react";
 
 import { StoryViewerModal } from "@/components/home/story-viewer-modal";
 import { SectionHeader } from "@/components/ui/section-header";
-import { useLiveStories } from "@/hooks/useLiveStories";
+import { useStoryDock } from "@/hooks/useStoryDock";
 import { useT } from "@/i18n/locale-provider";
+import { getShopStories } from "@/lib/api";
 import { mockStoriesAsLive } from "@/lib/mock-stories";
 import { allowDevMocks } from "@/lib/runtime-flags";
-import { resolveMediaUrl } from "@/lib/media";
+import { PLACEHOLDER_BOUTIQUE, PLACEHOLDER_IMAGE, resolveMediaUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
-import type { LiveStory } from "@/types";
+import type { LiveStory, StoryDockRing } from "@/types";
 
 const SECTION_SHELL = "mx-auto max-w-7xl px-4 sm:px-6 lg:px-8";
 const AUTOPLAY_MS = 4200;
@@ -28,16 +29,30 @@ function StoryDockSkeleton() {
 }
 
 type StoryDockCardProps = {
-  story: LiveStory;
+  ring: StoryDockRing;
   index: number;
   liveLabel: string;
   onOpen: () => void;
 };
 
-function StoryDockCard({ story, index, liveLabel, onOpen }: StoryDockCardProps) {
-  const imageSrc = resolveMediaUrl(story.image_url);
-  const storeName = story.shop?.name || story.level_context || "Do'kon";
-  const hot = story.is_hot;
+function storyThumbFromPreview(ring: StoryDockRing): string {
+  const story = ring.preview_story;
+  const logo = story.shop?.logo_url?.trim() || ring.shop?.logo_url?.trim();
+  if (logo) return resolveMediaUrl(logo);
+  const cover = story.image_url?.trim();
+  if (cover) return resolveMediaUrl(cover);
+  return PLACEHOLDER_BOUTIQUE;
+}
+
+function StoryDockCard({ ring, index, liveLabel, onOpen }: StoryDockCardProps) {
+  const [imageSrc, setImageSrc] = useState(() => storyThumbFromPreview(ring));
+  const storeName = ring.shop?.name || ring.preview_story.shop?.name || "Do'kon";
+  const hot = ring.preview_story.is_hot;
+  const countBadge = ring.active_count > 1 ? ring.active_count : null;
+
+  useEffect(() => {
+    setImageSrc(storyThumbFromPreview(ring));
+  }, [ring]);
 
   return (
     <motion.button
@@ -58,14 +73,21 @@ function StoryDockCard({ story, index, liveLabel, onOpen }: StoryDockCardProps) 
             : "bg-gradient-to-br from-ink-900/40 via-electric-500/25 to-indigo-700/50",
         )}
       >
+        {countBadge ? (
+          <span className="absolute -right-0.5 -top-0.5 z-10 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-electric-500 px-1 text-[10px] font-bold text-white shadow-md ring-2 ring-white">
+            {countBadge}
+          </span>
+        ) : null}
         <div className="relative h-full w-full overflow-hidden rounded-[27px] bg-white p-[2px]">
           <div className="relative h-full w-full overflow-hidden rounded-[25px] bg-elevated">
             <Image
               src={imageSrc}
               alt={storeName}
               fill
+              unoptimized
               className="object-cover brightness-[1.04] contrast-[1.03] saturate-[1.1]"
               sizes="120px"
+              onError={() => setImageSrc(PLACEHOLDER_IMAGE)}
             />
             <div className="pointer-events-none absolute inset-0 rounded-[25px] bg-gradient-to-b from-black/[0.12] via-transparent to-black/[0.55]" />
             <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 rounded-b-[25px] bg-gradient-to-t from-black/88 via-black/45 to-transparent px-2 pb-2 pt-7">
@@ -95,19 +117,44 @@ function StoryDockCard({ story, index, liveLabel, onOpen }: StoryDockCardProps) 
 export function StoriesFeed() {
   const t = useT();
   const reduceMotion = useReducedMotion();
-  const { data, isLoading } = useLiveStories();
-  const apiStories = data?.items ?? [];
-  const stories = useMemo<LiveStory[]>(() => {
-    if (apiStories.length > 0) return apiStories;
-    return allowDevMocks() ? mockStoriesAsLive() : [];
-  }, [apiStories]);
+  const { data, isLoading } = useStoryDock(15);
+  const apiRings = data?.items ?? [];
+  const rings = useMemo<StoryDockRing[]>(() => {
+    if (apiRings.length > 0) return apiRings;
+    if (!allowDevMocks()) return [];
+    const mocks = mockStoriesAsLive();
+    return mocks.slice(0, 6).map((s) => ({
+      shop_id: s.shop_id,
+      shop: s.shop,
+      preview_story: s,
+      active_count: 1,
+    }));
+  }, [apiRings]);
+
+  const [viewerStories, setViewerStories] = useState<LiveStory[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [loadingShop, setLoadingShop] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dockHover, setDockHover] = useState(false);
 
+  const openShop = useCallback(async (ring: StoryDockRing) => {
+    setLoadingShop(true);
+    try {
+      const res = await getShopStories(ring.shop_id);
+      if (!res.items.length) return;
+      setViewerStories(res.items);
+      setViewerIndex(0);
+    } catch {
+      setViewerStories([ring.preview_story]);
+      setViewerIndex(0);
+    } finally {
+      setLoadingShop(false);
+    }
+  }, []);
+
   const advanceScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el || stories.length < 2) return;
+    if (!el || rings.length < 2) return;
     const first = el.querySelector("[data-story-dock-item]") as HTMLElement | null;
     if (!first) return;
     const gapRaw = getComputedStyle(el).gap || getComputedStyle(el).columnGap || "20px";
@@ -117,17 +164,13 @@ export function StoriesFeed() {
     let next = el.scrollLeft + step;
     if (next >= max) next = 0;
     el.scrollTo({ left: next, behavior: "smooth" });
-  }, [stories.length]);
+  }, [rings.length]);
 
   useEffect(() => {
-    if (reduceMotion || dockHover || viewerIndex !== null || stories.length < 2) return;
+    if (reduceMotion || dockHover || viewerIndex !== null || rings.length < 2) return;
     const id = window.setInterval(advanceScroll, AUTOPLAY_MS);
     return () => window.clearInterval(id);
-  }, [advanceScroll, dockHover, reduceMotion, stories.length, viewerIndex]);
-
-  if (!isLoading && stories.length === 0) {
-    return null;
-  }
+  }, [advanceScroll, dockHover, reduceMotion, rings.length, viewerIndex]);
 
   return (
     <section className={cn(SECTION_SHELL, "py-4 md:py-6")}>
@@ -155,9 +198,10 @@ export function StoriesFeed() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          "relative mt-6 overflow-hidden rounded-[1.35rem]",
-          "border border-border-subtle/90 bg-white/55 shadow-elevated backdrop-blur-xl",
+          "relative mt-5 overflow-hidden rounded-[1.35rem]",
+          "border border-border-subtle/90 bg-white/80 shadow-elevated backdrop-blur-xl",
           "ring-1 ring-black/[0.04]",
+          loadingShop && "pointer-events-none opacity-90",
         )}
         onMouseEnter={() => setDockHover(true)}
         onMouseLeave={() => setDockHover(false)}
@@ -173,23 +217,29 @@ export function StoriesFeed() {
         <div
           ref={scrollRef}
           className={cn(
-            "relative flex items-stretch gap-5 overflow-x-auto px-4 py-5 md:gap-6 md:px-6 md:py-6",
+            "relative flex items-start gap-5 overflow-x-auto px-4 py-4 md:gap-6 md:px-6 md:py-5",
             "scrollbar-hide snap-x snap-mandatory scroll-smooth",
           )}
           role="list"
           aria-label={t("home.stories.title")}
         >
-          {isLoading
-            ? Array.from({ length: 6 }).map((_, index) => <StoryDockSkeleton key={index} />)
-            : stories.map((story, index) => (
-                <StoryDockCard
-                  key={story.id}
-                  story={story}
-                  index={index}
-                  liveLabel={t("home.stories.liveBadge")}
-                  onOpen={() => setViewerIndex(index)}
-                />
-              ))}
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, index) => <StoryDockSkeleton key={index} />)
+          ) : rings.length === 0 ? (
+            <p className="flex min-h-[118px] w-full items-center justify-center px-6 text-center text-sm text-ink-500">
+              {t("home.stories.empty")}
+            </p>
+          ) : (
+            rings.map((ring, index) => (
+              <StoryDockCard
+                key={ring.shop_id}
+                ring={ring}
+                index={index}
+                liveLabel={t("home.stories.liveBadge")}
+                onOpen={() => void openShop(ring)}
+              />
+            ))
+          )}
         </div>
 
         {!reduceMotion ? (
@@ -201,11 +251,14 @@ export function StoriesFeed() {
       </motion.div>
 
       <AnimatePresence>
-        {viewerIndex !== null && stories.length > 0 ? (
+        {viewerIndex !== null && viewerStories.length > 0 ? (
           <StoryViewerModal
-            stories={stories}
+            stories={viewerStories}
             index={viewerIndex}
-            onClose={() => setViewerIndex(null)}
+            onClose={() => {
+              setViewerIndex(null);
+              setViewerStories([]);
+            }}
             onIndexChange={setViewerIndex}
           />
         ) : null}

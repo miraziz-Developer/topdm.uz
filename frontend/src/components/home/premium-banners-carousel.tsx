@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { SectionHeader } from "@/components/ui/section-header";
 import { usePremiumBanners } from "@/hooks/usePremiumBanners";
 import { useT } from "@/i18n/locale-provider";
@@ -118,7 +118,7 @@ function BannerCard({ slide, onNavigate }: BannerCardProps) {
     >
       {imgFailed ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 via-white to-slate-200 px-6 text-center">
-          <TopdimLogo variant="icon" size="md" href={null} />
+          <BozorliiiLogo variant="icon" size="md" href={null} />
           <p className="mt-3 text-sm font-bold text-ink-900">{slide.shop_name}</p>
           <p className="mt-1 text-xs font-medium text-ink-500">{slide.headline || "Premium do'kon"}</p>
         </div>

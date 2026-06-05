@@ -81,6 +81,13 @@ export const CRM_CONTENT_TABS = [
 
 export const CRM_SHOP_TABS = [
   {
+    id: "profile",
+    label: "Profil",
+    href: "/dashboard/shop?tab=profile",
+    icon: UserRound,
+    hint: "Logo, muqova va do'kon tavsifi — mijoz saytida brend",
+  },
+  {
     id: "share",
     label: "Ulashish",
     href: "/dashboard/shop?tab=share",
@@ -106,7 +113,7 @@ export const CRM_SHOP_TABS = [
     label: "Reja va to'lov",
     href: "/dashboard/shop?tab=billing",
     icon: CreditCard,
-    hint: "Obuna, tangalar va reklama tariflari",
+    hint: "Balans to'ldirish (Click/Payme), mahsulot boost",
   },
 ] as const;
 

@@ -16,8 +16,8 @@ async function parseError(response: Response): Promise<string> {
     const d = json.detail ?? json.error;
     if (typeof d === "string") return `API error: ${response.status} — ${d}`;
     if (d && typeof d === "object") {
-      if (typeof d.message === "string") return `API error: ${response.status} — ${d.message}`;
-      if (typeof d.code === "string") return `API error: ${response.status} — ${d.code}`;
+      if (typeof d.message === "string") return d.message;
+      if (typeof d.code === "string") return d.code;
     }
   } catch {
     /* plain text */
@@ -80,12 +80,40 @@ export async function postFormData<TResponse>(path: string, form: FormData, auth
   return response.json() as Promise<TResponse>;
 }
 
+export type MerchantShopProfile = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  logo_url?: string | null;
+  storefront_image_url?: string | null;
+  floor?: string | null;
+  section?: string | null;
+  is_verified?: boolean;
+};
+
 export async function getMerchantMe() {
   return getJson<{
     email: string | null;
     phone: string | null;
-    shop: { id: string; name: string; slug: string; floor?: string | null; section?: string | null };
+    shop: MerchantShopProfile;
   }>("/merchant/me");
+}
+
+export async function patchMerchantShopProfile(body: { description?: string | null }) {
+  return patchJson<{ shop: MerchantShopProfile }>("/merchant/shop/profile", body);
+}
+
+export async function uploadMerchantShopLogo(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return postFormData<{ shop: MerchantShopProfile }>("/merchant/shop/logo", form);
+}
+
+export async function uploadMerchantShopCover(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return postFormData<{ shop: MerchantShopProfile }>("/merchant/shop/cover", form);
 }
 
 export type MerchantStoryItem = {
@@ -102,6 +130,14 @@ export async function uploadMerchantStory(file: File) {
   const form = new FormData();
   form.append("file", file);
   return postFormData<{ item: MerchantStoryItem }>("/merchants/stories", form);
+}
+
+export async function listMerchantStories() {
+  return getJson<{ items: MerchantStoryItem[] }>("/merchants/stories", true);
+}
+
+export async function deleteMerchantStory(storyId: string) {
+  return deleteJson<{ story_id: string; deleted: boolean }>(`/merchants/stories/${storyId}`);
 }
 
 export async function getMerchantDashboard() {
@@ -502,7 +538,13 @@ export type CrmTariff = {
   code: string;
   name_uz: string;
   duration_days: number;
-  coin_cost: number | null;
+  reference_days?: number;
+  reference_price_uzs?: number;
+  price_per_day_uzs?: number;
+  carousel_slot?: number;
+  priority_weight?: number;
+  day_options?: number[];
+  placement?: string;
   price_uzs: number | null;
   badge_label: string | null;
 };
@@ -523,9 +565,9 @@ export type CrmBannerCampaign = {
 
 export type MerchantWallet = {
   shop_id: string;
-  coin_balance: number;
+  balance_uzs: number;
+  coin_balance?: number;
   coins_balance?: number;
-  coin_uzs_rate: number;
 };
 
 export async function getCrmBannerTariffs() {
@@ -543,20 +585,52 @@ export async function getCrmMyBanners() {
 export async function buyCrmBannerWithCoins(payload: {
   title?: string;
   tariff_code: string;
+  duration_days?: number;
   image: File;
 }) {
   const form = new FormData();
   if (payload.title) form.append("title", payload.title);
   form.append("tariff_code", payload.tariff_code);
+  form.append("duration_days", String(payload.duration_days ?? 30));
   form.append("image", payload.image);
-  return postFormData<{ banner_id: string; status: string; coin_balance: number }>(
+  return postFormData<{ banner_id: string; status: string; balance_uzs: number; amount_uzs?: number }>(
     "/crm/banners/buy-with-coins",
     form,
   );
 }
 
-export async function renewCrmBanner(payload: { banner_id: string; tariff_code?: string }) {
+export async function renewCrmBanner(payload: {
+  banner_id: string;
+  tariff_code?: string;
+  duration_days?: number;
+}) {
   return postJson<{ banner_id: string; status: string }>("/crm/banners/renew", payload);
+}
+
+export type CoinPackage = {
+  id: string;
+  code: string;
+  name_uz: string;
+  coins: number;
+  amount_uzs: number;
+};
+
+export async function getCoinPackages() {
+  return getJson<{ items: CoinPackage[] }>("/payments/coin-packages");
+}
+
+export async function generateCoinTopUpInvoice(payload: {
+  coin_package_id: string;
+  provider: "click" | "payme";
+}) {
+  return postJson<{
+    transaction_id: string;
+    checkout_url: string;
+    status: string;
+    coins_added: number;
+    amount_uzs: number;
+    package: { id: string; code: string; name_uz: string };
+  }>("/payments/generate-invoice", payload);
 }
 
 export type TodayTask = {
@@ -581,8 +655,11 @@ export async function getMerchantToday() {
 export async function getMerchantAnalyticsSummary(days = 7) {
   return getJson<{
     days: number;
+    granularity?: "day" | "week" | "month";
+    period_label?: string;
     daily_series: Array<{
       date: string;
+      label?: string;
       views: number;
       leads: number;
       orders: number;

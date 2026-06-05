@@ -93,3 +93,43 @@ def assert_split_integrity(split: PaymentSplit) -> None:
         raise AssertionError(
             f"split integrity failed: {lhs} != {split.total_amount_received} ({split.as_dict()})"
         )
+
+
+def compute_payment_split_with_markup(
+    *,
+    total_amount_received: Decimal,
+    merchant_goods_subtotal: Decimal,
+    delivery_share: Decimal,
+) -> PaymentSplit:
+    """
+    Mijoz to'lagan summa ichida:
+    - merchant_share = do'kon bazaviy narx (mahsulot)
+    - platform_commission = ustama (mijoz narx - baza)
+    - delivery_share = yetkazish ulushi
+    """
+    total = _to_decimal(total_amount_received)
+    merchant_goods = _to_decimal(merchant_goods_subtotal)
+    delivery = _to_decimal(delivery_share)
+    customer_goods = _q(total - delivery)
+
+    if merchant_goods < ZERO:
+        raise ValueError("merchant_goods_subtotal must be >= 0")
+    if merchant_goods > customer_goods + UZS_QUANT:
+        raise ValueError("merchant_goods_subtotal exceeds customer goods portion")
+
+    commission = _q(customer_goods - merchant_goods)
+    merchant = _q(merchant_goods)
+
+    drift = _q(total - (merchant + delivery + commission))
+    if drift != ZERO:
+        commission = _q(commission + drift)
+
+    split = PaymentSplit(
+        total_amount_received=total,
+        product_subtotal=customer_goods,
+        delivery_share=delivery,
+        platform_commission=commission,
+        merchant_share=merchant,
+    )
+    assert_split_integrity(split)
+    return split

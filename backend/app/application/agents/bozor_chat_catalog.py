@@ -1,4 +1,4 @@
-"""Parse shopper intent and format live Postgres catalog hits for the Bozor-AI agent."""
+"""Parse shopper intent and format live Postgres catalog hits for the Bozorliii agent."""
 
 from __future__ import annotations
 

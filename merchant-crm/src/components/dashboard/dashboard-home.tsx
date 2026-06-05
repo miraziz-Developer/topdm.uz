@@ -16,6 +16,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { MerchantBillingStatusCard } from "@/components/dashboard/merchant-billing-status-card";
 import { ShopShareKitPanel } from "@/components/shop-share-kit-panel";
 import { TodayTasksPanel } from "@/components/today-tasks-panel";
 import { getMerchantDashboard, getMerchantMe, getMerchantToday } from "@/lib/api";
@@ -238,6 +239,8 @@ export function DashboardHome() {
           })}
         </div>
       </section>
+
+      <MerchantBillingStatusCard />
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">

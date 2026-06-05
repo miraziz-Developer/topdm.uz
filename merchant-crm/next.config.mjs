@@ -4,6 +4,10 @@ const isProd = process.env.NODE_ENV === "production";
 const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  env: {
+    NEXT_PUBLIC_YANDEX_MAPS_API_KEY: process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY ?? "",
+    NEXT_PUBLIC_MAP_PROVIDER: process.env.NEXT_PUBLIC_MAP_PROVIDER ?? "yandex-maps-api",
+  },
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },
@@ -12,8 +16,8 @@ const nextConfig = {
       { protocol: "https", hostname: "picsum.photos", pathname: "/**" },
       { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
       { protocol: "https", hostname: "*.supabase.co", pathname: "/**" },
-      { protocol: "https", hostname: "topdim.uz", pathname: "/**" },
-      { protocol: "https", hostname: "api.topdim.uz", pathname: "/**" },
+      { protocol: "https", hostname: "bozorliii.uz", pathname: "/**" },
+      { protocol: "https", hostname: "api.bozorliii.uz", pathname: "/**" },
       ...(isProd
         ? []
         : [

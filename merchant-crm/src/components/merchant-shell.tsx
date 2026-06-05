@@ -1,14 +1,17 @@
 "use client";
 
-import { ExternalLink, Menu, Store, X } from "lucide-react";
+import { ExternalLink, Store } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
+import { TelegramCrmBanner } from "@/components/telegram-crm-banner";
 import { Button } from "@/components/ui/button";
 import { CRM_MAIN_NAV } from "@/lib/crm-nav";
 import { getMerchantMe } from "@/lib/api";
+import { resolveMediaUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002";
@@ -68,32 +71,23 @@ export function MerchantShell({
 }) {
   const pathname = usePathname();
   const [shopName, setShopName] = useState<string>("Do'kon");
-  const [mobileMenu, setMobileMenu] = useState(false);
-
+  const [shopLogoUrl, setShopLogoUrl] = useState<string | null>(null);
   useEffect(() => {
     void getMerchantMe()
-      .then((me) => setShopName(me.shop?.name || "Do'kon"))
+      .then((me) => {
+        setShopName(me.shop?.name || "Do'kon");
+        setShopLogoUrl(me.shop?.logo_url ?? null);
+      })
       .catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    setMobileMenu(false);
-  }, [pathname]);
+  const logoSrc = resolveMediaUrl(shopLogoUrl);
 
   return (
     <div className="min-h-screen bg-canvas crm-mesh-bg">
       <header className="sticky top-0 z-50 border-b border-border-subtle/70 bg-surface/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 lg:px-6">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="rounded-lg border border-border-subtle p-2 lg:hidden"
-              onClick={() => setMobileMenu(true)}
-              aria-label="Menyu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <TopdimLogo variant="full" size="sm" href="/dashboard" badge="CRM" />
+            <BozorliiiLogo variant="full" size="sm" href="/dashboard" badge="CRM" />
           </div>
           <div className="flex items-center gap-2">
             <a
@@ -116,8 +110,14 @@ export function MerchantShell({
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-[3.75rem] space-y-3">
             <div className="crm-surface-card flex items-center gap-3 p-3.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-electric-500 text-white shadow-md">
-                <Store className="h-5 w-5" />
+              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-electric-500 text-white shadow-md">
+                {logoSrc ? (
+                  <Image src={logoSrc} alt="" fill className="object-cover" unoptimized sizes="40px" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <Store className="h-5 w-5" />
+                  </div>
+                )}
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-text-100">{shopName}</p>
@@ -133,7 +133,10 @@ export function MerchantShell({
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 pb-24 lg:pb-6">{children}</main>
+        <main className="min-w-0 flex-1 pb-24 lg:pb-6">
+          <TelegramCrmBanner />
+          {children}
+        </main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border-subtle/80 bg-surface/95 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl lg:hidden">
@@ -164,25 +167,6 @@ export function MerchantShell({
           })}
         </div>
       </nav>
-
-      {mobileMenu ? (
-        <div className="fixed inset-0 z-[60] lg:hidden">
-          <button type="button" className="absolute inset-0 bg-black/45" onClick={() => setMobileMenu(false)} aria-label="Yopish" />
-          <div className="absolute bottom-0 left-0 top-0 w-[min(100%,18rem)] overflow-y-auto bg-surface p-4 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="font-bold text-text-100">{shopName}</p>
-              <button type="button" onClick={() => setMobileMenu(false)} className="rounded-lg p-2 hover:bg-elevated">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <nav className="flex flex-col gap-0.5">
-              {CRM_MAIN_NAV.map((item) => (
-                <NavItem key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileMenu(false)} />
-              ))}
-            </nav>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

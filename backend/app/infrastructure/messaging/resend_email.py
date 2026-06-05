@@ -35,7 +35,7 @@ def _otp_key(email: str, *, link_user_id: str | None = None) -> str:
     return f"otp:email:{normalized}"
 
 
-def build_otp_html(*, otp: str, brand: str = "Bozor AI") -> str:
+def build_otp_html(*, otp: str, brand: str = "Bozorliii") -> str:
     return f"""<!DOCTYPE html>
 <html lang="uz">
 <head>
@@ -101,7 +101,7 @@ class ResendEmailGateway:
         payload = {
             "from": settings.resend_from_email,
             "to": [normalized],
-            "subject": "Bozor AI — tasdiqlash kodi",
+            "subject": "Bozorliii — tasdiqlash kodi",
             "html": build_otp_html(otp=otp),
         }
         headers = {
@@ -131,7 +131,7 @@ class ResendEmailGateway:
         payload = {
             "from": settings.resend_from_email,
             "to": [normalized],
-            "subject": "Bozor AI — tasdiqlash kodi",
+            "subject": "Bozorliii — tasdiqlash kodi",
             "html": build_otp_html(otp=otp),
         }
         headers = {

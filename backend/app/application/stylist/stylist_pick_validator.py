@@ -93,7 +93,7 @@ def validate_ai_picks(
         if product.get("is_available") is False:
             rejections.append(f"out_of_stock:{product.get('name', '')[:32]}")
             continue
-        stock = int(product.get("stock_count") or 0)
+        stock = int(product.get("stock_count") or 1)
         if stock <= 0:
             rejections.append(f"no_stock:{product.get('name', '')[:32]}")
             continue

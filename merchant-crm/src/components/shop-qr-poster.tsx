@@ -11,16 +11,16 @@ type Props = {
 };
 
 const SITE_ORIGIN =
-  (process.env.NEXT_PUBLIC_SITE_URL ?? "https://topdim.uz").replace(/\/$/, "") ||
-  "https://topdim.uz";
+  (process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.uz").replace(/\/$/, "") ||
+  "https://bozorliii.uz";
 
-/** Chop etish uchun vitrina posteri — Topdim brendi + do'kon nomi + QR */
+/** Chop etish uchun vitrina posteri — Bozorliii brendi + do'kon nomi + QR */
 export function ShopQrPoster({ kit }: Props) {
   const printPoster = () => {
     const win = window.open("", "_blank", "width=420,height=680");
     if (!win) return;
     const safeName = kit.shop_name.replace(/</g, "&lt;");
-    const logoUrl = `${SITE_ORIGIN}/brand/topdim-logo.svg`;
+    const logoUrl = `${SITE_ORIGIN}/brand/bozorliii-logo.png`;
     win.document.write(`
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"/><title>${safeName} — ${BRAND.name}</title>
@@ -55,7 +55,7 @@ export function ShopQrPoster({ kit }: Props) {
     <img src="${logoUrl}" alt="${BRAND.name}" />
   </div>
   <h1>${safeName}</h1>
-  <p class="sub">Skanerlang — <span class="accent">Topdim</span> orqali do'konga kiring<br/>Mahsulotlar, narxlar va yo'l xaritasi</p>
+  <p class="sub">Skanerlang — <span class="accent">Bozorliii</span> orqali do'konga kiring<br/>Mahsulotlar, narxlar va yo'l xaritasi</p>
   <div class="qr-wrap">
     <img src="${kit.qr_poster_url || kit.qr_download_url}" alt="QR" />
   </div>
@@ -68,8 +68,8 @@ export function ShopQrPoster({ kit }: Props) {
 
   return (
     <div className="rounded-2xl border border-dashed border-gold-500/30 bg-gradient-to-br from-electric-500/5 to-gold-500/5 p-4">
-      <p className="text-sm font-medium text-text-100">Vitrina posteri (Topdim brendi)</p>
-      <p className="mt-1 text-xs text-text-400">Do&apos;kon nomi + QR + topdim.uz logosi — chop etish uchun</p>
+      <p className="text-sm font-medium text-text-100">Vitrina posteri (Bozorliii brendi)</p>
+      <p className="mt-1 text-xs text-text-400">Do&apos;kon nomi + QR + bozorliii.uz logosi — chop etish uchun</p>
       <Button type="button" variant="secondary" className="mt-3" onClick={printPoster}>
         <Printer className="mr-1 h-4 w-4" />
         Posterni chop etish

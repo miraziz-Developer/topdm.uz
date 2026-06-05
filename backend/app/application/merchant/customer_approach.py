@@ -421,6 +421,14 @@ class CustomerApproachService:
                 f"CRM xaritada ko'ring."
             )
             try:
-                await notifier.send_message(int(shop.telegram_chat_id), text)
+                from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+
+                await notify_merchant_telegram(
+                    notifier,
+                    chat_id=int(shop.telegram_chat_id),
+                    text=text,
+                    shop_id=shop.id,
+                    crm_next="/dashboard/shop",
+                )
             except Exception:
                 pass

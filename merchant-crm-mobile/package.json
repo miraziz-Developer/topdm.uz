@@ -1,10 +1,10 @@
 {
-  "name": "topdim-merchant-mobile-wrapper",
+  "name": "bozorliii-merchant-mobile-wrapper",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "cap:init": "npx cap init TopdimMerchant uz.topdim.merchant --web-dir www",
+    "cap:init": "npx cap init BozorliiiMerchant uz.bozorliii.merchant --web-dir www",
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
     "cap:sync": "npx cap sync",

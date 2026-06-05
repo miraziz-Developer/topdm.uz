@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.billing.plans import COMMISSION_RATE_PCT
+from app.core.config import get_settings
 
 
 class RevenueService:
@@ -55,6 +55,8 @@ class RevenueService:
             order_row = order_result.mappings().first() or {}
 
             gmv = float(order_row.get("gmv") or 0)
+            from app.application.billing.plans import COMMISSION_RATE_PCT
+
             commission = round(gmv * COMMISSION_RATE_PCT / 100)
 
             return {
@@ -71,24 +73,28 @@ class RevenueService:
             return {"error": str(exc), "period_days": days}
 
     async def shop_revenue_summary(self, shop_id: UUID, days: int = 30) -> dict[str, Any]:
-        """Merchant uchun daromad hisobi."""
+        """Do'konchi savdosi — o'z bazaviy narxi bo'yicha (15% ustama platforma daromadi, alohida)."""
         since = datetime.now(timezone.utc) - timedelta(days=days)
+        markup_pct = float(get_settings().platform_product_markup_pct)
         try:
             order_result = await self._db.execute(
                 text("""
                     SELECT
-                        COALESCE(SUM(total_price), 0) AS gross,
+                        COALESCE(SUM(o.total_price), 0) AS customer_sales,
+                        COALESCE(SUM(p.price * o.quantity), 0) AS merchant_earnings,
                         COUNT(*) AS count
-                    FROM orders
-                    WHERE shop_id = :shop_id
-                      AND created_at >= :since
-                      AND status IN ('completed', 'reserved', 'ready')
+                    FROM orders o
+                    INNER JOIN products p ON p.id = o.product_id
+                    WHERE o.shop_id = :shop_id
+                      AND o.created_at >= :since
+                      AND o.status IN ('completed', 'reserved', 'ready')
                 """),
                 {"shop_id": str(shop_id), "since": since},
             )
             row = order_result.mappings().first() or {}
-            gross = float(row.get("gross") or 0)
-            commission = round(gross * COMMISSION_RATE_PCT / 100)
+            customer_sales = float(row.get("customer_sales") or 0)
+            merchant_earnings = float(row.get("merchant_earnings") or 0)
+            platform_markup = max(0.0, customer_sales - merchant_earnings)
 
             lead_result = await self._db.execute(
                 text("SELECT COUNT(*) AS cnt FROM leads WHERE shop_id = :shop_id AND status != 'dismissed'"),
@@ -98,10 +104,15 @@ class RevenueService:
 
             return {
                 "period_days": days,
-                "gross_revenue_uzs": gross,
-                "net_revenue_uzs": gross - commission,
-                "platform_fee_uzs": commission,
-                "commission_rate_pct": COMMISSION_RATE_PCT,
+                "merchant_earnings_uzs": merchant_earnings,
+                "customer_sales_uzs": customer_sales,
+                "platform_markup_uzs": platform_markup,
+                "markup_pct": markup_pct,
+                # Eski CRM maydonlari — do'konchi daromadi (noto'g'ri net komissiya emas)
+                "gross_revenue_uzs": merchant_earnings,
+                "net_revenue_uzs": merchant_earnings,
+                "platform_fee_uzs": platform_markup,
+                "commission_rate_pct": 0,
                 "order_count": int(row.get("count") or 0),
                 "lead_count": int(lead_row.get("cnt") or 0),
             }

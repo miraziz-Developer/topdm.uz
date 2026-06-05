@@ -45,5 +45,22 @@ def validate_settings(settings: Settings) -> None:
             "OPENAI_API_KEY or GOOGLE_API_KEY is required for catalog embeddings in production"
         )
 
+    if settings.allow_dev_mocks:
+        errors.append("ALLOW_DEV_MOCKS must be false in production")
+
+    if settings.tdb_p2p_provider_mock or settings.tdb_bts_api_mock:
+        errors.append("TDB_*_MOCK flags must be false in production")
+
+    if settings.enable_online_checkout and not settings.payment_sandbox_mode:
+        has_click = bool(settings.click_service_id and settings.click_secret_key)
+        has_payme = bool(settings.payme_merchant_id and settings.payme_secret_key)
+        if not has_click and not has_payme:
+            errors.append("CLICK_* and/or PAYME_* credentials required when ENABLE_ONLINE_CHECKOUT=true")
+
+    backend = (settings.media_storage_backend or "local").strip().lower()
+    if backend == "s3":
+        if not settings.s3_bucket or not settings.s3_access_key_id or not settings.s3_secret_access_key:
+            errors.append("S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY required for media_storage_backend=s3")
+
     if errors:
         raise RuntimeError("Production configuration invalid:\n- " + "\n- ".join(errors))

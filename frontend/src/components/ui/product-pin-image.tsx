@@ -3,7 +3,13 @@
 import Image from "next/image";
 import { useState } from "react";
 
-import { hasProductImage, isLocalDevMedia, PLACEHOLDER_CLOTHING, productImage } from "@/lib/media";
+import {
+  hasReliableProductImage,
+  isLocalDevMedia,
+  isUnreliableProductImage,
+  PLACEHOLDER_CLOTHING,
+  productImage,
+} from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 type ProductPinImageProps = {
@@ -24,12 +30,9 @@ export function ProductPinImage({
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const src = productImage(images);
-  const usePlaceholder = failed || !hasProductImage(images);
-  const unoptimized =
-    src.startsWith("data:") ||
-    isLocalDevMedia(src) ||
-    src.includes("/api/") ||
-    src.includes("picsum.photos");
+  const raw0 = images?.[0] ?? "";
+  const usePlaceholder = failed || !hasReliableProductImage(images) || isUnreliableProductImage(raw0);
+  const unoptimized = src.startsWith("data:") || isLocalDevMedia(src) || src.includes("/api/");
 
   return (
     <div className={cn("relative w-full overflow-hidden rounded-2xl bg-neutral-100", aspectClass)}>

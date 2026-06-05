@@ -161,7 +161,7 @@ RULES: list[dict[str, Any]] = [
         "when": {"is_logged_in": False, "visit_count_max": 4},
         "banner": {
             "tone": "indigo",
-            "title": "Topdim — Toshkent bozori onlayn",
+            "title": "Bozorliii — Toshkent bozori onlayn",
             "body": "Telefon bilan kiring — buyurtma, xarita va AI stylist bir joyda.",
             "icon": "user",
         },

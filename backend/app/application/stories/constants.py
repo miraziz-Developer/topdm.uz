@@ -1,0 +1,6 @@
+"""Story — Instagram-style qoidalar."""
+
+STORY_TTL_HOURS = 24
+MAX_ACTIVE_STORIES_PER_SHOP = 3
+STORY_DOCK_SHOP_LIMIT = 15
+STORY_GC_BATCH_SIZE = 200

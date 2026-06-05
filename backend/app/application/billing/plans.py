@@ -1,4 +1,4 @@
-"""Topdim.UZ — Merchant monetizatsiya rejalari va narxlar.
+"""Bozorliii.uz — Merchant monetizatsiya rejalari va narxlar.
 
 NARX STRATEGIYASI (O'zbekiston bozori, early-stage startup):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -6,11 +6,11 @@ Ippodrom sotuvchi oylik daromadi: 5–30M so'm
 Marketing xarajati tartibi:      1–3% = 50–900k so'm
 Uzum/Ozon komissiya:             15–25% (bizniki esa 0-1%)
 
-Faza 1 (hozir — 0-6 oy): AKIVSATSIYA
-  → Bepul reja juda keng, minimal to'siq
-  → Obuna narxi past: 59k / 129k so'm
-  → Banner qulay: 79k-379k (OLX / Telegram darajasi)
-  → Komissiya: 0% (merchant ishonadigan qilish)
+Faza 1 (hozir): MAHSULOT USTAMASI
+  → Oylik obuna o'chirilgan (subscriptions_enabled=false)
+  → Do'konchi bazaviy narx kiritadi; mijoz +15% ko'radi
+  → To'lov split: platforma ustama + do'kon bazasi
+  → Banner/boost ixtiyoriy reklama
 
 Faza 2 (6-12 oy): DAROMAD
   → Narxlar 20-30% oshiriladi
@@ -50,7 +50,7 @@ FREE_PLAN = SubscriptionPlan(
     name_uz="Bepul",
     price_uzs_monthly=0,
     price_uzs_yearly=0,
-    max_products=25,                 # 25 — to'siqsiz boshlash
+    max_products=10_000,             # Obuna yo'q — amalda cheksiz
     max_images_per_product=3,
     featured_products=0,
     ai_chat_enabled=False,
@@ -58,7 +58,7 @@ FREE_PLAN = SubscriptionPlan(
     qr_poster_enabled=True,          # QR bepul — tarqatish uchun
     priority_in_catalog=3,
     trial_days=0,
-    description_uz="25 ta mahsulot, QR poster, asosiy boshqaruv. Doimo bepul.",
+    description_uz="Cheksiz mahsulot. Daromad — har sotuvdan +15% ustama (mijoz narxi).",
 )
 
 # Faza 1: past narx — 59k so'm (telegram kanalda bitta post narxi)
@@ -169,7 +169,7 @@ ALL_BOOSTS: Final = [BOOST_3DAY, BOOST_WEEK, BOOST_MONTH]
 # Faza 2 (6 oy keyin): 1%
 # Faza 3 (12 oy keyin): 2%
 # Uzum: 15-25% — bizning ustunlik shu (minimal komissiya)
-COMMISSION_RATE_PCT: Final = 0      # Hozirda 0% — faza 1
+COMMISSION_RATE_PCT: Final = 0      # Eski % model; asosiy daromad = product markup
 COMMISSION_PHASE2_PCT: Final = 1.0  # 6 oydan keyin
 COMMISSION_PHASE3_PCT: Final = 2.0  # 12 oydan keyin
 

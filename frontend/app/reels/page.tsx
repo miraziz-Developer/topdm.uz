@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ReelsPageClient } from "./reels-page-client";
 
 export const metadata: Metadata = {
-  title: "Reels — Topdim.UZ",
+  title: "Reels — Bozorliii.uz",
   description: "Do'konlarning qisqa video reellari",
 };
 

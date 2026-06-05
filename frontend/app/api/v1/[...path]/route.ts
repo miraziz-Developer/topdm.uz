@@ -1,22 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+import {
+  PROXY_FORWARD_REQUEST_HEADERS,
+  filterProxyResponseHeaders,
+  shouldStreamProxyResponse,
+} from "@/lib/api-proxy";
 import { SESSION_COOKIE_NAME, backendApiOrigin } from "@/lib/session-cookie";
 
 export const runtime = "nodejs";
-
-const HOP_BY_HOP = new Set([
-  "connection",
-  "keep-alive",
-  "proxy-authenticate",
-  "proxy-authorization",
-  "te",
-  "trailers",
-  "transfer-encoding",
-  "upgrade",
-  "host",
-  "content-length",
-]);
 
 function buildBackendUrl(pathSegments: string[], search: string): string {
   const path = pathSegments.join("/");
@@ -24,24 +16,10 @@ function buildBackendUrl(pathSegments: string[], search: string): string {
   return search ? `${base}${search}` : base;
 }
 
-function isStreamingPath(pathSegments: string[]): boolean {
-  if (!pathSegments.length) return false;
-  if (pathSegments[0] === "chat") return true;
-  return false;
-}
-
 function forwardRequestHeaders(request: NextRequest, token: string | undefined): Headers {
   const headers = new Headers();
-  const allow = [
-    "accept",
-    "accept-language",
-    "content-type",
-    "x-request-id",
-    "x-bozor-locale",
-    "x-bozor-currency",
-  ];
 
-  for (const name of allow) {
+  for (const name of PROXY_FORWARD_REQUEST_HEADERS) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
@@ -50,15 +28,6 @@ function forwardRequestHeaders(request: NextRequest, token: string | undefined):
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  return headers;
-}
-
-function filterResponseHeaders(source: Headers): Headers {
-  const headers = new Headers();
-  source.forEach((value, key) => {
-    if (HOP_BY_HOP.has(key.toLowerCase())) return;
-    headers.set(key, value);
-  });
   return headers;
 }
 
@@ -84,12 +53,9 @@ async function proxy(request: NextRequest, pathSegments: string[]): Promise<Next
     return NextResponse.json({ detail: "Backend service unavailable" }, { status: 502 });
   }
 
-  const responseHeaders = filterResponseHeaders(upstream.headers);
+  const responseHeaders = filterProxyResponseHeaders(upstream.headers);
   const contentType = upstream.headers.get("content-type") ?? "";
-  const streamBody =
-    isStreamingPath(pathSegments) ||
-    contentType.includes("text/event-stream") ||
-    contentType.includes("application/x-ndjson");
+  const streamBody = shouldStreamProxyResponse(pathSegments, contentType);
 
   if (streamBody && upstream.body) {
     return new NextResponse(upstream.body, {
@@ -98,7 +64,7 @@ async function proxy(request: NextRequest, pathSegments: string[]): Promise<Next
     });
   }
 
-  const body = upstream.status === 204 ? null : await upstream.arrayBuffer();
+  const body = upstream.status === 204 || request.method === "HEAD" ? null : await upstream.arrayBuffer();
 
   return new NextResponse(body, {
     status: upstream.status,
@@ -114,6 +80,10 @@ async function resolvePath(context: RouteContext): Promise<string[]> {
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  return proxy(request, await resolvePath(context));
+}
+
+export async function HEAD(request: NextRequest, context: RouteContext) {
   return proxy(request, await resolvePath(context));
 }
 

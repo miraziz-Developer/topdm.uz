@@ -27,8 +27,12 @@ def build_click_sign_string(
 def verify_click_callback(payload: dict[str, Any], settings: Settings | None = None) -> bool:
     """Validate Click.uz prepare/complete callback signature (MD5)."""
     cfg = settings or get_settings()
-    secret = (cfg.click_secret_key or "").strip()
-    service_id = (cfg.click_service_id or "").strip()
+    if cfg.payment_sandbox_mode:
+        secret = (cfg.payment_sandbox_click_secret_key or "").strip()
+        service_id = (cfg.payment_sandbox_click_service_id or "").strip()
+    else:
+        secret = (cfg.click_secret_key or "").strip()
+        service_id = (cfg.click_service_id or "").strip()
     if not secret or not service_id:
         return cfg.app_debug and not cfg.is_production
 

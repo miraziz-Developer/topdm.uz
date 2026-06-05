@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.application.pricing.product_markup import order_line_totals
 from app.infrastructure.db.models import OrderModel, ProductModel, ShopModel
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ async def reserve_pickup_line_locked(
     pickup_time: str,
     note: str | None,
     ref_token: str | None,
+    payment_method: str | None = None,
     status: str = "reserved",
 ) -> ReservedPickupLine:
     """
@@ -80,7 +82,7 @@ async def reserve_pickup_line_locked(
     if shop is None:
         raise InventoryError("Do'kon topilmadi")
 
-    line_total = int(product.price) * quantity
+    _merchant_sub, line_total, _markup = order_line_totals(int(product.price), quantity)
     order = OrderModel(
         customer_phone=customer_phone,
         product_id=product_id,
@@ -93,6 +95,7 @@ async def reserve_pickup_line_locked(
         pickup_time=pickup_time,
         fulfillment_type="pickup",
         customer_email=customer_email,
+        payment_method=(payment_method or "").strip().lower() or None,
         status=status,
     )
     db.add(order)
@@ -164,7 +167,7 @@ async def reserve_delivery_line_locked(
     if shop is None:
         raise InventoryError("Do'kon topilmadi")
 
-    line_total = int(product.price) * quantity
+    _merchant_sub, line_total, _markup = order_line_totals(int(product.price), quantity)
     order = OrderModel(
         customer_phone=customer_phone,
         product_id=product_id,

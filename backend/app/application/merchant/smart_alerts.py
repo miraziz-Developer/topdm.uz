@@ -5,6 +5,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
 from app.domain.interfaces.notifier_gateway import NotifierGateway
 from app.infrastructure.repositories.route_stats_repo import MerchantAlertsRepository
 
@@ -24,11 +25,17 @@ async def run_merchant_smart_alerts(session: AsyncSession, notifier: NotifierGat
         if not shop.telegram_chat_id:
             continue
         text = (
-            "Bozor-AI eslatmasi: 3 kundan beri yangi mahsulot yuklamadingiz.\n"
+            "Bozorliii eslatmasi: 3 kundan beri yangi mahsulot yuklamadingiz.\n"
             "Rasm yoki ovozli xabar yuboring — mijozlar sizni topa olishi uchun katalogni yangilang."
         )
         try:
-            await notifier.send_message(int(shop.telegram_chat_id), text)
+            await notify_merchant_telegram(
+                notifier,
+                chat_id=int(shop.telegram_chat_id),
+                text=text,
+                shop_id=shop.id,
+                crm_next="/dashboard/products",
+            )
             await repo.log_alert(shop.id, alert_type)
             sent += 1
         except Exception:
@@ -41,11 +48,17 @@ async def run_merchant_smart_alerts(session: AsyncSession, notifier: NotifierGat
         if not shop.telegram_chat_id:
             continue
         text = (
-            f"Bozor-AI eslatmasi: {pending_count} ta mijoz so'rovi hali javobsiz.\n"
+            f"Bozorliii eslatmasi: {pending_count} ta mijoz so'rovi hali javobsiz.\n"
             "Tezroq javob bering — ishonch va savdo oshadi."
         )
         try:
-            await notifier.send_message(int(shop.telegram_chat_id), text)
+            await notify_merchant_telegram(
+                notifier,
+                chat_id=int(shop.telegram_chat_id),
+                text=text,
+                shop_id=shop.id,
+                crm_next="/dashboard/sales",
+            )
             await repo.log_alert(shop.id, alert_type)
             sent += 1
         except Exception:

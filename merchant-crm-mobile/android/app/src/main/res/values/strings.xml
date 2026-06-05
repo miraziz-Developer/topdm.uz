@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Topdim Merchant CRM</string>
-    <string name="title_activity_main">Topdim Merchant CRM</string>
-    <string name="package_name">uz.topdim.merchant</string>
-    <string name="custom_url_scheme">uz.topdim.merchant</string>
+    <string name="app_name">Bozorliii Merchant CRM</string>
+    <string name="title_activity_main">Bozorliii Merchant CRM</string>
+    <string name="package_name">uz.bozorliii.merchant</string>
+    <string name="custom_url_scheme">uz.bozorliii.merchant</string>
 </resources>

@@ -23,7 +23,7 @@ const IppodromMapExperience = nextDynamic(
 );
 
 export const metadata = {
-  title: "Topdim Xarita | Ippodrom Navigatsiya",
+  title: "Bozorliii Xarita | Ippodrom Navigatsiya",
   description: "Ippodrom bozori ichki navigatsiya — do'konlar, marshrut va qavatlar.",
 };
 

@@ -97,7 +97,7 @@ class ShopModel(Base):
     ipadrom_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("ipadroms.id"), nullable=True)
     floor: Mapped[str | None] = mapped_column(String(50), nullable=True)
     section: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    telegram_chat_id: Mapped[int | None] = mapped_column(nullable=True)
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_verified: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False)
     is_featured: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False)
@@ -120,6 +120,8 @@ class ShopModel(Base):
     indoor_pin_x: Mapped[float | None] = mapped_column(Float, nullable=True)
     indoor_pin_y: Mapped[float | None] = mapped_column(Float, nullable=True)
     coins_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    debt_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    is_blocked: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False, server_default="false")
 
     products = relationship("ProductModel", back_populates="shop")
     ipadrom = relationship("IpadromModel", lazy="joined", foreign_keys=[ipadrom_id])
@@ -204,6 +206,13 @@ class OrderModel(Base):
     carrier_class: Mapped[str | None] = mapped_column(String(16), nullable=True)
     delivery_cost_uzs: Mapped[int | None] = mapped_column(Integer, nullable=True)
     delivery_eta_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payment_method: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    debt_commission_recorded: Mapped[bool] = mapped_column(
+        BOOLEAN,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

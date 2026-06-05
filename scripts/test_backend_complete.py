@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end Bozor-AI backend smoke tests (auth, indoor nav, AI chat)."""
+"""End-to-end Bozorliii backend smoke tests (auth, indoor nav, AI chat)."""
 
 from __future__ import annotations
 
@@ -135,7 +135,7 @@ class Suite:
         self.check("chat agent response body", has_content, str(data)[:400])
 
     def run(self) -> int:
-        print(f"Bozor-AI backend smoke suite → {API_BASE}\n")
+        print(f"Bozorliii backend smoke suite → {API_BASE}\n")
         self.test_health()
         self.test_telegram_login()
         self.test_email_otp_redis()

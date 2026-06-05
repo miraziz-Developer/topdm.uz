@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -10,6 +9,7 @@ from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.reels.feed_algorithm import compute_video_score, _video_to_dict
+from app.application.reels.feed_enrichment import enrich_reel_dict
 from app.core.config import get_settings
 from app.models.reels import ReelsVideoModel
 
@@ -37,6 +37,13 @@ class ReelsService:
         thumbnail_url = None
         if thumbnail_bytes:
             thumbnail_url = await self._save_thumbnail(shop_id, thumbnail_bytes)
+        elif thumbnail_url is None:
+            from app.infrastructure.db.models import ShopModel
+
+            shop = await self._db.get(ShopModel, shop_id)
+            logo = (shop.logo_url or "").strip() if shop else ""
+            if logo:
+                thumbnail_url = logo
 
         # Hashtag tozalash
         clean_tags = [t.lstrip("#").lower().strip() for t in hashtags if t.strip()]
@@ -124,7 +131,7 @@ class ReelsService:
         total = len(cnt.scalars().all())
 
         return {
-            "items": [_video_to_dict(v) for v in videos],
+            "items": [enrich_reel_dict(v, _video_to_dict(v)) for v in videos],
             "total": total,
             "page": page,
             "has_more": (page + 1) * limit < total,
@@ -132,52 +139,33 @@ class ReelsService:
 
     # ── Internal storage ─────────────────────────────────────────
     async def _save_video(self, shop_id: UUID, data: bytes, content_type: str) -> str:
-        ext = "mp4" if "mp4" in content_type else "webm"
-        try:
-            from app.infrastructure.storage.object_store import ObjectMediaStore
-            store = ObjectMediaStore(self._settings)
-            # reuse save_product_image with reels folder
-            if store.backend == "s3":
-                key = f"reels/{shop_id}/{uuid.uuid4()}.{ext}"
-                import boto3
-                from botocore.config import Config as BotoConfig
-                client = boto3.client(
-                    "s3",
-                    endpoint_url=self._settings.s3_endpoint_url or None,
-                    aws_access_key_id=self._settings.s3_access_key_id,
-                    aws_secret_access_key=self._settings.s3_secret_access_key,
-                    region_name=self._settings.s3_region or "auto",
-                    config=BotoConfig(signature_version="s3v4"),
-                )
-                client.put_object(
-                    Bucket=self._settings.s3_bucket,
-                    Key=key,
-                    Body=data,
-                    ContentType=content_type,
-                    CacheControl="public, max-age=31536000",
-                )
-                base = (self._settings.s3_public_base_url or "").rstrip("/")
-                return f"{base}/{key}" if base else key
-        except Exception:
-            pass
-        # Local fallback
-        root = Path("/app/uploads/reels") if Path("/app").exists() else Path("uploads/reels")
-        shop_dir = root / str(shop_id)
-        shop_dir.mkdir(parents=True, exist_ok=True)
-        path = shop_dir / f"{uuid.uuid4()}.{ext}"
-        path.write_bytes(data)
-        prefix = self._settings.api_prefix.rstrip("/")
-        return f"{prefix}/media/reels/{shop_id}/{path.name}"
+        ct = (content_type or "").lower()
+        if "webm" in ct:
+            ext = "webm"
+        elif "quicktime" in ct or "mov" in ct:
+            ext = "mov"
+        else:
+            ext = "mp4"
+        from app.infrastructure.storage.object_store import ObjectMediaStore
+
+        store = ObjectMediaStore(self._settings)
+        return await store.save_reel_video(
+            shop_id=shop_id,
+            video_bytes=data,
+            extension=ext,
+            content_type=content_type or "video/mp4",
+        )
 
     async def _save_thumbnail(self, shop_id: UUID, data: bytes) -> str:
-        try:
-            from app.infrastructure.storage.object_store import ObjectMediaStore
-            store = ObjectMediaStore(self._settings)
-            return await store.save_product_image(
-                shop_id=shop_id, image_bytes=data, extension="jpg", content_type="image/jpeg"
-            )
-        except Exception:
-            return ""
+        from app.infrastructure.storage.object_store import ObjectMediaStore
+
+        store = ObjectMediaStore(self._settings)
+        return await store.save_reel_thumbnail(
+            shop_id=shop_id,
+            image_bytes=data,
+            extension="jpg",
+            content_type="image/jpeg",
+        )
 
 
 def _infer_categories(caption: str, tags: list[str]) -> list[str]:

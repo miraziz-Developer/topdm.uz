@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Topdim.UZ — AI bilan bozor toping";
+export const alt = "Bozorliii.uz — AI bilan bozor toping";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -36,7 +36,7 @@ export default function OpenGraphImage() {
           >
             T
           </div>
-          <div style={{ fontSize: 56, fontWeight: 800, letterSpacing: -1 }}>topdim.uz</div>
+          <div style={{ fontSize: 56, fontWeight: 800, letterSpacing: -1 }}>bozorliii.uz</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
           <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1.15 }}>Toshkent bozorlarini AI bilan toping</div>

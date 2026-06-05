@@ -1,5 +1,5 @@
 """
-Yandex Delivery B2B gateway for Topdim.uz bazaar logistics.
+Yandex Delivery B2B gateway for Bozorliii.uz bazaar logistics.
 
 Flow: check-price → claims/create → claims/info → claims/accept
 """
@@ -110,7 +110,7 @@ class CartMetrics(BaseModel):
 
 
 def build_bazaar_source_comment(merchant_data: dict[str, Any] | MerchantBazaarData) -> str:
-    """Topdim bazaar driver routing string."""
+    """Bozorliii bazaar driver routing string."""
     if isinstance(merchant_data, MerchantBazaarData):
         m = merchant_data
     else:
@@ -483,7 +483,7 @@ class YandexDeliveryGateway:
             "skip_door_to_door": False,
             "optional_return": False,
             "comment": source_comment,
-            "referral_source": "topdim_uz",
+            "referral_source": "bozorliii_uz",
             "shipping_document": str(order_id),
         }
         if offer_payload:

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Mono, Outfit } from "next/font/google";
+import Script from "next/script";
 
 import { AppProviders } from "@/components/providers/app-providers";
 
@@ -9,18 +10,18 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 const dmMono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-dm-mono" });
 
 export const metadata: Metadata = {
-  title: "Topdim.UZ CRM — Do'kon boshqaruvi",
-  description: "Topdim.UZ merchant paneli — buyurtmalar, mahsulotlar, QR ulashish",
+  title: "Bozorliii.uz CRM — Do'kon boshqaruvi",
+  description: "Bozorliii.uz merchant paneli — buyurtmalar, mahsulotlar, QR ulashish",
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/brand/topdim-icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/brand/bozorliii-icon.svg", type: "image/svg+xml" }],
   },
-  applicationName: "Topdim.UZ CRM",
+  applicationName: "Bozorliii.uz CRM",
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "Topdim.UZ CRM",
+    title: "Bozorliii.uz CRM",
     description: "Do'kon boshqaruvi",
-    siteName: "Topdim.UZ",
+    siteName: "Bozorliii.uz",
   },
 };
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="uz">
       <body className={`${outfit.variable} ${dmMono.variable} font-sans`}>
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

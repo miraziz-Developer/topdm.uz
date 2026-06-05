@@ -1,72 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { Button } from "@/components/ui/button";
-import { postJson } from "@/lib/api";
-import { setAccessToken } from "@/lib/auth";
-import { getTelegramWebApp, getWebAppInitData } from "@/lib/telegram-webapp";
+import { useTelegramWebAppAuth } from "@/hooks/useTelegramWebAppAuth";
 
 function TelegramCrmGate() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const shopId = searchParams.get("shop_id");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const tg = getTelegramWebApp();
-    tg?.ready();
-    tg?.expand();
-
-    const initData = getWebAppInitData();
-    if (!initData) {
-      setLoading(false);
-      setError("Faqat Telegram bot ichidagi CRM tugmasidan oching.");
-      return;
-    }
-
-    void (async () => {
-      try {
-        const res = await postJson<{ token: string; role: string }>("/auth/telegram/webapp", {
-          init_data: initData,
-          shop_id: shopId,
-        });
-        if (res.role !== "merchant" || !res.token) {
-          setError("Merchant hisob topilmadi. Botda /start shop_<UUID> va kontakt ulang.");
-          setLoading(false);
-          return;
-        }
-        setAccessToken(res.token);
-        router.replace("/dashboard");
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Kirish xatosi";
-        setError(msg);
-        setLoading(false);
-      }
-    })();
-  }, [router, shopId]);
+  const nextPath = searchParams.get("next");
+  const { loading, error, destination } = useTelegramWebAppAuth({ shopId, nextPath });
 
   if (loading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-canvas bg-hero-glow px-6">
-        <TopdimLogo variant="full" size="md" href={null} badge="CRM" />
+        <BozorliiiLogo variant="full" size="md" href={null} badge="CRM" />
         <p className="text-sm text-text-400">Telegram orqali ulanmoqda…</p>
       </main>
     );
   }
 
+  const loginNext = `/telegram${shopId ? `?shop_id=${shopId}` : ""}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-canvas bg-hero-glow px-6 text-center">
-      <TopdimLogo variant="full" size="md" href={null} badge="CRM" />
+      <BozorliiiLogo variant="full" size="md" href={null} badge="CRM" />
       <h1 className="text-xl font-bold text-text-100">Kirish mumkin emas</h1>
       <p className="max-w-sm text-sm text-text-400">{error}</p>
-      <Link href={`/login${shopId ? `?next=${encodeURIComponent(`/telegram?shop_id=${shopId}`)}` : ""}`}>
-        <Button>CRM login (OTP)</Button>
-      </Link>
+      <p className="max-w-sm text-xs text-text-400">
+        Bozorliii merchant bot + web CRM — bitta hisob. Botda rasm yuboring, CRM da buyurtma va chat.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Link href={`/login?next=${encodeURIComponent(loginNext)}`}>
+          <Button>CRM login (OTP)</Button>
+        </Link>
+        <Link href="/login">
+          <Button variant="secondary">Brauzer login</Button>
+        </Link>
+      </div>
     </main>
   );
 }

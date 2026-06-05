@@ -5,12 +5,13 @@ from __future__ import annotations
 import hashlib
 import re
 
+# Frontend `/brand/bozorliii-product-placeholder.svg` — kategoriya sloti attributes da
+_CATALOG_PLACEHOLDER = "/brand/bozorliii-product-placeholder.svg"
+
+
 def _stable_pool_urls(pool_key: str, count: int = 6) -> tuple[str, ...]:
-    """Picsum seed URLs — CDN barqaror (ko‘p eski Unsplash ID 404 qaytaradi)."""
-    return tuple(
-        f"https://picsum.photos/seed/topdim-{pool_key}-{i}/700/700"
-        for i in range(1, count + 1)
-    )
+    """Mahsulot kartasi — tasodifiy landshaft emas, brend placeholder."""
+    return tuple(_CATALOG_PLACEHOLDER for _ in range(count))
 
 
 # Har slot uchun bir nechta turli rasm (vizual qidiruv testi)
@@ -133,7 +134,7 @@ def is_seed_placeholder_image(url: str) -> bool:
         return True
     if "picsum.photos" in u:
         return True
-    if "/placeholder" in u and "topdim-product-placeholder" not in u:
+    if "/placeholder" in u and "bozorliii-product-placeholder" not in u:
         return True
     return False
 

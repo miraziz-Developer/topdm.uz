@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { LocaleCurrencyNav } from "@/components/ui/locale-currency-bar";
 import { SearchField } from "@/components/ui/search-field";
 import { usePhotoSearchNavigate } from "@/hooks/usePhotoSearchNavigate";
@@ -74,7 +74,7 @@ export function FloatingHeader() {
     return (
       <header className="safe-top fixed inset-x-0 top-0 z-50 h-14 border-b border-border-subtle bg-white/95 backdrop-blur-md sm:h-16">
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6">
-          <TopdimLogo variant="full" size="sm" href="/" />
+          <BozorliiiLogo variant="full" size="sm" href="/" />
           <Link
             href="/"
             className="rounded-full border border-border-default px-3 py-1.5 text-xs font-semibold text-ink-700 transition hover:text-electric-500"
@@ -100,8 +100,8 @@ export function FloatingHeader() {
 
         {/* Logo — fixed width, never shrinks */}
         <div className="shrink-0">
-          <TopdimLogo variant="full" size="sm" href="/" className="hidden min-[480px]:block" />
-          <TopdimLogo variant="icon" size="sm" href="/" className="min-[480px]:hidden" />
+          <BozorliiiLogo variant="full" size="sm" href="/" className="hidden min-[480px]:block" />
+          <BozorliiiLogo variant="icon" size="sm" href="/" className="min-[480px]:hidden" />
         </div>
 
         {/* Search — takes all remaining space */}

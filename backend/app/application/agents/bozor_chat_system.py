@@ -1,4 +1,4 @@
-"""System prompts for the Bozor-AI LangGraph chat agent — Global Fashion Guru (Groq 70B)."""
+"""System prompts for the Bozorliii LangGraph chat agent — Global Fashion Guru (Groq 70B)."""
 
 from app.ai.agents.persona import (
     FINALIZE_JSON_CONTRACT,

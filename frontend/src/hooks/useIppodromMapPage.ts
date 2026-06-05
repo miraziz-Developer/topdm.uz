@@ -39,6 +39,7 @@ import {
 import type { IndoorMarketPlan, IndoorRoute } from "@/lib/indoor-map/types";
 import { shouldAutoNavigateFromMapSource } from "@/lib/map/map-auto-navigate";
 import { sanitizeUserGps } from "@/stores/location-store";
+import { isSimpleMapMode } from "@/lib/map/simple-map-mode";
 import {
   mapStoresToMarkers,
   resolveFocusMarkerFromQuery,
@@ -250,7 +251,9 @@ export function useIppodromMapPage(focusParams?: MapFocusParams, marketSlug = "i
 
   const filteredMarkers = useMemo(() => {
     const floorTag = level === 2 ? "2" : "1";
-    let list = markers.filter((m) => m.floor.startsWith(floorTag));
+    let list = isSimpleMapMode()
+      ? markers
+      : markers.filter((m) => m.floor.startsWith(floorTag));
 
     const q = searchQuery.trim().toLowerCase();
     if (q.length >= 2 && searchMatchIds?.size) {

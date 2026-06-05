@@ -39,7 +39,7 @@ const showAiDebug =
 export function AIChat({ variant = "floating" }: AIChatProps) {
   const isStudio = variant === "studio";
   const [open, setOpen] = useState(isStudio);
-  const [compactFab, setCompactFab] = useState(false);
+  const [compactFab, setCompactFab] = useState(true);
   const [text, setText] = useState("");
   const [photoOpenSignal, setPhotoOpenSignal] = useState(0);
   const { messages, isLoading, isTyping, sendMessage, clearChat, threadId, userId } = useAIChat();
@@ -183,7 +183,7 @@ export function AIChat({ variant = "floating" }: AIChatProps) {
                   </div>
                   <div>
                     <h3 className="font-semibold text-text-100">
-                      {isStudio ? "Shaxsiy AI Stilist" : "Topdim.UZ"}
+                      {isStudio ? "Shaxsiy AI Stilist" : "Bozorliii.uz"}
                     </h3>
                     <p className="text-xs text-electric-400">
                       {isTyping

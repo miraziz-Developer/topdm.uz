@@ -2,17 +2,18 @@
 
 import { AtSign, KeyRound, Phone, Store } from "lucide-react";
 
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { BRAND } from "@/components/brand/brand-tokens";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { postJson } from "@/lib/api";
 import { getAccessToken, setAccessToken } from "@/lib/auth";
+import { safeCrmNextPath } from "@/lib/crm-next-path";
 
 const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
 const PHONE_REGEX = /^\+998\d{9}$/;
@@ -20,15 +21,18 @@ const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "bot";
 
 type LoginMode = "telegram" | "shop_password" | "shop_otp";
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextRaw = searchParams.get("next");
+  const afterLogin = safeCrmNextPath(nextRaw);
   const [mode, setMode] = useState<LoginMode>("shop_password");
 
   useEffect(() => {
     if (getAccessToken()) {
-      router.replace("/dashboard");
+      router.replace(afterLogin);
     }
-  }, [router]);
+  }, [router, afterLogin]);
   const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("+998");
   const [otp, setOtp] = useState("");
@@ -45,7 +49,7 @@ export default function LoginPage() {
 
   const finishLogin = (token: string) => {
     setAccessToken(token);
-    window.location.href = "/dashboard";
+    window.location.href = afterLogin;
   };
 
   const sendTelegramCode = async () => {
@@ -164,7 +168,7 @@ export default function LoginPage() {
   return (
     <main className="relative flex min-h-screen flex-col bg-canvas bg-hero-glow lg:flex-row">
       <div className="relative hidden flex-1 flex-col justify-between p-10 lg:flex">
-        <TopdimLogo variant="full" size="lg" href={null} badge="CRM" showTagline />
+        <BozorliiiLogo variant="full" size="lg" href={null} badge="CRM" showTagline />
         <div className="max-w-md">
           <h2 className="text-3xl font-bold leading-tight tracking-tight text-text-100">
             Do&apos;koningizni bir joydan boshqaring
@@ -179,13 +183,13 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center bg-mesh-accent px-4 py-10">
         <div className="crm-page-enter w-full max-w-md space-y-6 rounded-3xl border border-border-subtle bg-surface p-8 shadow-elevated">
         <div className="mb-2 lg:hidden">
-          <TopdimLogo variant="full" size="sm" href={null} badge="CRM" />
+          <BozorliiiLogo variant="full" size="sm" href={null} badge="CRM" />
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-500">Kirish</p>
           <h1 className="mt-2 text-2xl font-bold text-text-100">Hisobingizga kiring</h1>
           <p className="mt-1 text-sm text-text-400">
-            Botda /register dan keyin login va parol beriladi
+            Telegram bot + web CRM — bitta hisob. /register dan keyin login va parol.
           </p>
         </div>
 
@@ -302,6 +306,20 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-canvas">
+          <p className="text-sm text-text-400">Yuklanmoqda…</p>
+        </main>
+      }
+    >
+      <LoginPageInner />
+    </Suspense>
   );
 }
 

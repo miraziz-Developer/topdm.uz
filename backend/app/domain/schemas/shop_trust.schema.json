@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://topdim.uz/schemas/store-operational-kpis.json",
+  "$id": "https://bozorliii.uz/schemas/store-operational-kpis.json",
   "title": "StoreOperationalKpis",
   "description": "CRM KPI block persisted on shops.trust_metrics (JSONB)",
   "type": "object",

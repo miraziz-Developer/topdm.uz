@@ -10,7 +10,7 @@ from app.core.config import get_settings
 
 
 class ChatHistoryStore:
-    """Redis-backed short-term chat history for the Bozor-AI agent (per user + thread)."""
+    """Redis-backed short-term chat history for the Bozorliii agent (per user + thread)."""
 
     def __init__(self) -> None:
         self._settings = get_settings()

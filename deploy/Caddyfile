@@ -1,17 +1,23 @@
 # Replace domains with your production hostnames (DNS A/AAAA → server IP).
 # TLS certificates are issued automatically by Caddy (Let's Encrypt).
 
-{$SITE_DOMAIN:topdim.uz} {
+{$SITE_DOMAIN:bozorliii.online} {
 	encode gzip zstd
+	handle_path /api/v1/media/* {
+		reverse_proxy backend:8000
+	}
 	reverse_proxy frontend:3000
 }
 
-{$API_DOMAIN:api.topdim.uz} {
+{$CRM_DOMAIN:crm.bozorliii.online} {
 	encode gzip zstd
-	reverse_proxy backend:8000
+	handle_path /api/v1/media/* {
+		reverse_proxy backend:8000
+	}
+	reverse_proxy merchant-crm:3000
 }
 
-{$CRM_DOMAIN:crm.topdim.uz} {
+{$API_DOMAIN:api.bozorliii.online} {
 	encode gzip zstd
-	reverse_proxy merchant-crm:3000
+	reverse_proxy backend:8000
 }

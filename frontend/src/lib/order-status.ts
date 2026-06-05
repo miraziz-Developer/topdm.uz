@@ -1,4 +1,4 @@
-/** Bozor AI buyurtma holati — frontend va backend `reserved` bilan sinxron. */
+/** Bozorliii buyurtma holati — frontend va backend `reserved` bilan sinxron. */
 
 export const ORDER_STATUS_PIPELINE = [
   "reserved",

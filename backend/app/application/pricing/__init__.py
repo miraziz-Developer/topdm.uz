@@ -1,0 +1,1 @@
+"""Narx va ustama hisobi."""

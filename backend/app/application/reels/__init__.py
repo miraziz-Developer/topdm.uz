@@ -1,1 +1,1 @@
-# Topdim.UZ Reels — TikTok Shop uslubida video commerce
+# Bozorliii.uz Reels — TikTok Shop uslubida video commerce

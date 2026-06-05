@@ -1,4 +1,4 @@
-/** Telegram Mini App (mijoz webapp — topdim.uz). */
+/** Telegram Mini App (mijoz webapp — bozorliii.uz). */
 
 export type TelegramWebAppClient = {
   ready: () => void;

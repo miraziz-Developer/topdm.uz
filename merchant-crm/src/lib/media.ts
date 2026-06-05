@@ -9,7 +9,28 @@ const API_ORIGIN = (() => {
   }
 })();
 
-const PROD_MEDIA_HOSTS = new Set(["topdim.uz", "www.topdim.uz", "api.topdim.uz"]);
+const PROD_MEDIA_HOSTS = new Set([
+  "bozorliii.uz",
+  "www.bozorliii.uz",
+  "api.bozorliii.uz",
+  "bozorliii.online",
+  "www.bozorliii.online",
+  "api.bozorliii.online",
+  "crm.bozorliii.online",
+]);
+
+function mediaApiOriginForBrowser(): string | null {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return null;
+  if (host === "crm.bozorliii.online" || host.endsWith(".bozorliii.online")) {
+    return "https://api.bozorliii.online";
+  }
+  if (host.endsWith(".bozorliii.uz")) {
+    return "https://api.bozorliii.uz";
+  }
+  return null;
+}
 
 /** API media paths (stories, reels, products) for browser playback. */
 export function resolveMediaUrl(url?: string | null): string {
@@ -36,4 +57,24 @@ export function resolveMediaUrl(url?: string | null): string {
     return raw;
   }
   return `${API_ORIGIN}/${raw.replace(/^\//, "")}`;
+}
+
+function resolveApiMediaForBrowser(resolved: string): string {
+  if (!resolved.startsWith("/api/v1/media/")) return resolved;
+  const apiOrigin = mediaApiOriginForBrowser();
+  if (apiOrigin) return `${apiOrigin}${resolved}`;
+  return resolved;
+}
+
+/** Reels — Telegram WebView uchun to‘g‘ridan-to‘g‘ri API host (Range). */
+export function resolveReelVideoUrl(url?: string | null): string {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved) return "";
+  return resolveApiMediaForBrowser(resolved);
+}
+
+export function resolveReelPosterUrl(url?: string | null): string {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved) return "";
+  return resolveApiMediaForBrowser(resolved);
 }

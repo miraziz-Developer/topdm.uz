@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import { TopdimLogo } from "@/components/brand/topdim-logo";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { TelegramLoginButton, type TelegramAuthPayload } from "@/components/auth/telegram-login-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,9 +125,9 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
           className="border-b border-border-subtle bg-gradient-electric px-6 py-8 text-center text-white"
         >
           <div className="mx-auto mb-4 flex justify-center">
-            <TopdimLogo variant="icon" size="lg" href={null} className="rounded-2xl ring-2 ring-white/30" />
+            <BozorliiiLogo variant="icon" size="lg" href={null} className="rounded-2xl ring-2 ring-white/30" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Topdim.UZ ga kirish</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Bozorliii.uz ga kirish</h1>
           <p className="mt-2 text-sm text-white/85">Telegram yoki email — xavfsiz va tez</p>
         </motion.div>
 

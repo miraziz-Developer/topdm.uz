@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { CrmFilterChip } from "@/components/crm/filter-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,6 +77,12 @@ const TABS: { key: FilterKey; label: string }[] = [
 function formatPickup(when?: string | null, time?: string | null) {
   if (!when) return "—";
   return time ? `${when} · ${time}` : when;
+}
+
+function formatWalletAmount(raw: string): string {
+  const n = Number.parseFloat(raw.replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(n)) return raw;
+  return formatPrice(Math.round(n));
 }
 
 function matchesFilter(order: OrderRow, filter: FilterKey): boolean {
@@ -374,63 +381,91 @@ export function OrdersPanel() {
   return (
     <div className="space-y-4">
       <div className="crm-surface-card overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-border-subtle p-4 sm:p-5 lg:flex-row lg:items-center">
-          <div className="relative min-w-0 flex-1 lg:max-w-md">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-400" />
+        <div className="border-b border-border-subtle/80 bg-gradient-to-br from-surface via-surface to-canvas/40 p-4 sm:p-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+            <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Faol</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-text-100">{counts.active}</p>
+            </div>
+            {wallet ? (
+              <>
+                <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Balans</p>
+                  <p className="mt-1 text-lg font-bold tabular-nums tracking-tight text-text-100">
+                    {formatWalletAmount(wallet.current_balance)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Muzlatilgan</p>
+                  <p className="mt-1 text-lg font-bold tabular-nums tracking-tight text-text-100">
+                    {formatWalletAmount(wallet.frozen_balance)}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="col-span-2 rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90 sm:col-span-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Jami</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-text-100">{counts.all}</p>
+              </div>
+            )}
+            <div className="col-span-2 flex items-center justify-between gap-3 rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90 sm:col-span-1 sm:flex-col sm:items-stretch sm:justify-center">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Yakunlash</p>
+                <p className="mt-0.5 text-xs font-medium text-text-300">Tayyor → avto</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoComplete}
+                onClick={() => void toggleAutoComplete()}
+                className={cn(
+                  "relative h-8 w-[2.75rem] shrink-0 rounded-full transition-colors duration-200",
+                  autoComplete ? "bg-electric-500" : "bg-elevated ring-1 ring-border-subtle",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 h-6 w-6 rounded-full bg-white shadow-md transition-all duration-200",
+                    autoComplete ? "left-[calc(100%-1.625rem)]" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="relative mt-4">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-400" />
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buyurtma qidirish..."
-              className="h-11 w-full rounded-full border border-border-subtle bg-canvas pl-10 pr-4 text-sm text-text-100 placeholder:text-text-400 focus:border-electric-500 focus:outline-none focus:ring-2 focus:ring-electric-500/15"
+              placeholder="Mahsulot, telefon yoki ID"
+              className="h-12 w-full rounded-2xl border-0 bg-canvas/90 pl-11 pr-4 text-sm font-medium text-text-100 shadow-inner ring-1 ring-border-subtle/80 placeholder:font-normal placeholder:text-text-400 focus:ring-2 focus:ring-electric-500/25"
             />
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-text-400">
-            <input
-              type="checkbox"
-              checked={autoComplete}
-              onChange={() => void toggleAutoComplete()}
-              className="h-4 w-4 rounded border-border-subtle text-electric-500"
-            />
-            Avtomatik yakunlash
-          </label>
-        </div>
 
-        {wallet ? (
-          <div className="flex flex-wrap gap-2 border-b border-border-subtle px-4 py-2.5 sm:px-5">
-            <span className="rounded-full bg-canvas px-3 py-1 text-xs text-text-400">
-              Balans: <strong className="text-text-100">{wallet.current_balance}</strong> so&apos;m
-            </span>
-            <span className="rounded-full bg-canvas px-3 py-1 text-xs text-text-400">
-              Muzlatilgan: <strong className="text-text-100">{wallet.frozen_balance}</strong>
-            </span>
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {TABS.map((tab) => (
+              <CrmFilterChip
+                key={tab.key}
+                active={filter === tab.key}
+                label={tab.label}
+                count={counts[tab.key]}
+                onClick={() => setFilter(tab.key)}
+              />
+            ))}
           </div>
-        ) : null}
-
-        <div className="flex gap-1 overflow-x-auto border-b border-border-subtle px-4 sm:gap-5 sm:px-5">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setFilter(tab.key)}
-              className={cn(
-                "shrink-0 border-b-2 py-3.5 text-sm font-medium transition",
-                filter === tab.key
-                  ? "border-text-100 text-text-100"
-                  : "border-transparent text-text-400 hover:text-text-200",
-              )}
-            >
-              {tab.label}
-              <span className="ml-1 tabular-nums text-text-400">({counts[tab.key]})</span>
-            </button>
-          ))}
         </div>
 
         {!visible.length ? (
-          <div className="py-20 text-center">
-            <Package className="mx-auto h-10 w-10 text-text-400/40" />
-            <p className="mt-3 font-medium text-text-100">Buyurtma topilmadi</p>
-            <p className="mt-1 text-sm text-text-400">Yangi band qilishlar shu yerda chiqadi</p>
+          <div className="px-6 py-16 text-center sm:py-20">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-electric-500/12 to-transparent ring-1 ring-electric-500/15">
+              <Package className="h-7 w-7 text-electric-500" strokeWidth={1.75} />
+            </div>
+            <p className="mt-5 text-lg font-bold tracking-tight text-text-100">Hozircha buyurtma yo&apos;q</p>
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-text-400">
+              Mijoz band qilganda push va shu ro&apos;yxatda darhol ko&apos;rasiz.
+            </p>
           </div>
         ) : (
           <>
@@ -544,16 +579,29 @@ export function OrdersPanel() {
               </table>
             </div>
 
-            <ul className="divide-y divide-border-subtle/80 md:hidden">
+            <ul className="space-y-3 p-4 md:hidden">
               {visible.map((order) => {
                 const meta = STATUS_META[order.status] ?? { label: order.status, variant: "default" as const };
                 const isDone = ["completed", "cancelled"].includes(order.status);
+                const isDelivery = order.fulfillment_type === "delivery";
                 return (
-                  <li key={order.id} className="space-y-2 px-4 py-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-text-100">{order.product_name}</p>
-                        <p className="text-xs text-text-400">{shortId(order.id)} · {formatPrice(order.total_price)}</p>
+                  <li
+                    key={order.id}
+                    className={cn(
+                      "rounded-2xl bg-canvas/50 p-4 ring-1 ring-border-subtle/90",
+                      isDone && "opacity-80",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold tracking-tight text-text-100">{order.product_name}</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums text-text-100">
+                          {formatPrice(order.total_price)}
+                        </p>
+                        <p className="mt-1 text-xs text-text-400">
+                          {shortId(order.id)} · {order.quantity} dona
+                          {isDelivery ? " · Yetkazish" : " · Olib ketish"}
+                        </p>
                       </div>
                       <Badge variant={meta.variant}>{meta.label}</Badge>
                     </div>
@@ -562,7 +610,7 @@ export function OrdersPanel() {
                         value={order.status}
                         disabled={busyId === order.id}
                         onChange={(e) => void changeStatus(order.id, e.target.value)}
-                        className="h-10 w-full rounded-xl border border-border-subtle bg-canvas px-3 text-sm"
+                        className="mt-3 h-11 w-full rounded-xl border-0 bg-surface px-3 text-sm font-medium text-text-100 ring-1 ring-border-subtle focus:ring-2 focus:ring-electric-500/20"
                       >
                         {STATUS_FLOW.filter((s) => !["completed", "cancelled"].includes(s.value)).map((s) => (
                           <option key={s.value} value={s.value}>
@@ -571,7 +619,7 @@ export function OrdersPanel() {
                         ))}
                       </select>
                     ) : null}
-                    <div className="flex justify-end">
+                    <div className="mt-3 flex justify-end border-t border-border-subtle/60 pt-3">
                       <OrderActionsMenu
                         order={order}
                         busy={busyId === order.id}

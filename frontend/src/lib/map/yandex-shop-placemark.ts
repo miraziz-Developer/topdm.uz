@@ -24,15 +24,15 @@ let shopPinLayout: YmapsLayoutClass | null = null;
 let shopPinLayoutVersion = 0;
 
 const PIN_TEMPLATE = [
-  '<div class="topdim-yandex-pin $[properties.focusedClass]" data-shop-id="$[properties.shopId]">',
-  '<div class="topdim-yandex-pin__disc">',
-  '<span class="topdim-yandex-pin__stall">$[properties.stall]</span>',
+  '<div class="bozorliii-yandex-pin $[properties.focusedClass]" data-shop-id="$[properties.shopId]">',
+  '<div class="bozorliii-yandex-pin__disc">',
+  '<span class="bozorliii-yandex-pin__stall">$[properties.stall]</span>',
   "</div>",
-  '<div class="topdim-yandex-pin__name">$[properties.shopName]</div>',
+  '<div class="bozorliii-yandex-pin__name">$[properties.shopName]</div>',
   "</div>",
 ].join("");
 
-/** Katta Topdim do‘kon pin — DOM click + pointer (Yandex iconShape bilan). */
+/** Katta Bozorliii do‘kon pin — DOM click + pointer (Yandex iconShape bilan). */
 export function getYandexShopPinLayout(ymapsApi: {
   templateLayoutFactory: YmapsTemplateFactory;
 }): unknown {
@@ -150,7 +150,7 @@ export function yandexShopPlacemarkProperties(marker: MapShopMarker, focused: bo
     shopId: marker.id,
     shopName: marker.name.slice(0, 22),
     stall,
-    focusedClass: focused ? "topdim-yandex-pin--focused" : "",
+    focusedClass: focused ? "bozorliii-yandex-pin--focused" : "",
     hintContent: `${marker.name} • ${locationDetailsFromMarker(marker).summary}`,
   };
 }

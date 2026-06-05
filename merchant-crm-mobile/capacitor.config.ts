@@ -4,16 +4,16 @@ const crmUrl =
   process.env.MERCHANT_CRM_URL?.trim() ||
   (process.env.NODE_ENV === "development"
     ? "http://localhost:3003"
-    : "https://crm.topdim.uz");
+    : "https://crm.bozorliii.uz");
 
 const config: CapacitorConfig = {
-  appId: "uz.topdim.merchant",
-  appName: "Topdim Merchant CRM",
+  appId: "uz.bozorliii.merchant",
+  appName: "Bozorliii Merchant CRM",
   webDir: "www",
   server: {
     url: crmUrl,
     cleartext: crmUrl.startsWith("http://"),
-    allowNavigation: ["localhost", "127.0.0.1", "crm.topdim.uz", "*.topdim.uz", "topdim.uz"],
+    allowNavigation: ["localhost", "127.0.0.1", "crm.bozorliii.uz", "*.bozorliii.uz", "bozorliii.uz"],
   },
   plugins: {
     PushNotifications: {

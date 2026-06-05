@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 
 export type DailyPoint = {
   date: string;
+  /** Backend yoki frontend formatlangan o‘q (uzun davrlar uchun). */
+  label?: string;
   views: number;
   leads: number;
   orders: number;
@@ -26,9 +28,26 @@ type Props = {
 
 const PAD = { top: 12, right: 8, bottom: 28, left: 36 };
 
-function formatDayLabel(iso: string): string {
-  const d = new Date(`${iso}T12:00:00`);
+function formatPointLabel(point: DailyPoint): string {
+  if (point.label) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(point.label)) {
+      const d = new Date(`${point.label}T12:00:00`);
+      return d.toLocaleDateString("uz-UZ", { day: "numeric", month: "short" });
+    }
+    return point.label;
+  }
+  const d = new Date(`${point.date}T12:00:00`);
   return d.toLocaleDateString("uz-UZ", { day: "numeric", month: "short" });
+}
+
+function visibleLabelIndices(count: number): Set<number> {
+  if (count <= 10) return new Set([...Array(count).keys()]);
+  const maxLabels = 8;
+  const step = Math.max(1, Math.ceil(count / maxLabels));
+  const out = new Set<number>();
+  for (let i = 0; i < count; i += step) out.add(i);
+  out.add(count - 1);
+  return out;
 }
 
 function buildPath(values: number[], width: number, height: number, max: number): string {
@@ -49,7 +68,8 @@ function buildPath(values: number[], width: number, height: number, max: number)
 
 export function AnalyticsLineChart({ title, points, lines, className, height = 200 }: Props) {
   const width = 640;
-  const labels = points.map((p) => formatDayLabel(p.date));
+  const labels = points.map((p) => formatPointLabel(p));
+  const labelVisible = visibleLabelIndices(points.length);
   const maxVal = Math.max(
     1,
     ...lines.flatMap((line) => points.map((p) => Number(p[line.key] ?? 0))),
@@ -117,10 +137,11 @@ export function AnalyticsLineChart({ title, points, lines, className, height = 2
           );
         })}
         {labels.map((label, i) => {
+          if (!labelVisible.has(i)) return null;
           const x = PAD.left + i * step;
           return (
             <text
-              key={label + i}
+              key={`${label}-${i}`}
               x={x}
               y={height - 6}
               textAnchor={i === 0 ? "start" : i === labels.length - 1 ? "end" : "middle"}

@@ -25,7 +25,6 @@ class BoostService:
                 "name_uz": b.name_uz,
                 "price_uzs": b.price_uzs,
                 "duration_days": b.duration_days,
-                "coin_cost": max(1, b.price_uzs // 10_000),
                 "description_uz": b.description_uz,
             }
             for b in ALL_BOOSTS
@@ -71,14 +70,16 @@ class BoostService:
 
         await self._db.commit()
 
+        from app.application.crm_banners.service import COIN_UZS_RATE
+
         return {
             "boosted": True,
             "product_id": str(product_id),
             "boost_code": boost_code,
             "duration_days": pkg.duration_days,
             "ends_at": ends_at.isoformat(),
-            "coins_spent": coin_cost,
-            "coins_balance": int(shop.coins_balance),
+            "amount_uzs": pkg.price_uzs,
+            "balance_uzs": int(shop.coins_balance) * COIN_UZS_RATE,
             "message": f"Mahsulot {pkg.duration_days} kun «Featured» sifatida ko'rsatiladi!",
         }
 

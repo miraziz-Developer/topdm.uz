@@ -7,12 +7,15 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { ProductOptionModal } from "@/components/product/product-option-modal";
+import { ProductRatingStars } from "@/components/product/product-rating-stars";
 import { Button } from "@/components/ui/button";
 import { triggerHaptic } from "@/lib/haptics";
 import { isUuidLike, productImage } from "@/lib/media";
 import { cardHover } from "@/lib/motion-presets";
 import { extractSelectableOptions, type ProductSelectionOptions } from "@/lib/product-options";
+import { productDiscountPercent } from "@/lib/deal-pricing";
 import { getGroupPrice } from "@/lib/pricing";
+import { productPriceUzs } from "@/lib/product-price";
 import { useCurrency } from "@/components/providers/currency-provider";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart-store";
@@ -52,6 +55,8 @@ export function ProductCard({
   const displayName = product.name?.trim() && !isUuidLike(product.name) ? product.name : "Mahsulot";
   const displayCategory =
     product.category && !isUuidLike(product.category) ? product.category : "Kiyim";
+  const baseUzs = productPriceUzs(product);
+  const discountPct = productDiscountPercent(product);
   const [optionOpen, setOptionOpen] = useState(false);
   const [pendingPoint, setPendingPoint] = useState<{ x: number; y: number } | null>(null);
 
@@ -159,10 +164,15 @@ export function ProductCard({
               <Share2 className="h-4 w-4" />
             </button>
           </motion.div>
-          <div className="absolute bottom-2 left-2">
+          <div className="absolute bottom-2 left-2 flex flex-col gap-1">
+            {discountPct != null && discountPct > 0 ? (
+              <span className="w-fit rounded-md bg-neon-500 px-2 py-0.5 text-[10px] font-black text-white">
+                -{discountPct}%
+              </span>
+            ) : null}
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur",
+                "w-fit rounded-full px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur",
                 product.is_available ? "bg-green/90" : "bg-red/90",
               )}
             >
@@ -176,10 +186,16 @@ export function ProductCard({
             {displayCategory} • {product.shop?.ipadrom || "Bozor"}
           </div>
           <h3 className="line-clamp-2 text-sm font-semibold text-ink-900">{displayName}</h3>
+          {(product.review_summary?.review_count ?? 0) > 0 ? (
+            <div className="mt-1 flex items-center gap-1.5">
+              <ProductRatingStars rating={product.review_summary?.average_rating ?? 0} size="sm" />
+              <span className="text-xs text-ink-500">({product.review_summary?.review_count})</span>
+            </div>
+          ) : null}
           <div className="mt-3 flex items-end justify-between gap-2">
             <motion.div>
-              <p className="price-mono text-lg font-bold text-neon-500">{formatPrice(getGroupPrice(product.price))}</p>
-              <p className="text-xs text-ink-400 line-through">{formatPrice(product.price)}</p>
+              <p className="price-mono text-lg font-bold text-neon-500">{formatPrice(getGroupPrice(baseUzs))}</p>
+              <p className="text-xs text-ink-400 line-through">{formatPrice(baseUzs)}</p>
             </motion.div>
             <span className="truncate text-xs text-ink-500">⭐ {product.shop.name}</span>
           </div>

@@ -103,8 +103,8 @@ DEMO_VIDEOS = [
     {
         "video_url": "https://assets.mixkit.co/videos/preview/mixkit-woman-and-man-walk-through-a-shopping-center-41848-large.mp4",
         "thumbnail_url": "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400&q=80",
-        "caption": "Topdim.UZ — Ippodrom bozorini telefonda toping 📱 #Reklama",
-        "hashtags": ["Topdim", "Ippodrom", "bozor", "qidiruv", "AI"],
+        "caption": "Bozorliii.uz — Ippodrom bozorini telefonda toping 📱 #Reklama",
+        "hashtags": ["Bozorliii", "Ippodrom", "bozor", "qidiruv", "AI"],
         "category_tags": ["fashion"],
         "shop_index": 0,   # Anor Boutique
         "views": 5234, "likes": 421, "shares": 134,

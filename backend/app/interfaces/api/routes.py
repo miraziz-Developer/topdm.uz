@@ -462,8 +462,10 @@ async def search_products(
             )
         except ValueError:
             logger.debug("search_track_event_skipped", query=q)
+    from app.application.marketplace.product_list_enrichment import products_to_public_dicts
+
     return {
-        "items": [product_to_dict(p) for p in products],
+        "items": await products_to_public_dicts(db, products),
         "total": total,
         "page": page,
     }
@@ -471,25 +473,66 @@ async def search_products(
 @router.get("/products/featured")
 async def list_featured_products(limit: int = 12, db: AsyncSession = Depends(get_db_session)) -> dict:
     """Featured products for the home page (declared above /products/{id} to avoid path collision)."""
+    from app.application.marketplace.product_list_enrichment import products_to_public_dicts
+
     repo = MarketplaceRepository(db)
     products = await repo.list_featured_products(limit=limit)
-    return {"items": [product_to_dict(p) for p in products]}
+    return {"items": await products_to_public_dicts(db, products)}
+
+
+@router.get("/products/deals/lightning")
+async def list_lightning_deals(limit: int = 16, db: AsyncSession = Depends(get_db_session)) -> dict:
+    from app.application.marketplace.product_list_enrichment import products_to_public_dicts
+
+    repo = MarketplaceRepository(db)
+    products = await repo.list_lightning_deal_products(limit=min(limit, 24))
+    return {"items": await products_to_public_dicts(db, products)}
+
+
+@router.get("/products/deals/clearance")
+async def list_clearance_deals(limit: int = 16, db: AsyncSession = Depends(get_db_session)) -> dict:
+    from app.application.marketplace.product_list_enrichment import products_to_public_dicts
+
+    repo = MarketplaceRepository(db)
+    products = await repo.list_clearance_deal_products(limit=min(limit, 24))
+    return {"items": await products_to_public_dicts(db, products)}
 
 
 @router.get("/products/{id}")
 async def get_product(id: UUID, db: AsyncSession = Depends(get_db_session)) -> dict:
+    from sqlalchemy import func, select
+
+    from app.infrastructure.db.models import OrderModel
+
     repo = MarketplaceRepository(db)
     await repo.increment_product_view_count(id)
     p = await repo.get_product_by_id(id)
     if not p:
         raise HTTPException(status_code=404, detail="Product not found")
-    return product_to_dict(p)
+    shop = getattr(p, "shop", None)
+    if shop and (not shop.is_active or getattr(shop, "is_blocked", False)):
+        raise HTTPException(status_code=404, detail="Product not found")
+    sold_count = await db.scalar(
+        select(func.coalesce(func.sum(OrderModel.quantity), 0)).where(
+            OrderModel.product_id == id,
+            OrderModel.status == "completed",
+        )
+    )
+    setattr(p, "sold_count", int(sold_count or 0))
+    from app.application.marketplace.product_review_service import ProductReviewService
+
+    review_summary = await ProductReviewService(db).get_summary(id)
+    payload = product_to_dict(p)
+    payload["review_summary"] = review_summary
+    return payload
 
 @router.get("/products/{id}/similar")
 async def get_similar(id: UUID, db: AsyncSession = Depends(get_db_session)) -> dict:
+    from app.application.marketplace.product_list_enrichment import products_to_public_dicts
+
     repo = MarketplaceRepository(db)
     products = await repo.get_similar_products(id)
-    return {"items": [product_to_dict(p) for p in products]}
+    return {"items": await products_to_public_dicts(db, products)}
 
 @router.get("/categories")
 async def list_categories(db: AsyncSession = Depends(get_db_session)) -> list[dict]:
@@ -556,6 +599,7 @@ from app.api.map import router as map_router
 from app.api.orders import router as orders_router
 from app.interfaces.api.merchant_workspace_routes import router as merchant_workspace_router
 from app.interfaces.api.merchant_product_routes import router as merchant_product_router
+from app.interfaces.api.merchant_shop_routes import router as merchant_shop_router
 from app.interfaces.api.platform_routes import router as platform_router
 from app.interfaces.api.indoor_map_routes import router as indoor_map_router
 from app.interfaces.api.chat_agent_routes import router as chat_agent_router
@@ -569,12 +613,19 @@ from app.interfaces.api.crm_banner_routes import router as crm_banner_router
 from app.interfaces.api.crm_shop_trust_routes import router as crm_shop_trust_router
 from app.interfaces.api.payment_routes import router as payment_router
 from app.interfaces.api.delivery_routes import router as delivery_router
+from app.interfaces.api.premium_market_routes import router as premium_market_router
+from app.interfaces.api.topdmbozor_routes import router as topdmbozor_router
+from app.interfaces.api.product_review_routes import router as product_review_router
+from app.interfaces.api.crm_review_routes import router as crm_review_router
+from app.interfaces.api.business_rules_routes import router as business_rules_router
+from app.interfaces.api.crm_campaign_routes import router as crm_campaign_router
 
 router.include_router(auth_router)
 router.include_router(map_router)
 router.include_router(orders_router)
 router.include_router(platform_router)
 router.include_router(merchant_product_router)
+router.include_router(merchant_shop_router)
 router.include_router(indoor_map_router)
 router.include_router(chat_agent_router)
 router.include_router(merchant_pending_router)
@@ -593,3 +644,9 @@ router.include_router(crm_banner_router)
 router.include_router(crm_shop_trust_router)
 router.include_router(payment_router)
 router.include_router(delivery_router)
+router.include_router(premium_market_router)
+router.include_router(topdmbozor_router)
+router.include_router(product_review_router)
+router.include_router(crm_review_router)
+router.include_router(business_rules_router)
+router.include_router(crm_campaign_router)

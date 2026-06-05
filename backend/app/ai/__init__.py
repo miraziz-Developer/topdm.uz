@@ -1,4 +1,4 @@
-"""Bozor-AI LLM infrastructure — Groq Cloud client configuration and helpers."""
+"""Bozorliii LLM infrastructure — Groq Cloud client configuration and helpers."""
 
 from app.ai.config import (
     GROQ_API_BASE,
