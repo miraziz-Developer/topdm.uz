@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { QrCode, Sparkles } from "lucide-react";
 
 import { BottomNav } from "@/components/BottomNav";
 import { Navigation } from "@/components/Navigation";
+import { PoweredByBozorliii } from "@/components/shop/powered-by-bozorliii";
+import { shopPageBg } from "@/components/shop/shop-premium-ui";
 import { ShopProductShowcase } from "@/components/shop/shop-product-showcase";
 import { ShopStoriesStrip } from "@/components/shop/shop-stories-strip";
 import { ShopStorefrontHero } from "@/components/shop/shop-storefront-hero";
@@ -14,6 +16,7 @@ import { buildMockShopProducts } from "@/lib/mock-shop-demo";
 import { hasReliableProductImage, resolveMediaUrl } from "@/lib/media";
 import { allowDemoFakeData } from "@/lib/runtime-flags";
 import { saveLastShop } from "@/lib/personalization/client-hints";
+import { cn } from "@/lib/utils";
 import type { Product, ShopProfile } from "@/types";
 
 export default function ShopPage({ params }: { params: { slug: string } }) {
@@ -50,8 +53,12 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
     return raw ? resolveMediaUrl(raw) : null;
   }, [displayItems.products]);
 
+  const scrollToCatalog = useCallback(() => {
+    document.getElementById("shop-catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   return (
-    <main className="shop-page min-h-dvh bg-canvas md:pb-6">
+    <main className={cn("shop-page md:pb-6", shopPageBg)}>
       <Navigation />
       <div className="page-content-top mx-auto max-w-6xl px-3 pb-10 sm:px-5 md:pb-10">
         {error ? (
@@ -85,6 +92,7 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
               shop={shop}
               productCount={displayItems.products.length}
               coverFromProduct={coverFromProduct}
+              onBrowseCatalog={scrollToCatalog}
             />
 
             <ShopStoriesStrip
@@ -109,11 +117,13 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
             <ShopProductShowcase
               products={displayItems.products}
               shopName={shop.name}
+              shopSlug={shop.slug}
               isDemo={displayItems.isDemo}
             />
           </div>
         ) : null}
       </div>
+      <PoweredByBozorliii />
       <BottomNav />
     </main>
   );

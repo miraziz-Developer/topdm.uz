@@ -16,6 +16,15 @@ import { cn } from "@/lib/utils";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002";
 
+const MOBILE_NAV_SHORT: Record<string, string> = {
+  "/dashboard": "Bosh",
+  "/dashboard/sales": "Savdo",
+  "/dashboard/chat": "Chat",
+  "/dashboard/products": "Mahsulot",
+  "/dashboard/content": "Kontent",
+  "/dashboard/shop": "Do'kon",
+};
+
 function isNavActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`) || pathname.startsWith(`${href}?`);
@@ -84,7 +93,7 @@ export function MerchantShell({
 
   return (
     <div className="min-h-screen bg-canvas crm-mesh-bg">
-      <header className="sticky top-0 z-50 border-b border-border-subtle/70 bg-surface/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/60 bg-surface/80 backdrop-blur-2xl backdrop-saturate-150">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 lg:px-6">
           <div className="flex items-center gap-3">
             <BozorliiiLogo variant="full" size="sm" href="/dashboard" badge="CRM" />
@@ -161,7 +170,7 @@ export function MerchantShell({
                 >
                   <Icon className="h-4 w-4" />
                 </span>
-                <span className="truncate max-w-[4.5rem]">{item.label.split(" ")[0]}</span>
+                <span className="truncate max-w-[4.5rem]">{MOBILE_NAV_SHORT[item.href] ?? item.label}</span>
               </Link>
             );
           })}

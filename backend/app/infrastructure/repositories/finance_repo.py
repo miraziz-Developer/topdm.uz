@@ -4,13 +4,15 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
 from app.infrastructure.db.models import OrderModel, ShopModel
 from app.models.finance import (
     MerchantFinanceWalletModel,
+    PlatformProfitSweepModel,
+    PlatformProfitSweepStatus,
     PlatformTransactionModel,
     PlatformTransactionStatus,
 )
@@ -133,3 +135,63 @@ class FinanceRepository:
     async def mark_transaction_refunded(self, tx: PlatformTransactionModel) -> None:
         tx.status = PlatformTransactionStatus.REFUNDED.value
         tx.refunded_at = datetime.now(timezone.utc)
+
+    # ---- Platform profit (komissiya) ledger ----------------------------------
+
+    async def released_commission_total(self) -> Decimal:
+        """Yetkazilgan (released) buyurtmalardan yig'ilgan komissiya — sof foyda bazasi.
+
+        Escrow'da turgan yoki refund qilingan buyurtmalar HISOBGA OLINMAYDI.
+        """
+        stmt = select(func.coalesce(func.sum(PlatformTransactionModel.platform_commission), 0)).where(
+            PlatformTransactionModel.status == PlatformTransactionStatus.RELEASED_TO_MERCHANT.value
+        )
+        result = await self._session.execute(stmt)
+        return Decimal(str(result.scalar() or 0))
+
+    async def profit_sweep_totals(self) -> dict[str, Decimal]:
+        """Sweep summalari: pending (band qilingan) + completed (o'tkazilgan)."""
+        stmt = select(
+            PlatformProfitSweepModel.status,
+            func.coalesce(func.sum(PlatformProfitSweepModel.amount_uzs), 0),
+        ).group_by(PlatformProfitSweepModel.status)
+        result = await self._session.execute(stmt)
+        totals = {
+            PlatformProfitSweepStatus.PENDING.value: ZERO,
+            PlatformProfitSweepStatus.COMPLETED.value: ZERO,
+            PlatformProfitSweepStatus.CANCELLED.value: ZERO,
+        }
+        for status, amount in result.all():
+            totals[status] = Decimal(str(amount or 0))
+        return totals
+
+    async def create_profit_sweep(
+        self, *, amount: Decimal, destination: str = "personal_card", note: str | None = None
+    ) -> PlatformProfitSweepModel:
+        row = PlatformProfitSweepModel(
+            amount_uzs=amount,
+            status=PlatformProfitSweepStatus.PENDING.value,
+            destination=destination,
+            note=note,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def get_profit_sweep_for_update(self, sweep_id: UUID) -> PlatformProfitSweepModel | None:
+        stmt = (
+            select(PlatformProfitSweepModel)
+            .where(PlatformProfitSweepModel.id == sweep_id)
+            .with_for_update()
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_profit_sweeps(self, *, limit: int = 50) -> list[PlatformProfitSweepModel]:
+        stmt = (
+            select(PlatformProfitSweepModel)
+            .order_by(PlatformProfitSweepModel.created_at.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())

@@ -9,13 +9,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.marketplace.use_cases import MarketplaceUseCases
 from app.core.config import get_settings
 from app.infrastructure.auth.deps import AuthUser, get_current_user, get_optional_user, require_merchant
-from app.infrastructure.auth.merchant_resolve import customer_phone_for_user, resolve_merchant_shop
+from app.infrastructure.auth.merchant_resolve import (
+    customer_account_for_user,
+    customer_phone_for_user,
+    resolve_merchant_shop,
+)
 from app.infrastructure.db.session import get_db_session
 from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.interfaces.api.serializers import product_to_dict, shop_to_dict
 
 router = APIRouter()
+
+
+async def _merchant_shop(db: AsyncSession, user: AuthUser):
+    shop = await resolve_merchant_shop(db, user)
+    if not shop:
+        raise HTTPException(status_code=403, detail="Merchant shop not found")
+    user.shop_id = shop.id
+    return shop
 
 
 class OrderCreateRequest(BaseModel):
@@ -101,14 +113,18 @@ async def create_order(
 
 @router.get("/orders/me")
 async def list_my_orders(
+    scope: str = "all",
     user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
     use_case: MarketplaceUseCases = Depends(marketplace_use_case),
 ) -> dict:
-    phone = await customer_phone_for_user(db, user)
-    if not phone:
-        return {"items": []}
-    items = await use_case.get_live_orders(phone)
+    user_id, phone, email = await customer_account_for_user(db, user)
+    items = await use_case.get_live_orders(
+        user_id=user_id,
+        customer_phone=phone,
+        customer_email=email,
+        scope=scope,
+    )
     return {"items": items}
 
 
@@ -119,13 +135,84 @@ async def get_my_order(
     db: AsyncSession = Depends(get_db_session),
     use_case: MarketplaceUseCases = Depends(marketplace_use_case),
 ) -> dict:
-    phone = await customer_phone_for_user(db, user)
-    if not phone:
-        raise HTTPException(status_code=400, detail="Telefon raqam topilmadi")
+    user_id, phone, email = await customer_account_for_user(db, user)
+    if not phone and not email:
+        raise HTTPException(status_code=400, detail="Telefon yoki email profilga qo'shing")
     try:
-        return await use_case.get_customer_order(phone, order_id)
+        return await use_case.get_customer_order(
+            user_id=user_id,
+            customer_phone=phone,
+            customer_email=email,
+            order_id=order_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/orders/{order_id}/pickup-qr")
+async def get_order_pickup_qr(
+    order_id: UUID,
+    user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Mijoz olib-ketish QR — do'konda sotuvchiga ko'rsatish uchun."""
+    from app.application.merchant.order_pickup_completion import OrderPickupCompletionService
+
+    user_id, phone, email = await customer_account_for_user(db, user)
+    if not phone and not email and user_id is None:
+        raise HTTPException(status_code=400, detail="Telefon yoki email profilga qo'shing")
+    service = OrderPickupCompletionService(db)
+    try:
+        return await service.get_pickup_qr_for_customer(
+            order_id,
+            customer_phone=phone,
+            customer_user_id=user_id,
+            customer_email=email,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "order_not_found":
+            raise HTTPException(status_code=404, detail="Buyurtma topilmadi") from exc
+        if code == "not_pickup_order":
+            raise HTTPException(status_code=400, detail="Bu yetkazish buyurtmasi — QR faqat olib ketish uchun") from exc
+        if code == "qr_not_available":
+            raise HTTPException(status_code=400, detail="QR hozir mavjud emas") from exc
+        raise HTTPException(status_code=400, detail=code) from exc
+
+
+class GuestPickupQrBody(BaseModel):
+    user_phone: str = Field(min_length=13, max_length=20)
+    verification_token: str = Field(min_length=8, max_length=64)
+
+
+@router.post("/orders/{order_id}/pickup-qr")
+async def guest_order_pickup_qr(
+    order_id: UUID,
+    body: GuestPickupQrBody,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Mehmon mijoz — OTP tasdiqlangan telefon bilan QR olish."""
+    from app.application.merchant.order_pickup_completion import OrderPickupCompletionService
+    from app.infrastructure.messaging.phone_otp import PhoneOtpError, phone_otp_gateway
+
+    phone = body.user_phone.strip()
+    try:
+        await phone_otp_gateway.assert_verified(phone, body.verification_token)
+    except PhoneOtpError as exc:
+        raise HTTPException(status_code=401, detail=exc.message) from exc
+
+    service = OrderPickupCompletionService(db)
+    try:
+        return await service.get_pickup_qr_for_customer(order_id, phone)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "order_not_found":
+            raise HTTPException(status_code=404, detail="Buyurtma topilmadi") from exc
+        if code == "not_pickup_order":
+            raise HTTPException(status_code=400, detail="Bu yetkazish buyurtmasi") from exc
+        if code == "qr_not_available":
+            raise HTTPException(status_code=400, detail="QR hozir mavjud emas") from exc
+        raise HTTPException(status_code=400, detail=code) from exc
 
 
 class OrderApproachPingBody(BaseModel):
@@ -217,6 +304,11 @@ async def merchant_dashboard(
             "customer_phone": order.customer_phone,
             "pickup_date": order.pickup_date.isoformat() if order.pickup_date else None,
             "pickup_time": order.pickup_time,
+            "fulfillment_type": order.fulfillment_type,
+            "carrier_class": order.carrier_class,
+            "delivery_cost_uzs": order.delivery_cost_uzs,
+            "delivery_address": order.delivery_address,
+            "payment_method": order.payment_method,
             "created_at": order.created_at.isoformat() if order.created_at else None,
             "arrival_status": None,
             "dwell_minutes": None,
@@ -325,7 +417,8 @@ async def merchant_update_indoor_stall_position(
     stall = await repo.get_stall(stall_id)
     if not stall:
         raise HTTPException(status_code=404, detail="Stall not found")
-    if not user.shop_id or stall.shop_id != user.shop_id:
+    shop = await _merchant_shop(db, user)
+    if stall.shop_id != shop.id:
         raise HTTPException(status_code=403, detail="Stall is not assigned to your shop")
 
     from app.application.indoor_navigation.graph_snap import snap_stall_to_navigation_graph
@@ -368,9 +461,7 @@ async def merchant_assign_indoor_stall(
     stall = await repo.get_stall(stall_id)
     if not stall:
         raise HTTPException(status_code=404, detail="Stall not found")
-    shop = await repo.get_shop(user.shop_id) if user.shop_id else None
-    if not shop:
-        raise HTTPException(status_code=403, detail="Merchant shop not found")
+    shop = await _merchant_shop(db, user)
     if payload.shop_id and payload.shop_id != shop.id:
         raise HTTPException(status_code=403, detail="Cannot assign stall to another shop")
 
@@ -385,16 +476,10 @@ async def merchant_save_precision_location(
     user: AuthUser = Depends(require_merchant),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    from app.application.merchant.precision_location import assert_gps_inside_market
-
-    assert_gps_inside_market(payload.latitude, payload.longitude, payload.market_slug)
-
     from app.infrastructure.repositories.indoor_map_repo import IndoorMapRepository
 
     repo = IndoorMapRepository(db)
-    shop = await repo.get_shop(user.shop_id) if user.shop_id else None
-    if not shop:
-        raise HTTPException(status_code=403, detail="Merchant shop not found")
+    shop = await _merchant_shop(db, user)
 
     from app.application.map.market_slugs import default_market_zone_label
 
@@ -430,12 +515,14 @@ async def merchant_save_precision_location(
 
 
 @router.get("/merchant/workspace-draft")
-async def get_merchant_workspace_draft(user: AuthUser = Depends(require_merchant)) -> dict:
+async def get_merchant_workspace_draft(
+    user: AuthUser = Depends(require_merchant),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
     from app.application.merchant.workspace_draft import load_workspace_draft
 
-    if not user.shop_id:
-        raise HTTPException(status_code=403, detail="Merchant shop not found")
-    draft = await load_workspace_draft(user.shop_id)
+    shop = await _merchant_shop(db, user)
+    draft = await load_workspace_draft(shop.id)
     return {"draft": draft}
 
 
@@ -448,9 +535,8 @@ async def patch_merchant_workspace_draft(
     from app.application.merchant.ai_inspector import AIInspectorService
     from app.application.merchant.workspace_draft import merge_workspace_draft
 
-    if not user.shop_id:
-        raise HTTPException(status_code=403, detail="Merchant shop not found")
-    merged = await merge_workspace_draft(user.shop_id, payload.model_dump(exclude_none=True))
+    shop = await _merchant_shop(db, user)
+    merged = await merge_workspace_draft(shop.id, payload.model_dump(exclude_none=True))
     price_warning: str | None = None
     if payload.product_price is not None:
         inspector = AIInspectorService(db)
@@ -501,16 +587,15 @@ async def checkout_payment_options() -> dict:
     settings = get_settings()
     enabled = settings.enable_online_checkout
     click_ready = enabled and bool(settings.click_service_id and settings.click_secret_key)
-    payme_ready = enabled and bool(settings.payme_merchant_id and settings.payme_secret_key)
-    if settings.payment_sandbox_mode:
+    sandbox = bool(settings.payment_sandbox_mode)
+    if sandbox:
         click_ready = enabled
-        payme_ready = enabled
     return {
         "in_store": ["cash", "terminal"],
         "online": {
             "click": click_ready,
-            "payme": payme_ready,
             "bridge": enabled,
+            "sandbox_mode": sandbox,
         },
     }
 
@@ -523,7 +608,7 @@ async def customer_payment_redirect(
     checkout_id: UUID | None = None,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Build Click/Payme redirect URL for a pickup reservation (guest checkout)."""
+    """Build Click redirect URL for a pickup reservation (guest checkout)."""
     from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
     from app.infrastructure.repositories.order_payment_repo import OrderPaymentRepository
 
@@ -532,7 +617,7 @@ async def customer_payment_redirect(
         raise HTTPException(status_code=403, detail="online_checkout_disabled")
 
     prov = provider.strip().lower()
-    if prov not in ("click", "payme"):
+    if prov not in ("click",):
         raise HTTPException(status_code=400, detail="invalid_provider")
 
     if amount < 1_000:
@@ -559,7 +644,8 @@ async def customer_payment_redirect(
         order = await repo.get_order_by_id(order_id)  # type: ignore[arg-type]
         if not order:
             raise HTTPException(status_code=404, detail="order_not_found")
-        if int(order.total_price) != int(amount):
+        order_total = int(order.total_price) + int(order.delivery_cost_uzs or 0)
+        if order_total != int(amount):
             raise HTTPException(status_code=400, detail="amount_mismatch")
         pay_target = order_id  # type: ignore[assignment]
         bridge_query = f"order_id={order_id}&amount={amount}"
@@ -568,40 +654,23 @@ async def customer_payment_redirect(
 
     click_service_id = settings.click_service_id
     click_merchant_id = settings.click_merchant_id
-    payme_merchant_id = settings.payme_merchant_id
     if settings.payment_sandbox_mode:
         click_service_id = click_service_id or settings.payment_sandbox_click_service_id
         click_merchant_id = click_merchant_id or click_service_id
-        payme_merchant_id = payme_merchant_id or settings.payment_sandbox_payme_merchant_id
 
-    if prov == "click":
-        if not click_service_id:
-            return {
-                "url": None,
-                "bridge_url": f"{site}/checkout/click?{bridge_query}",
-                "message": "Click sozlanmagan — do'konda to'lang yoki qo'llab-quvvatlash.",
-            }
-        return {
-            "url": (
-                f"https://my.click.uz/services/pay"
-                f"?service_id={click_service_id}"
-                f"&merchant_id={click_merchant_id or click_service_id}"
-                f"&amount={amount}"
-                f"&transaction_param={pay_target}"
-            ),
-            "bridge_url": f"{site}/checkout/click?{bridge_query}",
-        }
-
-    if not payme_merchant_id:
+    if not click_service_id:
         return {
             "url": None,
-            "bridge_url": f"{site}/checkout/payme?{bridge_query}",
-            "message": "Payme sozlanmagan — do'konda to'lang.",
+            "bridge_url": f"{site}/checkout/click?{bridge_query}",
+            "message": "Click sozlanmagan — do'konda to'lang yoki qo'llab-quvvatlash.",
         }
-
-    amount_tiyin = amount * 100
-    merchant_param = f"{payme_merchant_id};{pay_target};{amount_tiyin}"
     return {
-        "url": f"https://checkout.paycom.uz/{merchant_param}",
-        "bridge_url": f"{site}/checkout/payme?{bridge_query}",
+        "url": (
+            f"https://my.click.uz/services/pay"
+            f"?service_id={click_service_id}"
+            f"&merchant_id={click_merchant_id or click_service_id}"
+            f"&amount={amount}"
+            f"&transaction_param={pay_target}"
+        ),
+        "bridge_url": f"{site}/checkout/click?{bridge_query}",
     }

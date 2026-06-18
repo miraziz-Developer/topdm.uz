@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { BalanceTopUpModal, type TopUpPackage } from "@/components/balance-top-up-modal";
 import { BillingWalletCard } from "@/components/billing-wallet-card";
 import { MerchantBillingStatusCard } from "@/components/dashboard/merchant-billing-status-card";
+import { MerchantSettlementCard } from "@/components/merchant-settlement-card";
 import { CrmPageHeader } from "@/components/crm-page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -273,7 +274,7 @@ export default function BillingPage({
     }
   };
 
-  const handleTopUp = async (packageId: string, provider: "click" | "payme") => {
+  const handleTopUp = async (packageId: string, provider: "click") => {
     setTopUpLoading(true);
     try {
       const res = await generateCoinTopUpInvoice({ coin_package_id: packageId, provider });
@@ -339,7 +340,7 @@ export default function BillingPage({
         <CrmPageHeader
           eyebrow="Billing"
           title="Reklama balansi"
-          description="Click yoki Payme — barcha narxlar so'mda. Banner va boost shu balansdan."
+          description="Click orqali — barcha narxlar so'mda. Banner va boost shu balansdan."
         />
       ) : null}
 
@@ -352,6 +353,8 @@ export default function BillingPage({
       />
 
       <BillingWalletCard wallet={wallet} onTopUp={() => setTopUpOpen(true)} />
+
+      <MerchantSettlementCard />
 
       <MerchantBillingStatusCard />
 
@@ -537,7 +540,7 @@ export default function BillingPage({
           {[
             [
               "Balans qanday to'ldiriladi?",
-              "Click yoki Payme orqali paket tanlaysiz — summa to'g'ridan-to'g'ri so'm da ko'rsatiladi. To'lovdan keyin reklama balansi yangilanadi.",
+              "Click orqali paket tanlaysiz — summa to'g'ridan-to'g'ri so'm da ko'rsatiladi. To'lovdan keyin reklama balansi yangilanadi.",
             ],
             [
               "Nima uchun bitta balans?",
@@ -545,7 +548,7 @@ export default function BillingPage({
             ],
             [
               "To'lovdan keyin qachon ko'rinadi?",
-              "Click/Payme tasdiqlangach (odatda bir necha soniya) balans yangilanadi. Banner «chop etish» — summa darhol yechiladi.",
+              "Click tasdiqlangach (odatda bir necha soniya) balans yangilanadi. Banner «chop etish» — summa darhol yechiladi.",
             ],
             [
               "Banner qayerda chiqadi?",

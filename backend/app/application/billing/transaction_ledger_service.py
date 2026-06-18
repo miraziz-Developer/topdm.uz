@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import lazyload
 
 from app.infrastructure.db.models import ShopModel
 from app.models.transaction_ledger import TransactionLedgerModel
@@ -35,7 +36,10 @@ class TransactionLedgerService:
             return prior
 
         shop_result = await self._session.execute(
-            select(ShopModel).where(ShopModel.id == shop_id).with_for_update()
+            select(ShopModel)
+            .options(lazyload(ShopModel.ipadrom))
+            .where(ShopModel.id == shop_id)
+            .with_for_update()
         )
         shop = shop_result.scalar_one_or_none()
         if shop is None:

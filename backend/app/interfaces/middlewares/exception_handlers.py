@@ -43,6 +43,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
     request_id = getattr(request.state, "request_id", None)
     logger.exception("database_error", extra={"request_id": request_id})
+    try:
+        import sentry_sdk
+
+        sentry_sdk.capture_exception(exc)
+    except Exception:
+        pass
     return JSONResponse(
         status_code=500,
         content={
@@ -55,6 +61,12 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     request_id = getattr(request.state, "request_id", None)
     logger.exception("unhandled_exception", extra={"request_id": request_id})
+    try:
+        import sentry_sdk
+
+        sentry_sdk.capture_exception(exc)
+    except Exception:
+        pass
     return JSONResponse(
         status_code=500,
         content={

@@ -89,7 +89,7 @@ const uz: Record<HomeMessageKey, string> = {
   "home.discovery.eyebrow": "Trendlar",
   "home.discovery.titleStylist": "Sizga mos trendlar",
   "home.discovery.descStylist":
-    "Ippodrom va Abu Saxiy do'konlarining eng so'nggi va ommabop guruh narxlari asosidagi katalogi.",
+    "Ippodrom va Abu Saxiy do'konlarining eng so'nggi va ommabop mahsulotlari katalogi.",
   "home.discovery.titleWholesale": "Ulgurji katalog oqimi",
   "home.discovery.descWholesale":
     "Ippodrom va Abu Saxiy do'konlaridan optom partiyalar — minimal buyurtma va bozor filtri bilan.",
@@ -123,11 +123,11 @@ const uz: Record<HomeMessageKey, string> = {
   "home.pin.band": "Band",
   "home.pin.productFallback": "Mahsulot",
   "home.pin.optomMin": "Optom · min {qty}",
-  "home.pin.groupPrice": "Guruh narxi",
+  "home.pin.groupPrice": "Optom narx",
   "home.trust.aria": "Ishonch va xizmat afzalliklari",
   "home.trust.pricing.title": "Real Narx Kafolati",
   "home.trust.pricing.desc":
-    "Ippodrom va Abu Saxiy do'konlarining joylashuvi va eng so'nggi guruh/chakana narxlari 100% tekshirilgan.",
+    "Ippodrom va Abu Saxiy do'konlarining joylashuvi va eng so'nggi optom/chakana narxlari 100% tekshirilgan.",
   "home.trust.direct.title": "Sotuvchi bilan To'g'ridan-to'g'ri Aloqa",
   "home.trust.direct.desc":
     "Vositachilarsiz, do'kon egasining o'zi bilan bitta tugma orqali Telegram yoki telefon orqali tezkor buyurtma berish.",
@@ -162,7 +162,7 @@ const ru: Record<HomeMessageKey, string> = {
   "home.discovery.eyebrow": "Тренды",
   "home.discovery.titleStylist": "Тренды для вас",
   "home.discovery.descStylist":
-    "Каталог последних и популярных групповых цен магазинов Ипподрома и Абу Сахий.",
+    "Каталог последних и популярных товаров магазинов Ипподрома и Абу Сахий.",
   "home.discovery.titleWholesale": "Оптовый каталог",
   "home.discovery.descWholesale":
     "Оптовые партии с Ипподрома и Абу Сахий — минимальный заказ и фильтр по рынку.",
@@ -196,11 +196,11 @@ const ru: Record<HomeMessageKey, string> = {
   "home.pin.band": "Забронировать",
   "home.pin.productFallback": "Товар",
   "home.pin.optomMin": "Опт · от {qty} шт",
-  "home.pin.groupPrice": "Групповая цена",
+  "home.pin.groupPrice": "Оптовая цена",
   "home.trust.aria": "Преимущества и доверие",
   "home.trust.pricing.title": "Гарантия реальной цены",
   "home.trust.pricing.desc":
-    "Локации магазинов на Ипподроме и Абу Сахий и актуальные групповые/розничные цены проверены на 100%.",
+    "Локации магазинов на Ипподроме и Абу Сахий и актуальные оптовые/розничные цены проверены на 100%.",
   "home.trust.direct.title": "Прямой контакт с продавцом",
   "home.trust.direct.desc":
     "Без посредников — заказ в Telegram или по телефону владельцу магазина в один клик.",
@@ -235,7 +235,7 @@ const en: Record<HomeMessageKey, string> = {
   "home.discovery.eyebrow": "Trending",
   "home.discovery.titleStylist": "Trends for you",
   "home.discovery.descStylist":
-    "Latest and popular group-price catalog from Ippodrom and Abu Sahiy shops.",
+    "Latest and popular product catalog from Ippodrom and Abu Sahiy shops.",
   "home.discovery.titleWholesale": "Wholesale catalog stream",
   "home.discovery.descWholesale":
     "Wholesale lots from Ippodrom and Abu Sahiy — MOQ and market filters.",
@@ -268,11 +268,11 @@ const en: Record<HomeMessageKey, string> = {
   "home.pin.band": "Reserve",
   "home.pin.productFallback": "Product",
   "home.pin.optomMin": "Bulk · min {qty}",
-  "home.pin.groupPrice": "Group price",
+  "home.pin.groupPrice": "Wholesale price",
   "home.trust.aria": "Trust and service benefits",
   "home.trust.pricing.title": "Verified Real Pricing",
   "home.trust.pricing.desc":
-    "Ippodrom and Abu Sahiy shop locations plus latest group and retail prices are 100% verified.",
+    "Ippodrom and Abu Sahiy shop locations plus latest wholesale and retail prices are 100% verified.",
   "home.trust.direct.title": "Direct Seller Contact",
   "home.trust.direct.desc":
     "No middlemen — one-tap orders via Telegram or phone straight to the shop owner.",

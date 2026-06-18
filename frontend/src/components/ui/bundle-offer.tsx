@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 
+import { ProductImage } from "@/components/ui/product-image";
 import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -25,9 +25,14 @@ export function BundleOffer({ primary, related }: BundleOfferProps) {
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {[primary, ...bundle].map((item) => (
           <Link key={item.id} href={`/product/${item.id}`} className="flex items-center gap-3 rounded-2xl border border-border-subtle bg-white p-3">
-            <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-elevated">
-              <Image src={item.images?.[0] || "/placeholder.png"} alt={item.name} fill className="object-cover" sizes="64px" />
-            </div>
+            <ProductImage
+              images={item.images}
+              alt={item.name}
+              fill
+              wrapperClassName="h-16 w-16 rounded-xl bg-elevated"
+              className="object-cover"
+              sizes="64px"
+            />
             <div>
               <p className="line-clamp-2 text-sm font-medium text-ink-900">{item.name}</p>
               <p className="price-mono mt-1 text-sm font-bold text-neon-500">{formatPrice(item.price)}</p>

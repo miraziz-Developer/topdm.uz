@@ -2,31 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
-
 :root {
-  --bg-canvas: #eef1f7;
+  --font-sans: var(--font-outfit), "Outfit", system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), "DM Mono", ui-monospace, monospace;
+  --bg-canvas: #f2f4f8;
   --bg-surface: #ffffff;
-  --bg-elevated: #e4e9f2;
-  --electric-500: #0055eb;
-  --electric-600: #0044c4;
-  --gold-500: #e85d04;
-  --text-100: #0a0c12;
-  --text-300: #3d4455;
-  --text-400: #6b7289;
-  --border-subtle: rgba(10, 12, 18, 0.08);
-  --shadow-card: 0 1px 2px rgba(10, 12, 18, 0.04), 0 8px 24px -6px rgba(10, 12, 18, 0.1);
-  --shadow-premium: 0 4px 6px -2px rgba(0, 85, 235, 0.06), 0 20px 48px -12px rgba(10, 12, 18, 0.14);
+  --bg-elevated: #e8ecf4;
+  --electric-500: #0066ff;
+  --electric-600: #0052cc;
+  --gold-500: #ff4d12;
+  --text-100: #030308;
+  --text-300: #4a4f5c;
+  --text-400: #7a8194;
+  --border-subtle: rgba(3, 3, 8, 0.07);
+  --shadow-card: 0 1px 2px rgba(3, 3, 8, 0.04), 0 8px 32px -8px rgba(3, 3, 8, 0.1);
+  --shadow-premium: 0 4px 24px -4px rgba(0, 102, 255, 0.12), 0 16px 48px -12px rgba(3, 3, 8, 0.14);
+  --shadow-hover: 0 12px 28px -8px rgba(0, 102, 255, 0.22), 0 32px 64px -16px rgba(0, 102, 255, 0.14);
 }
 
 body {
   margin: 0;
   background: var(--bg-canvas);
   color: var(--text-100);
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 * {
@@ -34,7 +35,7 @@ body {
 }
 
 ::selection {
-  background: rgba(0, 85, 235, 0.16);
+  background: rgba(0, 102, 255, 0.16);
   color: var(--text-100);
 }
 
@@ -54,56 +55,94 @@ body {
 }
 
 @layer utilities {
+  .premium-aurora {
+    background:
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(0, 102, 255, 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 90% 20%, rgba(255, 77, 18, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 35% at 50% 100%, rgba(0, 102, 255, 0.06) 0%, transparent 45%);
+  }
+
+  .premium-glass {
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(24px) saturate(1.55);
+    -webkit-backdrop-filter: blur(24px) saturate(1.55);
+    box-shadow: var(--shadow-premium);
+  }
+
   .crm-surface-card {
-    @apply rounded-2xl border border-border-subtle/90 bg-surface;
+    @apply rounded-2xl border border-white/70 bg-surface/95 backdrop-blur-xl;
     box-shadow: var(--shadow-card);
   }
 
   .crm-hero-card {
-    @apply relative overflow-hidden rounded-2xl border border-border-subtle/90 bg-surface;
+    @apply relative overflow-hidden rounded-3xl border border-white/70 bg-surface/95 backdrop-blur-xl;
     box-shadow: var(--shadow-premium);
-    background-image: linear-gradient(135deg, rgba(0, 85, 235, 0.04) 0%, transparent 42%),
-      linear-gradient(225deg, rgba(232, 93, 4, 0.03) 0%, transparent 38%);
+  }
+
+  .crm-hero-card::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 102, 255, 0.45), transparent);
   }
 
   .crm-stat-tile {
-    @apply relative overflow-hidden rounded-2xl border border-border-subtle/80 bg-surface p-5 transition duration-200;
+    @apply relative overflow-hidden rounded-2xl border border-border-subtle/80 bg-surface p-5 transition duration-300;
     box-shadow: var(--shadow-card);
   }
 
   .crm-stat-tile::before {
     content: "";
-    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-electric-500/25 to-transparent;
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-electric-500/30 to-transparent;
   }
 
   .crm-stat-tile:hover {
     @apply border-electric-500/20;
-    box-shadow: 0 8px 28px -8px rgba(0, 85, 235, 0.12);
-    transform: translateY(-1px);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
   }
 
   .crm-tip-banner {
-    @apply rounded-2xl border border-electric-500/15 bg-electric-500/[0.04] px-4 py-3.5 sm:px-5;
+    @apply rounded-2xl border border-electric-500/15 bg-electric-500/[0.05] px-4 py-3.5 sm:px-5;
   }
 
   .crm-btn-primary {
-    @apply inline-flex items-center justify-center rounded-xl border-0 bg-electric-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,85,235,0.35)] transition hover:bg-electric-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-xl border-0 bg-gradient-electric px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_18px_rgba(0,102,255,0.38)] transition hover:brightness-105 hover:shadow-[0_8px_28px_rgba(0,102,255,0.45)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .crm-btn-ghost {
+    @apply inline-flex items-center justify-center rounded-xl border border-border-subtle bg-surface/80 px-5 py-2.5 text-sm font-semibold text-text-100 backdrop-blur-sm transition hover:border-electric-500/25 hover:bg-electric-500/[0.04] active:scale-[0.98];
   }
 
   .crm-page-enter {
-    animation: crm-fade-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: crm-fade-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .crm-mesh-bg {
-    background-image: radial-gradient(ellipse 70% 50% at 50% -10%, rgba(0, 85, 235, 0.07), transparent),
-      radial-gradient(ellipse 40% 30% at 100% 50%, rgba(0, 85, 235, 0.04), transparent);
+    background-color: var(--bg-canvas);
+    background-image:
+      radial-gradient(ellipse 100% 70% at 50% -20%, rgba(0, 102, 255, 0.14) 0%, transparent 52%),
+      radial-gradient(ellipse 55% 45% at 100% 0%, rgba(255, 77, 18, 0.06) 0%, transparent 42%),
+      radial-gradient(ellipse 45% 40% at 0% 100%, rgba(0, 102, 255, 0.05) 0%, transparent 38%);
+  }
+
+  .text-gradient-electric {
+    background: linear-gradient(135deg, #0066ff 0%, #33a3ff 50%, #0066ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }
 
 @keyframes crm-fade-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -115,18 +154,6 @@ body {
   .touch-target {
     min-height: 44px;
     min-width: 44px;
-  }
-}
-
-@keyframes bozor-app-node {
-  0%,
-  100% {
-    opacity: 0.88;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.18);
   }
 }
 

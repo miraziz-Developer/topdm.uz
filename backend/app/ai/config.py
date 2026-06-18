@@ -10,11 +10,13 @@ GROQ_CHAT_COMPLETIONS_PATH = "/chat/completions"
 
 # Production 70B line (successor to deprecated llama3-70b-8192 on Groq).
 GROQ_DEFAULT_CHAT_MODEL = "llama-3.3-70b-versatile"
-GROQ_DEFAULT_VISION_MODEL = "llama-3.2-11b-vision-preview"
+GROQ_DEFAULT_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 LEGACY_MODEL_ALIASES: dict[str, str] = {
     "llama3-70b-8192": GROQ_DEFAULT_CHAT_MODEL,
     "llama-3.1-70b-versatile": GROQ_DEFAULT_CHAT_MODEL,
+    "llama-3.2-11b-vision-preview": GROQ_DEFAULT_VISION_MODEL,
+    "llama-3.2-90b-vision-preview": GROQ_DEFAULT_VISION_MODEL,
 }
 
 

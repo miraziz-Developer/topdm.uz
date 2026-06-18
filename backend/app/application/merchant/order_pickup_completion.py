@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 PICKUP_SETTINGS_KEY = "pickup_completion_settings"
 ARRIVAL_TTL_SECONDS = 4 * 60 * 60
 
+MANUAL_PICKUP_ALLOWED_STATUSES = frozenset({"confirmed", "preparing", "ready"})
+QR_PICKUP_ALLOWED_STATUSES = frozenset({"reserved", "confirmed", "preparing", "ready"})
+
 DEFAULT_PICKUP_SETTINGS = {
     "notify_on_arrival": True,
     "auto_complete_enabled": False,
@@ -150,6 +153,144 @@ class OrderPickupCompletionService:
 
         return result
 
+    async def scan_and_complete_pickup(self, shop_id: UUID, token: str) -> dict[str, Any]:
+        """QR skaner — buyurtma tafsilotlari + avtomatik yakunlash."""
+        from sqlalchemy import select
+
+        from app.application.merchant.pickup_qr import (
+            is_pickup_fulfillment,
+            verify_pickup_qr_token,
+        )
+
+        order_id, token_shop_id = verify_pickup_qr_token(token)
+        if token_shop_id != shop_id:
+            raise ValueError("wrong_shop")
+
+        existing = (
+            await self._session.execute(
+                select(OrderModel).where(OrderModel.id == order_id, OrderModel.shop_id == shop_id)
+            )
+        ).scalar_one_or_none()
+        if not existing:
+            raise ValueError("order_not_found")
+
+        product = await self._repo.get_product_by_id(existing.product_id)
+        shop = await self._repo.get_shop(shop_id)
+
+        if not is_pickup_fulfillment(getattr(existing, "fulfillment_type", "pickup")):
+            raise ValueError("not_pickup_order")
+
+        prev_status = (existing.status or "").lower()
+        already_completed = prev_status == "completed"
+
+        if prev_status == "cancelled":
+            raise ValueError("order_cancelled")
+
+        if not already_completed:
+            if prev_status not in QR_PICKUP_ALLOWED_STATUSES:
+                raise ValueError("order_not_ready_for_pickup")
+            order = await self._repo.update_order_status(
+                shop_id=shop_id,
+                order_id=order_id,
+                status="completed",
+            )
+            if not order:
+                raise ValueError("order_not_found")
+            await self._finalize_completed_order(order.id, shop_id, prev_status)
+            try:
+                from app.application.merchant.growth_service import MerchantGrowthService
+
+                await MerchantGrowthService(self._session).try_reward_referral(shop_id)
+            except Exception:
+                logger.debug("referral_reward_skipped", exc_info=True)
+            await self._clear_tracking(order_id, shop_id)
+            hub = MerchantWorkspaceHub(self._session)
+            await hub.push_alert(
+                shop_id,
+                {
+                    "type": "pickup_qr_scanned",
+                    "title": "QR orqali berildi",
+                    "body": f"{product.name if product else 'Mahsulot'} — mijozga topshirildi",
+                },
+            )
+            existing = order
+
+        return self._build_scan_response(existing, product, shop, already_completed=already_completed)
+
+    @staticmethod
+    def _build_scan_response(
+        order: OrderModel,
+        product: ProductModel | None,
+        shop: ShopModel | None,
+        *,
+        already_completed: bool,
+    ) -> dict[str, Any]:
+        return {
+            "order_id": str(order.id),
+            "status": order.status,
+            "already_completed": already_completed,
+            "completed_via": "qr_scan",
+            "quantity": int(order.quantity or 1),
+            "total_price": int(order.total_price or 0),
+            "customer_phone": str(order.customer_phone or ""),
+            "payment_method": getattr(order, "payment_method", None),
+            "pickup_date": order.pickup_date.isoformat() if getattr(order, "pickup_date", None) else None,
+            "pickup_time": getattr(order, "pickup_time", None),
+            "product": {
+                "id": str(product.id) if product else "",
+                "name": product.name if product else "",
+                "price": int(product.price) if product else 0,
+            },
+            "shop": {
+                "id": str(shop.id) if shop else "",
+                "name": shop.name if shop else "",
+            },
+        }
+
+    async def get_pickup_qr_for_customer(
+        self,
+        order_id: UUID,
+        customer_phone: str | None = None,
+        *,
+        customer_user_id: UUID | None = None,
+        customer_email: str | None = None,
+    ) -> dict[str, Any]:
+        from app.application.merchant.pickup_qr import (
+            CUSTOMER_QR_VISIBLE_STATUSES,
+            build_pickup_qr_image_url,
+            is_pickup_fulfillment,
+            issue_pickup_qr_token,
+        )
+
+        order = await self._repo.get_order_for_account(
+            order_id,
+            user_id=customer_user_id,
+            phone=customer_phone,
+            email=customer_email,
+        )
+        if not order:
+            raise ValueError("order_not_found")
+        if not is_pickup_fulfillment(getattr(order, "fulfillment_type", "pickup")):
+            raise ValueError("not_pickup_order")
+        status = (order.status or "").lower()
+        if status not in CUSTOMER_QR_VISIBLE_STATUSES:
+            raise ValueError("qr_not_available")
+        product = order.product
+        token, exp = issue_pickup_qr_token(order.id, order.shop_id)
+        return {
+            "order_id": str(order.id),
+            "qr_token": token,
+            "qr_image_url": build_pickup_qr_image_url(token),
+            "expires_at": exp,
+            "status": order.status,
+            "product_name": product.name if product else "",
+            "quantity": int(order.quantity or 1),
+            "total_price": int(order.total_price or 0),
+            "pickup_date": order.pickup_date.isoformat() if getattr(order, "pickup_date", None) else None,
+            "pickup_time": getattr(order, "pickup_time", None),
+            "hint": "Do'konda sotuvchiga ushbu QR ni ko'rsating — skaner qilgach buyurtma yopiladi.",
+        }
+
     async def confirm_pickup_manual(
         self,
         shop_id: UUID,
@@ -157,6 +298,21 @@ class OrderPickupCompletionService:
         *,
         note: str | None = None,
     ) -> dict[str, Any]:
+        from sqlalchemy import select
+
+        existing = (
+            await self._session.execute(
+                select(OrderModel).where(OrderModel.id == order_id, OrderModel.shop_id == shop_id)
+            )
+        ).scalar_one_or_none()
+        if not existing:
+            raise ValueError("order_not_found")
+        prev_status = (existing.status or "").lower()
+        if prev_status in {"completed", "cancelled"}:
+            raise ValueError(f"order_already_{prev_status}")
+        if prev_status not in MANUAL_PICKUP_ALLOWED_STATUSES:
+            raise ValueError("order_not_ready_for_pickup")
+
         order = await self._repo.update_order_status(
             shop_id=shop_id,
             order_id=order_id,
@@ -164,7 +320,13 @@ class OrderPickupCompletionService:
         )
         if not order:
             raise ValueError("order_not_found")
-        await self._accrue_offline_pickup_debt(order.id)
+        await self._finalize_completed_order(order.id, shop_id, prev_status)
+        try:
+            from app.application.merchant.growth_service import MerchantGrowthService
+
+            await MerchantGrowthService(self._session).try_reward_referral(shop_id)
+        except Exception:
+            logger.debug("referral_reward_skipped", exc_info=True)
         await self._clear_tracking(order_id, shop_id)
         hub = MerchantWorkspaceHub(self._session)
         await hub.push_alert(
@@ -187,6 +349,19 @@ class OrderPickupCompletionService:
         return raw if isinstance(raw, dict) else None
 
     async def _complete_order(self, shop_id: UUID, order_id: UUID, *, source: str) -> bool:
+        from sqlalchemy import select
+
+        existing = (
+            await self._session.execute(
+                select(OrderModel).where(OrderModel.id == order_id, OrderModel.shop_id == shop_id)
+            )
+        ).scalar_one_or_none()
+        if not existing:
+            return False
+        prev_status = (existing.status or "").lower()
+        if prev_status in {"completed", "cancelled"}:
+            return False
+
         order = await self._repo.update_order_status(
             shop_id=shop_id,
             order_id=order_id,
@@ -194,7 +369,13 @@ class OrderPickupCompletionService:
         )
         if not order:
             return False
-        await self._accrue_offline_pickup_debt(order.id)
+        await self._finalize_completed_order(order.id, shop_id, prev_status)
+        try:
+            from app.application.merchant.growth_service import MerchantGrowthService
+
+            await MerchantGrowthService(self._session).try_reward_referral(shop_id)
+        except Exception:
+            logger.debug("referral_reward_skipped", exc_info=True)
         hub = MerchantWorkspaceHub(self._session)
         await hub.push_alert(
             shop_id,
@@ -205,6 +386,17 @@ class OrderPickupCompletionService:
             },
         )
         return True
+
+    async def _finalize_completed_order(self, order_id: UUID, shop_id: UUID, prev_status: str) -> None:
+        if prev_status != "completed":
+            from app.application.finance.transaction_splitter import TransactionSplitterService
+
+            splitter = TransactionSplitterService(self._session)
+            try:
+                await splitter.release_escrow_to_merchant(order_id)
+            except Exception:
+                logger.exception("escrow_release_failed", extra={"order_id": str(order_id)})
+        await self._accrue_offline_pickup_debt(order_id)
 
     async def _accrue_offline_pickup_debt(self, order_id: UUID) -> None:
         from app.application.billing.merchant_debt_service import MerchantDebtService

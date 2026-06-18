@@ -15,5 +15,6 @@ class NotifierGateway(Protocol):
         *,
         shop_id: uuid.UUID,
         crm_next: str | None = None,
+        reply_markup: dict | None = None,
     ) -> None:
         """Telegram xabar + CRM WebApp tugmasi (bot va web bir tizim)."""

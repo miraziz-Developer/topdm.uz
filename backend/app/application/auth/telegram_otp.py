@@ -20,7 +20,7 @@ async def issue_and_send_telegram_otp(
 ) -> dict:
     settings = get_settings()
     username = normalize_telegram_username(telegram_username)
-    otp = f"{random.randint(1000, 9999)}"
+    otp = f"{random.randint(100000, 999999)}"
 
     try:
         await telegram_otp_gateway.send_otp(username=username, otp=otp, link_user_id=link_user_id)

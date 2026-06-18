@@ -158,20 +158,20 @@ services:
       - ./scripts:/app/scripts
     entrypoint: []
     command: ["python", "/app/scripts/run_merchant_bot.py"]
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import os,sys; token=os.getenv('TELEGRAM_BOT_TOKEN','').strip(); sys.exit(0 if token else 1)\"",
+          "python -c \"import pathlib; s=pathlib.Path('/proc/1/cmdline').read_bytes().decode('latin1','replace'); exit(0 if 'run_merchant_bot' in s else 1)\"",
         ]
-      interval: 20s
+      interval: 30s
       timeout: 5s
-      retries: 6
-      start_period: 20s
+      retries: 3
+      start_period: 45s
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
   merchant-crm:
     build:

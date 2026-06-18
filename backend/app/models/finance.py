@@ -21,6 +21,12 @@ class PlatformTransactionStatus(str, enum.Enum):
     REFUNDED = "refunded"
 
 
+class PlatformProfitSweepStatus(str, enum.Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
 class MerchantFinanceWalletModel(Base):
     """
     UZS settlement wallet (order payouts). Separate from coin wallet (`merchant_wallets`).
@@ -92,3 +98,32 @@ class PlatformTransactionModel(Base):
 
     order = relationship("OrderModel", lazy="select")
     shop = relationship("ShopModel", lazy="select")
+
+
+class PlatformProfitSweepModel(Base):
+    """Platforma foydasini (released komissiya) shaxsiy kartaga ko'chirish yozuvi.
+
+    Escrow (do'konchilar puli) ga tegmaydi — faqat yetkazilgan buyurtmalar
+    komissiyasidan yechib olinadi. Sweep yaratilganda summa 'band' qilinadi,
+    fizik o'tkazma admin tomonidan bajarilib, 'completed' deb tasdiqlanadi.
+    """
+
+    __tablename__ = "platform_profit_sweeps"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    amount_uzs: Mapped[Decimal] = mapped_column(MONEY_PRECISION, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=PlatformProfitSweepStatus.PENDING.value,
+        server_default=PlatformProfitSweepStatus.PENDING.value,
+        index=True,
+    )
+    destination: Mapped[str] = mapped_column(String(64), nullable=False, default="personal_card")
+    reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

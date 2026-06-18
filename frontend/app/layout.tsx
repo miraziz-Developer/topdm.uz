@@ -1,7 +1,8 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
-import { Inter, DM_Mono } from "next/font/google";
+import { DM_Mono, Outfit } from "next/font/google";
+
 import { DynamicFavicon } from "@/components/providers/dynamic-favicon";
 import { PriceDropListener } from "@/components/providers/price-drop-listener";
 import { FlyToCartLayer } from "@/components/ui/fly-to-cart-layer";
@@ -13,24 +14,15 @@ import { CurrencyProvider } from "@/components/providers/currency-provider";
 import { LocaleProvider } from "@/i18n/locale-provider";
 import { PwaRegister } from "@/components/providers/pwa-register";
 import { SiteAnalytics } from "@/components/providers/site-analytics";
+import { StickyMiniCart } from "@/components/home/sticky-mini-cart";
 import { MerchantCrmLauncher } from "@/components/merchant/merchant-crm-launcher";
 import { TelegramWebAppProvider } from "@/components/providers/telegram-webapp";
 import { LayoutGroup } from "framer-motion";
 
 import { QueryProvider } from "@/lib/query-provider";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const dmMono = DM_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-mono",
-  display: "swap",
-});
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", display: "swap" });
+const dmMono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-dm-mono", display: "swap" });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.uz";
 
@@ -80,8 +72,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <html lang="uz" className={`${inter.variable} ${dmMono.variable}`}>
-      <body className="mesh-bg overflow-x-clip font-sans antialiased">
+    <html lang="uz">
+      <body className={`${outfit.variable} ${dmMono.variable} mesh-bg overflow-x-clip font-sans antialiased`}>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
         <QueryProvider>
           <LocaleProvider>
@@ -97,6 +89,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <PriceDropListener />
                 <FlyToCartLayer />
                 <PerfectMatchSidebar />
+                <StickyMiniCart />
                 <LayoutGroup id="bozor-app">{children}</LayoutGroup>
               </ToastProvider>
             </CurrencyProvider>

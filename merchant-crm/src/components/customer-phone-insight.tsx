@@ -40,7 +40,7 @@ export function CustomerPhoneInsight({ phone }: { phone: string }) {
             <p className="mb-2 text-text-400">Yangi mijoz</p>
           )}
           <p className="text-text-400">
-            {data.total_orders} buyurtma · {data.total_leads} lead
+            {data.total_orders} buyurtma · {data.total_leads} murojaat
           </p>
         </div>
       ) : null}

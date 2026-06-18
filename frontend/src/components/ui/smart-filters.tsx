@@ -11,6 +11,8 @@ export type SmartFilterState = {
   colors: string[];
   materials: string[];
   blocks: string[];
+  /** User must explicitly enable — never auto-apply map location block. */
+  nearbyBlockOnly?: boolean;
   minPrice?: number;
   maxPrice?: number;
 };
@@ -21,9 +23,38 @@ type SmartFiltersProps = {
   products: Product[];
 };
 
-const COLOR_OPTIONS = ["Sariq", "Qora", "Oq", "Ko'k", "Qizil", "Yashil", "Bej"];
-const MATERIAL_OPTIONS = ["Paxta", "Charm", "Denim", "Atalas"];
+const COLOR_FALLBACK = ["Sariq", "Qora", "Oq", "Ko'k", "Qizil", "Yashil", "Bej"];
+const MATERIAL_FALLBACK = ["Paxta", "Charm", "Denim", "Atalas"];
 const BLOCK_OPTIONS = ["38-blok", "40-blok", "42-blok", "44-blok"];
+
+function productHaystack(product: Product): string {
+  const attrs = product.attributes ?? {};
+  return [
+    product.name,
+    product.category ?? "",
+    product.category_name ?? "",
+    String(attrs.color ?? ""),
+    String(attrs.material ?? attrs.fabric ?? ""),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function deriveFilterOptions(products: Product[]) {
+  const colors = new Set<string>();
+  const materials = new Set<string>();
+  for (const product of products) {
+    const attrs = product.attributes ?? {};
+    const color = String(attrs.color ?? "").trim();
+    const material = String(attrs.material ?? attrs.fabric ?? "").trim();
+    if (color) colors.add(color);
+    if (material) materials.add(material);
+  }
+  return {
+    colors: colors.size ? Array.from(colors).slice(0, 12) : COLOR_FALLBACK,
+    materials: materials.size ? Array.from(materials).slice(0, 10) : MATERIAL_FALLBACK,
+  };
+}
 
 export function SmartFilters({ value, onChange, products }: SmartFiltersProps) {
   const currentBlock = useLocationStore((state) => state.currentBlock);
@@ -33,6 +64,11 @@ export function SmartFilters({ value, onChange, products }: SmartFiltersProps) {
     const fromProducts = Array.from(new Set(products.map((item) => item.shop.floor).filter(Boolean))) as string[];
     return fromProducts.length ? fromProducts : BLOCK_OPTIONS;
   }, [products]);
+
+  const { colors: colorOptions, materials: materialOptions } = useMemo(
+    () => deriveFilterOptions(products),
+    [products],
+  );
 
   const toggle = (key: keyof Pick<SmartFilterState, "colors" | "materials" | "blocks">, item: string) => {
     const list = value[key];
@@ -47,16 +83,31 @@ export function SmartFilters({ value, onChange, products }: SmartFiltersProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onChange({ colors: [], materials: [], blocks: [], minPrice: undefined, maxPrice: undefined })}
+          onClick={() =>
+            onChange({
+              colors: [],
+              materials: [],
+              blocks: [],
+              nearbyBlockOnly: false,
+              minPrice: undefined,
+              maxPrice: undefined,
+            })
+          }
         >
-          Clear All
+          Tozalash
         </Button>
       </div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => setCurrentBlock(currentBlock ? null : blocks[0] ?? "42-blok")}
-          className={`rounded-full px-3 py-1.5 text-xs ${currentBlock ? "bg-electric-500 text-white" : "border border-border-default text-ink-700"}`}
+          onClick={() => {
+            const next = !value.nearbyBlockOnly;
+            onChange({ ...value, nearbyBlockOnly: next });
+            if (next && currentBlock) {
+              setCurrentBlock(currentBlock);
+            }
+          }}
+          className={`rounded-full px-3 py-1.5 text-xs ${value.nearbyBlockOnly ? "bg-electric-500 text-white" : "border border-border-default text-ink-700"}`}
         >
           Faqat men turgan blok
         </button>
@@ -72,7 +123,7 @@ export function SmartFilters({ value, onChange, products }: SmartFiltersProps) {
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        {COLOR_OPTIONS.map((color) => (
+        {colorOptions.map((color) => (
           <button
             key={color}
             type="button"
@@ -84,7 +135,7 @@ export function SmartFilters({ value, onChange, products }: SmartFiltersProps) {
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        {MATERIAL_OPTIONS.map((material) => (
+        {materialOptions.map((material) => (
           <button
             key={material}
             type="button"
@@ -132,7 +183,7 @@ export function applySmartFilters(
       }
     }
     if (filters.materials.length) {
-      const haystack = `${product.name} ${product.category ?? ""}`.toLowerCase();
+      const haystack = productHaystack(product);
       if (!filters.materials.some((material) => haystack.includes(material.toLowerCase()))) return false;
     }
     return true;

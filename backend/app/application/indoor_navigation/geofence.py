@@ -82,7 +82,9 @@ def gps_to_local_point(
     x0, y0, width, height = view_box
     ratio_x = 0 if max_lng == min_lng else (lng - min_lng) / (max_lng - min_lng)
     ratio_y = 0 if max_lat == min_lat else (lat - min_lat) / (max_lat - min_lat)
+    x = x0 + ratio_x * width
+    y = y0 + (1 - ratio_y) * height
     return {
-        "x": round(x0 + ratio_x * width, 1),
-        "y": round(y0 + (1 - ratio_y) * height, 1),
+        "x": round(max(x0, min(x0 + width, x)), 1),
+        "y": round(max(y0, min(y0 + height, y)), 1),
     }

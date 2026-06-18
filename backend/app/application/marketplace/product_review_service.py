@@ -4,9 +4,9 @@ from __future__ import annotations
 import uuid
 from uuid import UUID
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, or_, select
 
+from app.core.phone import normalize_uz_phone_e164, phone_digits_key
 from app.infrastructure.db.models import OrderModel, ProductModel
 from app.infrastructure.storage.object_store import ObjectMediaStore
 from app.models.product_review import ProductReviewModel
@@ -168,13 +168,39 @@ class ProductReviewService:
         verified = False
         order_id: UUID | None = None
         if customer_phone:
-            phone = customer_phone.strip()
+            normalized = normalize_uz_phone_e164(customer_phone.strip())
+            digits = phone_digits_key(normalized or customer_phone)
+            phone_match = (
+                OrderModel.customer_phone == normalized
+                if normalized
+                else OrderModel.customer_phone == customer_phone.strip()
+            )
+            if digits:
+                phone_match = or_(
+                    phone_match,
+                    func.regexp_replace(OrderModel.customer_phone, r"\D", "", "g") == digits,
+                )
             order_row = await self._session.execute(
                 select(OrderModel)
                 .where(
                     OrderModel.product_id == product_id,
-                    OrderModel.customer_phone == phone,
-                    OrderModel.status == "completed",
+                    phone_match,
+                    OrderModel.status.in_(("completed", "ready")),
+                )
+                .order_by(OrderModel.created_at.desc())
+                .limit(1)
+            )
+            order = order_row.scalar_one_or_none()
+            if order:
+                verified = True
+                order_id = order.id
+        elif user_id is not None:
+            order_row = await self._session.execute(
+                select(OrderModel)
+                .where(
+                    OrderModel.product_id == product_id,
+                    OrderModel.customer_user_id == user_id,
+                    OrderModel.status.in_(("completed", "ready")),
                 )
                 .order_by(OrderModel.created_at.desc())
                 .limit(1)
@@ -185,6 +211,9 @@ class ProductReviewService:
                 order_id = order.id
 
         photo_urls = await self._save_photos(product.shop_id, product_id, photo_items)
+
+        # Tasdiqlangan xarid yoki faqat matn — darhol ko'rinadi; rasm bilan noma'lum — moderatsiya.
+        initial_status = _APPROVED if (verified or not photo_urls) else _PENDING
 
         review = ProductReviewModel(
             product_id=product_id,
@@ -197,7 +226,7 @@ class ProductReviewService:
             body=(body or "").strip() or None,
             photo_urls=photo_urls,
             is_verified_purchase=verified,
-            status=_PENDING,
+            status=initial_status,
         )
         self._session.add(review)
         await self._session.commit()

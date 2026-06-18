@@ -5,8 +5,23 @@ from uuid import UUID
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.merchant.ai_inspector import AIInspectorService
 from app.application.merchant.product_variants import build_attributes_from_catalog, parse_variant_catalog
-from app.application.merchant.schemas import MerchantProductUpdateRequest, ProductVariantCatalogInput
+from app.application.merchant.schemas import (
+    MerchantProductUpdateRequest,
+    ProductVariantCatalogInput,
+    WholesalePackInput,
+)
+from app.application.merchant.wholesale_pack import (
+    default_pricing_unit,
+    default_sale_type_for_shop,
+    merge_wholesale_pack_attrs,
+    normalize_pricing_unit,
+    normalize_sale_type,
+    normalize_shop_type,
+    parse_pack_composition,
+    validate_wholesale_product,
+)
 from app.application.visual_search.image_fetch import fetch_image_bytes
 from app.application.visual_search.visual_search_engine import index_product_visual_embedding
 from app.core.config import get_settings
@@ -24,6 +39,15 @@ class CatalogProductError(Exception):
 
 class MerchantCatalogProductService:
     """Merchant CRM — live catalog CRUD."""
+
+    @staticmethod
+    def _parse_category_id(raw) -> UUID | None:
+        if not raw:
+            return None
+        try:
+            return UUID(str(raw))
+        except (TypeError, ValueError):
+            return None
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -53,7 +77,16 @@ class MerchantCatalogProductService:
         content_type: str,
         variant_catalog: ProductVariantCatalogInput | None = None,
         extra_image_bytes: list[tuple[bytes, str, str | None]] | None = None,
+        sale_type: str | None = None,
+        pricing_unit: str | None = None,
+        min_order_quantity: int = 1,
+        units_per_pack: int | None = None,
+        wholesale_pack: WholesalePackInput | None = None,
     ) -> dict:
+        shop = await self._repo.get_shop(shop_id)
+        if not shop:
+            raise CatalogProductError("not_found", "Do'kon topilmadi")
+
         name = name.strip()
         if len(name) < 2:
             raise CatalogProductError("invalid_name", "Nom kamida 2 ta belgi")
@@ -61,6 +94,8 @@ class MerchantCatalogProductService:
             raise CatalogProductError("invalid_price", "Narx 1 dan 99 999 999 gacha")
         if not image_bytes:
             raise CatalogProductError("image_required", "Rasm yuklang")
+
+        await self._moderate_image_bytes(image_bytes)
 
         ext = _extension_from_content_type(content_type)
         image_url = await self._media.save_product_image(
@@ -72,6 +107,7 @@ class MerchantCatalogProductService:
         all_images = [image_url]
         if extra_image_bytes:
             for raw, ctype, _color in extra_image_bytes:
+                await self._moderate_image_bytes(raw)
                 ext = _extension_from_content_type(ctype)
                 url = await self._media.save_product_image(
                     shop_id=shop_id,
@@ -104,9 +140,28 @@ class MerchantCatalogProductService:
             if gallery:
                 all_images = list(dict.fromkeys([*gallery, *all_images]))
 
+        sale, pu, moq, upp, attrs = self._resolve_wholesale_fields(
+            shop_type=normalize_shop_type(getattr(shop, "shop_type", None)),
+            attrs=attrs,
+            sale_type=sale_type,
+            pricing_unit=pricing_unit,
+            min_order_quantity=min_order_quantity,
+            units_per_pack=units_per_pack,
+            wholesale_pack=wholesale_pack,
+            price=price,
+        )
+
+        attrs["product_name"] = name
+        if description:
+            attrs["description"] = description
+        from app.application.merchant.category_resolver import enrich_attrs_with_category
+
+        attrs = await enrich_attrs_with_category(self._session, attrs)
+        category_id = self._parse_category_id(attrs.get("category_id"))
+
         product = await self._repo.create_product(
             shop_id=shop_id,
-            category_id=None,
+            category_id=category_id,
             name=name,
             description=description,
             price=price,
@@ -114,6 +169,11 @@ class MerchantCatalogProductService:
             attributes=attrs,
             embedding=vector,
             visual_embedding=visual_vector,
+            sale_type=sale,
+            min_order_quantity=moq,
+            pricing_unit=pu,
+            units_per_pack=upp,
+            stock_count=max(0, stock_count),
         )
         product.stock_count = max(0, stock_count)
         await self._session.commit()
@@ -159,25 +219,68 @@ class MerchantCatalogProductService:
             featured = bool(patch.pop("is_featured"))
             await self._repo.set_product_featured(shop_id=shop_id, product_id=product_id, featured=featured)
 
+        wholesale_pack_raw = patch.pop("wholesale_pack", None)
+        wholesale_pack: WholesalePackInput | None = None
+        if wholesale_pack_raw is not None:
+            if isinstance(wholesale_pack_raw, WholesalePackInput):
+                wholesale_pack = wholesale_pack_raw
+            elif isinstance(wholesale_pack_raw, dict):
+                wholesale_pack = WholesalePackInput.model_validate(wholesale_pack_raw)
+        sale_type = patch.pop("sale_type", None)
+        pricing_unit = patch.pop("pricing_unit", None)
+        min_order_quantity = patch.pop("min_order_quantity", None)
+        units_per_pack = patch.pop("units_per_pack", None)
+
+        if any(
+            v is not None
+            for v in (sale_type, pricing_unit, min_order_quantity, units_per_pack, wholesale_pack)
+        ):
+            shop = await self._repo.get_shop(shop_id)
+            shop_type = normalize_shop_type(getattr(shop, "shop_type", None) if shop else None)
+            sale, pu, moq, upp, attrs = self._resolve_wholesale_fields(
+                shop_type=shop_type,
+                attrs=dict(product.attributes or {}),
+                sale_type=sale_type or product.sale_type,
+                pricing_unit=pricing_unit or product.pricing_unit,
+                min_order_quantity=min_order_quantity if min_order_quantity is not None else product.min_order_quantity,
+                units_per_pack=units_per_pack if units_per_pack is not None else product.units_per_pack,
+                wholesale_pack=wholesale_pack,
+                price=int(product.price),
+            )
+            product.sale_type = sale
+            product.pricing_unit = pu
+            product.min_order_quantity = moq
+            product.units_per_pack = upp
+            product.attributes = attrs
+
         variant_catalog = patch.pop("variant_catalog", None)
         if variant_catalog is not None:
             catalog_dict = variant_catalog if isinstance(variant_catalog, dict) else variant_catalog
             if hasattr(variant_catalog, "model_dump"):
                 catalog_dict = variant_catalog.model_dump()
+            colors_in = catalog_dict.get("colors") if isinstance(catalog_dict.get("colors"), list) else []
             attrs_patch, total_stock = build_attributes_from_catalog(
                 catalog_dict,
                 existing=dict(product.attributes or {}),
             )
+            if not colors_in:
+                for key in ("variants", "skus", "colors", "sizes", "size_options"):
+                    attrs_patch[key] = []
+                attrs_patch["color_images"] = {}
+                attrs_patch["size_matrix"] = {}
             product.attributes = attrs_patch
             if total_stock > 0:
                 product.stock_count = total_stock
-            # Merge gallery from color images
+            elif not colors_in and catalog_dict.get("fallback_stock") is not None:
+                product.stock_count = max(0, int(catalog_dict["fallback_stock"]))
             gallery: list[str] = []
             for v in attrs_patch.get("variants") or []:
                 if isinstance(v, dict):
                     gallery.extend([str(u) for u in v.get("images") or [] if str(u).strip()])
             if gallery:
-                product.images = list(dict.fromkeys([*gallery, *(product.images or [])]))
+                product.images = list(dict.fromkeys(gallery))
+            elif not colors_in and product.images:
+                product.images = product.images[:1]
 
         if reembed:
             vector, visual_vector, attrs = await self._build_embeddings(
@@ -215,6 +318,7 @@ class MerchantCatalogProductService:
 
         urls: list[str] = []
         for raw, ctype, _color in items:
+            await self._moderate_image_bytes(raw)
             ext = _extension_from_content_type(ctype)
             url = await self._media.save_product_image(
                 shop_id=shop_id,
@@ -237,6 +341,22 @@ class MerchantCatalogProductService:
         elif urls:
             product.images = list(dict.fromkeys([*urls, *(product.images or [])]))
 
+        primary_url = (product.images or urls or [None])[0]
+        if primary_url:
+            vector, visual_vector, embed_attrs = await self._build_embeddings(
+                name=product.name,
+                description=product.description,
+                image_url=str(primary_url),
+                source="crm",
+                existing_attrs=dict(product.attributes or {}),
+            )
+            product.embedding = vector
+            if visual_vector is not None:
+                product.visual_embedding = visual_vector
+            merged = dict(product.attributes or {})
+            merged.update(embed_attrs)
+            product.attributes = merged
+
         await self._session.commit()
         await self._session.refresh(product)
         result = product_to_dict(product)
@@ -256,6 +376,8 @@ class MerchantCatalogProductService:
             raise CatalogProductError("not_found", "Mahsulot topilmadi")
         if not image_bytes:
             raise CatalogProductError("image_required", "Rasm yuklang")
+
+        await self._moderate_image_bytes(image_bytes)
 
         ext = _extension_from_content_type(content_type)
         image_url = await self._media.save_product_image(
@@ -356,9 +478,84 @@ class MerchantCatalogProductService:
                 attrs["visual_embed_source"] = vsrc
                 if phash:
                     attrs["phash"] = phash
-            except Exception:
-                visual_vector = None
+            except Exception as exc:
+                logger.exception("catalog_visual_embedding_failed")
+                raise CatalogProductError(
+                    "visual_embedding_failed",
+                    "Rasm qidiruv indeksi yaratilmadi",
+                ) from exc
+        if visual_vector is None:
+            raise CatalogProductError("visual_embedding_failed", "Rasm qidiruv indeksi yaratilmadi")
         return vector, visual_vector, attrs
+
+    def _resolve_wholesale_fields(
+        self,
+        *,
+        shop_type: str,
+        attrs: dict,
+        sale_type: str | None,
+        pricing_unit: str | None,
+        min_order_quantity: int,
+        units_per_pack: int | None,
+        wholesale_pack: WholesalePackInput | None,
+        price: int,
+    ) -> tuple[str, str, int, int | None, dict]:
+        sale = normalize_sale_type(sale_type or default_sale_type_for_shop(shop_type))
+        if shop_type == "chakana" and sale == "Optom":
+            raise CatalogProductError(
+                "invalid_wholesale",
+                "Chakana do'kon uchun faqat donalab (chakana) mahsulot qo'shish mumkin",
+            )
+        if shop_type == "optom" and sale == "Chakana":
+            raise CatalogProductError(
+                "invalid_wholesale",
+                "Optomchi uchun faqat pachkali (optom) mahsulot qo'shish mumkin",
+            )
+
+        pu = normalize_pricing_unit(pricing_unit or default_pricing_unit(shop_type=shop_type, sale_type=sale), sale_type=sale)
+        moq = max(1, int(min_order_quantity or 1))
+        upp: int | None = units_per_pack
+        composition = None
+        if wholesale_pack is not None:
+            pack_in = (
+                wholesale_pack
+                if isinstance(wholesale_pack, WholesalePackInput)
+                else WholesalePackInput.model_validate(wholesale_pack)
+            )
+            upp = int(pack_in.units_per_pack)
+            composition = [row.model_dump() for row in pack_in.composition]
+        elif upp is None and sale == "Optom" and pu == "pack":
+            pack = attrs.get("wholesale_pack") if isinstance(attrs.get("wholesale_pack"), dict) else {}
+            upp = int(pack.get("units_per_pack") or 0) or None
+            composition = pack.get("composition")
+
+        try:
+            validate_wholesale_product(
+                sale_type=sale,
+                pricing_unit=pu,
+                price=price,
+                min_order_quantity=moq,
+                units_per_pack=upp,
+                composition=parse_pack_composition(composition),
+            )
+        except ValueError as exc:
+            raise CatalogProductError("invalid_wholesale", str(exc)) from exc
+
+        merged_attrs = merge_wholesale_pack_attrs(
+            attrs,
+            units_per_pack=upp if sale == "Optom" and pu == "pack" else None,
+            composition=parse_pack_composition(composition),
+        )
+        merged_attrs["sale_type"] = sale
+        merged_attrs["pricing_unit"] = pu
+        merged_attrs["min_order_quantity"] = moq
+        return sale, pu, moq, upp if sale == "Optom" and pu == "pack" else None, merged_attrs
+
+    async def _moderate_image_bytes(self, image_bytes: bytes) -> None:
+        inspector = AIInspectorService(self._session)
+        moderation = await inspector.moderate_image(image_bytes)
+        if not moderation.allowed:
+            raise CatalogProductError("image_rejected", moderation.reason or "Rasm rad etildi")
 
 
 def _extension_from_content_type(content_type: str) -> str:

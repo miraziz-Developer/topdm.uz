@@ -1,13 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ShoppingBag, X } from "lucide-react";
 
 import { useCurrency } from "@/components/providers/currency-provider";
-import { getGroupPrice } from "@/lib/pricing";
-import { productImage } from "@/lib/media";
+import { ProductImage } from "@/components/ui/product-image";
+import { cartLineImages } from "@/lib/cart-images";
 import { productPriceUzs } from "@/lib/product-price";
 import { useCartStore } from "@/stores/cart-store";
 import { usePathname } from "next/navigation";
@@ -22,19 +21,17 @@ export function StickyMiniCart() {
 
   useEffect(() => setMounted(true), []);
 
-  const subtotal = lines.reduce((sum, line) => {
-    const unit =
-      line.mode === "group"
-        ? getGroupPrice(productPriceUzs(line.product))
-        : productPriceUzs(line.product);
-    return sum + unit * line.quantity;
-  }, 0);
+  const subtotal = lines.reduce(
+    (sum, line) => sum + productPriceUzs(line.product) * line.quantity,
+    0,
+  );
 
   const hidden =
     !mounted ||
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/auth") ||
-    pathname.startsWith("/reels");
+    pathname.startsWith("/reels") ||
+    pathname.startsWith("/china");
 
   if (hidden) return null;
 
@@ -44,7 +41,7 @@ export function StickyMiniCart() {
       <button
         type="button"
         onClick={() => setCollapsed(false)}
-        className="fab-safe-right fixed bottom-[calc(var(--app-bottom-nav-h)+var(--app-fab-stack-gap)+0.25rem)] z-40 hidden h-12 w-12 items-center justify-center rounded-full bg-ink-900 text-white shadow-xl md:bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] xl:flex"
+        className="fab-safe-right fixed bottom-[calc(var(--app-bottom-nav-h)+var(--app-fab-stack-gap)+0.25rem)] z-40 flex h-12 w-12 items-center justify-center rounded-full bg-ink-900 text-white shadow-xl ring-2 ring-electric-500/30 md:bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))]"
         aria-label="Savatni ochish"
       >
         <ShoppingBag className="h-5 w-5" />
@@ -59,7 +56,7 @@ export function StickyMiniCart() {
 
   return (
     <aside
-      className="pointer-events-auto fixed right-4 top-24 z-40 hidden max-h-[calc(100dvh-7rem)] w-[min(260px,calc(100vw-2rem))] flex-col rounded-2xl border border-border-subtle bg-white/95 shadow-elevated backdrop-blur-md xl:flex"
+      className="pointer-events-auto fixed right-4 top-24 z-40 flex max-h-[calc(100dvh-7rem)] w-[min(260px,calc(100vw-2rem))] flex-col rounded-2xl border border-border-subtle bg-white/95 shadow-elevated backdrop-blur-md"
       aria-label="Savat"
     >
       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
@@ -83,16 +80,21 @@ export function StickyMiniCart() {
         ) : (
           <ul className="space-y-2">
             {lines.slice(0, 6).map((line) => {
-              const img = productImage(line.product.images);
-              const unit =
-                line.mode === "group"
-                  ? getGroupPrice(productPriceUzs(line.product))
-                  : productPriceUzs(line.product);
+              const displayImages = cartLineImages(line.product, line.selectedOptions);
+              const unit = productPriceUzs(line.product);
               return (
-                <li key={`${line.product.id}-${line.mode}`} className="flex gap-2 rounded-xl bg-canvas/80 p-2">
-                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-elevated">
-                    <Image src={img} alt="" fill unoptimized className="object-cover" sizes="48px" />
-                  </div>
+                <li
+                  key={`${line.product.id}-${line.mode}-${line.selectedOptions?.color ?? ""}-${line.selectedOptions?.size ?? ""}`}
+                  className="flex gap-2 rounded-xl bg-canvas/80 p-2"
+                >
+                  <ProductImage
+                    images={displayImages}
+                    alt={line.product.name}
+                    fill
+                    wrapperClassName="h-12 w-12 shrink-0 rounded-lg bg-elevated"
+                    className="object-cover"
+                    sizes="48px"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-1 text-[11px] font-semibold text-ink-900">{line.product.name}</p>
                     <p className="text-[10px] text-ink-500">

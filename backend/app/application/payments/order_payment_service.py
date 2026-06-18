@@ -9,14 +9,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.finance.transaction_splitter import TransactionSplitterService
-from app.application.payments.click_verify import verify_click_callback
-from app.application.payments.payme_merchant_api import (
-    parse_payme_account,
-    payme_error,
-    payme_result,
-    payme_rpc_error,
-    payme_time_ms,
+from app.application.payments.click_shop_api import (
+    CLICK_ALREADY_PAID,
+    CLICK_BAD_REQUEST,
+    CLICK_CANCELLED,
+    CLICK_INVALID_AMOUNT,
+    CLICK_OK,
+    CLICK_SIGN_FAILED,
+    CLICK_TRANSACTION_NOT_FOUND,
+    click_amount_uzs,
+    click_response,
+    parse_merchant_trans_id,
+    stable_prepare_id,
+    verify_click_shop_signature,
 )
+from app.application.payments.checkout_cancel import cancel_checkout_reserved_orders
 from app.application.payments.service import PaymentService
 from app.core.config import Settings, get_settings
 from app.infrastructure.db.models import OrderModel
@@ -43,29 +50,37 @@ class OrderPaymentService:
         amount_uzs: int,
         provider: str,
         customer_phone: str | None = None,
+        extra_amount_uzs: int = 0,
     ) -> OrderCheckoutPaymentModel:
         if not order_ids:
             raise ValueError("order_ids_required")
         prov = provider.strip().lower()
-        if prov not in ("click", "payme"):
+        if prov not in ("click",):
             raise ValueError("invalid_provider")
 
-        total = 0
+        product_total = 0
+        delivery_surcharge = 0
         for oid in order_ids:
             order = await self._marketplace.get_order_by_id(oid)
             if not order:
                 raise ValueError("order_not_found")
-            total += int(order.total_price)
+            product_total += int(order.total_price)
+            delivery_surcharge += int(order.delivery_cost_uzs or 0)
 
-        if int(amount_uzs) != total:
+        expected = product_total + max(int(extra_amount_uzs), delivery_surcharge)
+        if int(amount_uzs) != expected:
             raise ValueError("amount_mismatch")
 
-        return await self._checkout_repo.create_pending(
+        checkout = await self._checkout_repo.create_pending(
             order_ids=order_ids,
             amount_uzs=int(amount_uzs),
             provider=prov,
             customer_phone=customer_phone,
         )
+        if int(extra_amount_uzs) > 0 and delivery_surcharge <= 0:
+            checkout.meta = {**(checkout.meta or {}), "delivery_surcharge_uzs": int(extra_amount_uzs)}
+            await self._session.flush()
+        return checkout
 
     async def resolve_payment_target(self, merchant_trans_id: UUID) -> str:
         coin_tx = await self._coin_payments.get_transaction(merchant_trans_id)
@@ -80,22 +95,137 @@ class OrderPaymentService:
         raise ValueError("transaction_not_found")
 
     async def process_click_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
-        if not verify_click_callback(payload, self._settings):
-            raise ValueError("invalid_signature")
+        """Click SHOP API — action 0 Prepare, action 1 Complete."""
+        if not verify_click_shop_signature(payload, self._settings):
+            return click_response(
+                click_trans_id=str(payload.get("click_trans_id") or ""),
+                merchant_trans_id=str(payload.get("merchant_trans_id") or ""),
+                error=CLICK_SIGN_FAILED,
+                error_note="SIGN CHECK FAILED!",
+            )
 
-        merchant_trans_id = str(payload.get("merchant_trans_id", "")).strip()
-        click_trans_id = str(payload.get("click_trans_id", "")).strip()
+        click_trans_id = str(payload.get("click_trans_id") or "").strip()
+        merchant_trans_id = str(payload.get("merchant_trans_id") or "").strip()
         action = int(payload.get("action", -1))
-        error_code = int(payload.get("error", -1))
 
-        try:
-            tx_id = UUID(merchant_trans_id)
-        except ValueError as exc:
-            raise ValueError("invalid_merchant_trans_id") from exc
+        tx_id = parse_merchant_trans_id(payload)
+        if tx_id is None:
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                error=CLICK_TRANSACTION_NOT_FOUND,
+                error_note="Transaction not found",
+            )
 
         target = await self.resolve_payment_target(tx_id)
         if target == "coin":
             return await PaymentService(self._session, self._settings).process_click_callback(payload)
+
+        if action == 0:
+            return await self._click_prepare(tx_id, target, payload)
+        if action == 1:
+            return await self._click_complete(tx_id, target, payload)
+
+        return click_response(
+            click_trans_id=click_trans_id,
+            merchant_trans_id=merchant_trans_id,
+            error=CLICK_BAD_REQUEST,
+            error_note="Action not found",
+        )
+
+    async def _click_prepare(self, tx_id: UUID, target: str, payload: dict[str, Any]) -> dict[str, Any]:
+        click_trans_id = str(payload.get("click_trans_id") or "")
+        merchant_trans_id = str(payload.get("merchant_trans_id") or "")
+        amount = click_amount_uzs(payload)
+        prepare_id = stable_prepare_id(tx_id)
+
+        if target == "checkout":
+            checkout = await self._checkout_repo.get_checkout_for_update(tx_id)
+            if not checkout:
+                return click_response(
+                    click_trans_id=click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                    error=CLICK_TRANSACTION_NOT_FOUND,
+                    error_note="Checkout not found",
+                )
+            if checkout.status == "success":
+                return click_response(
+                    click_trans_id=click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                    merchant_prepare_id=prepare_id,
+                    error=CLICK_ALREADY_PAID,
+                    error_note="Already paid",
+                )
+            if int(checkout.amount_uzs) != amount:
+                return click_response(
+                    click_trans_id=click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                    error=CLICK_INVALID_AMOUNT,
+                    error_note="Invalid amount",
+                )
+            meta = dict(checkout.meta or {})
+            meta["click_prepare_id"] = prepare_id
+            meta["click_trans_id"] = click_trans_id
+            checkout.meta = meta
+            await self._session.flush()
+            await self._session.commit()
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                merchant_prepare_id=prepare_id,
+                error=CLICK_OK,
+                error_note="Success",
+            )
+
+        order = await self._marketplace.get_order_by_id(tx_id)
+        if not order:
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                error=CLICK_TRANSACTION_NOT_FOUND,
+                error_note="Order not found",
+            )
+        if order.status in (OrderStatus.completed.value, OrderStatus.confirmed.value):
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                merchant_prepare_id=prepare_id,
+                error=CLICK_ALREADY_PAID,
+                error_note="Already paid",
+            )
+        expected = int(order.total_price) + int(order.delivery_cost_uzs or 0)
+        if amount and expected != amount:
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                error=CLICK_INVALID_AMOUNT,
+                error_note="Invalid amount",
+            )
+        await self._session.commit()
+        return click_response(
+            click_trans_id=click_trans_id,
+            merchant_trans_id=merchant_trans_id,
+            merchant_prepare_id=prepare_id,
+            error=CLICK_OK,
+            error_note="Success",
+        )
+
+    async def _click_complete(self, tx_id: UUID, target: str, payload: dict[str, Any]) -> dict[str, Any]:
+        click_trans_id = str(payload.get("click_trans_id") or "").strip()
+        merchant_trans_id = str(payload.get("merchant_trans_id") or "").strip()
+        error_code = int(payload.get("error", -1))
+        prepare_id_raw = str(payload.get("merchant_prepare_id") or "").strip()
+        amount = click_amount_uzs(payload)
+
+        if error_code != 0:
+            await self._fail_checkout_click(tx_id, target)
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                merchant_confirm_id=int(prepare_id_raw) if prepare_id_raw.isdigit() else None,
+                error=CLICK_CANCELLED,
+                error_note="Payment cancelled",
+            )
 
         if click_trans_id:
             existing = await self._checkout_repo.get_by_provider_trans_id_for_update(
@@ -106,141 +236,22 @@ class OrderPaymentService:
                 await self._session.commit()
                 return self._click_ok(click_trans_id, merchant_trans_id, already=True)
 
-        if action != 1 or error_code != 0:
-            await self._fail_checkout_click(tx_id, target)
-            raise ValueError("payment_not_successful")
-
         if target == "checkout":
             checkout = await self._checkout_repo.get_checkout_for_update(tx_id)
             if not checkout:
                 raise ValueError("checkout_not_found")
+            expected_prepare = str((checkout.meta or {}).get("click_prepare_id") or stable_prepare_id(tx_id))
+            if prepare_id_raw and prepare_id_raw != expected_prepare:
+                await self._session.rollback()
+                return click_response(
+                    click_trans_id=click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                    error=CLICK_BAD_REQUEST,
+                    error_note="Invalid prepare id",
+                )
             return await self._fulfill_checkout_click(checkout, click_trans_id, merchant_trans_id, payload)
 
         return await self._fulfill_legacy_order_click(tx_id, click_trans_id, merchant_trans_id, payload)
-
-    async def handle_payme_rpc(self, body: dict[str, Any]) -> dict[str, Any]:
-        req_id = body.get("id")
-        method = str(body.get("method", "")).strip()
-        params = body.get("params") or {}
-        account = params.get("account") or {}
-
-        try:
-            account_id = parse_payme_account(account)
-        except ValueError:
-            return payme_rpc_error(req_id, -31050)
-
-        checkout = await self._checkout_repo.get_checkout(account_id)
-        order = None if checkout else await self._marketplace.get_order_by_id(account_id)
-
-        if not checkout and not order:
-            return payme_rpc_error(req_id, -31050)
-
-        amount_tiyin = int(params.get("amount", 0))
-        expected_tiyin = (
-            int(checkout.amount_uzs) * 100
-            if checkout
-            else int(order.total_price) * 100  # type: ignore[union-attr]
-        )
-
-        if method == "CheckPerformTransaction":
-            if amount_tiyin != expected_tiyin:
-                return payme_rpc_error(req_id, -31051)
-            return payme_result(req_id, {"allow": True})
-
-        if method == "CreateTransaction":
-            if amount_tiyin != expected_tiyin:
-                return payme_rpc_error(req_id, -31051)
-            payme_id = str(params.get("id", ""))
-            if checkout:
-                if checkout.status == "success" and checkout.provider_trans_id:
-                    return payme_result(
-                        req_id,
-                        {
-                            "create_time": payme_time_ms(),
-                            "transaction": str(checkout.id),
-                            "state": 2,
-                        },
-                    )
-                if checkout.status == "pending":
-                    checkout.meta = {**(checkout.meta or {}), "payme_create_id": payme_id}
-                    checkout.provider_trans_id = payme_id
-                    await self._session.flush()
-                return payme_result(
-                    req_id,
-                    {
-                        "create_time": payme_time_ms(),
-                        "transaction": str(checkout.id),
-                        "state": 1,
-                    },
-                )
-            return payme_result(
-                req_id,
-                {
-                    "create_time": payme_time_ms(),
-                    "transaction": str(order.id),  # type: ignore[union-attr]
-                    "state": 1,
-                },
-            )
-
-        if method == "PerformTransaction":
-            payme_id = str(params.get("id", ""))
-            if checkout:
-                if checkout.status == "success":
-                    await self._session.commit()
-                    return payme_result(
-                        req_id,
-                        {
-                            "transaction": str(checkout.id),
-                            "state": 2,
-                            "perform_time": payme_time_ms(),
-                        },
-                    )
-                billing = {
-                    "provider": "payme",
-                    "payme_trans_id": payme_id,
-                    "amount": checkout.amount_uzs,
-                    "idempotency_key": f"payme:{payme_id}",
-                }
-                await self._fulfill_checkout(checkout, provider_trans_id=payme_id, billing=billing)
-                await self._session.commit()
-                return payme_result(
-                    req_id,
-                    {
-                        "transaction": str(checkout.id),
-                        "state": 2,
-                        "perform_time": payme_time_ms(),
-                    },
-                )
-
-            billing = {
-                "provider": "payme",
-                "payme_trans_id": payme_id,
-                "amount": int(order.total_price),  # type: ignore[union-attr]
-                "idempotency_key": f"payme:{payme_id}:{order.id}",  # type: ignore[union-attr]
-            }
-            await self._fulfill_single_order(order, billing=billing)  # type: ignore[arg-type]
-            await self._session.commit()
-            return payme_result(
-                req_id,
-                {
-                    "transaction": str(order.id),  # type: ignore[union-attr]
-                    "state": 2,
-                    "perform_time": payme_time_ms(),
-                },
-            )
-
-        if method == "CheckTransaction":
-            state = 2 if (checkout and checkout.status == "success") else 1
-            tx = str(checkout.id) if checkout else str(order.id)  # type: ignore[union-attr]
-            return payme_result(req_id, {"transaction": tx, "state": state, "create_time": payme_time_ms()})
-
-        if method == "CancelTransaction":
-            if checkout and checkout.status == "pending":
-                await self._checkout_repo.mark_failed(checkout)
-                await self._session.commit()
-            return payme_result(req_id, {"transaction": str(account_id), "state": -1, "cancel_time": payme_time_ms()})
-
-        return payme_rpc_error(req_id, -31008)
 
     async def _fail_checkout_click(self, tx_id: UUID, target: str) -> None:
         try:
@@ -248,6 +259,11 @@ class OrderPaymentService:
                 row = await self._checkout_repo.get_checkout_for_update(tx_id)
                 if row and row.status == "pending":
                     await self._checkout_repo.mark_failed(row)
+                    await cancel_checkout_reserved_orders(
+                        self._session,
+                        row,
+                        reason="Click to'lov bekor qilindi",
+                    )
             await self._session.commit()
         except Exception:
             await self._session.rollback()
@@ -292,13 +308,14 @@ class OrderPaymentService:
             raise ValueError("order_not_found")
 
         amount = int(payload.get("amount", 0))
-        if amount and int(order.total_price) != int(amount):
+        order_total = int(order.total_price) + int(order.delivery_cost_uzs or 0)
+        if amount and order_total != int(amount):
             raise ValueError("amount_mismatch")
 
         billing = {
             "provider": "click",
             "click_trans_id": click_trans_id,
-            "amount": int(order.total_price),
+            "amount": order_total,
             "idempotency_key": f"click:{click_trans_id}:{order_id}",
             "raw": payload,
         }
@@ -320,22 +337,36 @@ class OrderPaymentService:
             await self._fulfill_debt_checkout(checkout, provider_trans_id=provider_trans_id, billing=billing)
             return
 
+        if (checkout.purpose or "order") == "banner":
+            await self._fulfill_banner_checkout(checkout, provider_trans_id=provider_trans_id, billing=billing)
+            return
+
         order_ids = [UUID(str(x)) for x in (checkout.order_ids or [])]
         if not order_ids:
             raise ValueError("checkout_empty")
 
         await self._checkout_repo.mark_success(checkout, provider_trans_id=provider_trans_id)
 
-        total = int(checkout.amount_uzs)
+        dispatch_order_id: UUID | None = None
         for oid in order_ids:
             order = await self._marketplace.get_order_by_id(oid)
             if not order:
                 continue
+            if (order.fulfillment_type or "").lower() == "delivery" and dispatch_order_id is None:
+                dispatch_order_id = oid
             order_billing = {
                 **billing,
                 "idempotency_key": f"{billing.get('idempotency_key', 'pay')}:{oid}",
             }
-            await self._confirm_order_paid(order, order_billing)
+            await self._confirm_order_paid(order, order_billing, dispatch_courier=False)
+
+        if dispatch_order_id is not None:
+            from app.application.delivery.delivery_dispatch_service import DeliveryDispatchService
+
+            try:
+                await DeliveryDispatchService(self._session).activate_courier_after_payment(dispatch_order_id)
+            except Exception:
+                logger.bind(order_id=str(dispatch_order_id)).warning("bts_dispatch_after_payment_failed")
 
     async def _fulfill_single_order(self, order: OrderModel, *, billing: dict[str, Any]) -> None:
         await self._confirm_order_paid(order, billing)
@@ -363,8 +394,34 @@ class OrderPaymentService:
             "merchant_subtotal_uzs": merchant_sub,
             "platform_markup_uzs": markup,
             "delivery_share_uzs": delivery_share,
+            "bts_quote_uzs": delivery_share,
             "yandex_quote_uzs": delivery_share,
         }
+
+    async def _fulfill_banner_checkout(
+        self,
+        checkout: OrderCheckoutPaymentModel,
+        *,
+        provider_trans_id: str,
+        billing: dict[str, Any],
+    ) -> None:
+        from uuid import UUID as _UUID
+
+        from app.application.crm_banners.service import CrmBannerService
+
+        meta = checkout.meta or {}
+        banner_raw = meta.get("banner_id")
+        if not banner_raw or not checkout.shop_id:
+            raise ValueError("banner_checkout_invalid")
+        banner_id = _UUID(str(banner_raw))
+        await self._checkout_repo.mark_success(checkout, provider_trans_id=provider_trans_id)
+        svc = CrmBannerService(self._session)
+        await svc.activate_banner_after_online_payment(
+            shop_id=checkout.shop_id,
+            banner_id=banner_id,
+            payment_method=str(billing.get("provider") or checkout.provider),
+            external_reference=provider_trans_id,
+        )
 
     async def _fulfill_debt_checkout(
         self,
@@ -389,7 +446,13 @@ class OrderPaymentService:
             reference_id=checkout.id,
         )
 
-    async def _confirm_order_paid(self, order: OrderModel, billing: dict[str, Any]) -> None:
+    async def _confirm_order_paid(
+        self,
+        order: OrderModel,
+        billing: dict[str, Any],
+        *,
+        dispatch_courier: bool = True,
+    ) -> None:
         if order.status in (OrderStatus.cancelled.value, OrderStatus.completed.value):
             return
 
@@ -415,13 +478,13 @@ class OrderPaymentService:
 
         await self._splitter.process_order_payment_success(locked.id, billing)
 
-        if (locked.fulfillment_type or "").lower() == "delivery":
+        if dispatch_courier and (locked.fulfillment_type or "").lower() == "delivery":
             from app.application.delivery.delivery_dispatch_service import DeliveryDispatchService
 
             try:
                 await DeliveryDispatchService(self._session).activate_courier_after_payment(locked.id)
             except Exception:
-                logger.bind(order_id=str(locked.id)).warning("yandex_accept_after_payment_failed")
+                logger.bind(order_id=str(locked.id)).warning("bts_dispatch_after_payment_failed")
 
     @staticmethod
     def _click_ok(

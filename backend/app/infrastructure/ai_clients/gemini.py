@@ -62,10 +62,6 @@ class GeminiClient:
                     f"groq_vision_failed kind={type(exc).__name__} detail={str(exc)[:200]}"
                 )
 
-        if self._settings.is_production:
-            raise RuntimeError(
-                "Vision extraction failed in production — configure GOOGLE_API_KEY or GROQ_API_KEY"
-            )
         return _local_fallback_from_bytes(raw_bytes, pil_image)
 
     async def _extract_with_groq(self, raw_bytes: bytes, pil_image: Image.Image | None) -> dict:
@@ -102,7 +98,7 @@ class GeminiClient:
             payload = json.loads(text)
             return _normalize_vision_payload(payload)
 
-        return await asyncio.to_thread(_run)
+        return await asyncio.wait_for(asyncio.to_thread(_run), timeout=25.0)
 
 
 def _normalize_image_input(image: bytes | str | Image.Image) -> tuple[bytes, Image.Image | None]:

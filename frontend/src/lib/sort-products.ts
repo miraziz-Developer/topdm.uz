@@ -10,11 +10,23 @@ export function sortProducts(items: Product[], sortBy: ProductSortKey): Product[
     case "price_desc":
       return next.sort((a, b) => b.price - a.price);
     case "popular":
-      return next.sort((a, b) => (b.view_count ?? 0) - (a.view_count ?? 0));
+      return next.sort(
+        (a, b) =>
+          (b.view_count ?? 0) - (a.view_count ?? 0) ||
+          Number(b.is_featured) - Number(a.is_featured) ||
+          b.id.localeCompare(a.id),
+      );
     case "newest":
       return next.sort((a, b) => b.id.localeCompare(a.id));
     case "relevance":
     default:
-      return next;
+      return next.sort((a, b) => {
+        const scoreA = a.visual_match_pct ?? 0;
+        const scoreB = b.visual_match_pct ?? 0;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        const featured = Number(b.is_featured) - Number(a.is_featured);
+        if (featured !== 0) return featured;
+        return (b.view_count ?? 0) - (a.view_count ?? 0);
+      });
   }
 }

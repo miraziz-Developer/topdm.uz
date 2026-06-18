@@ -16,7 +16,7 @@ from app.application.merchant.order_pickup_completion import (
     get_pickup_settings,
     set_pickup_settings,
 )
-from app.application.merchant.quick_replies import list_quick_replies
+from app.application.merchant.quick_replies import list_quick_replies, save_custom_quick_replies
 from app.application.merchant.workspace_hub import MerchantWorkspaceHub
 from app.infrastructure.auth.deps import AuthUser, require_merchant
 from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop
@@ -80,8 +80,39 @@ async def merchant_share_kit(
 
 
 @router.get("/chat/quick-replies")
-async def merchant_quick_replies() -> dict:
-    return {"items": list_quick_replies()}
+async def merchant_quick_replies(
+    user: AuthUser = Depends(require_merchant),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    shop = await resolve_merchant_shop(db, user)
+    return {"items": list_quick_replies(shop)}
+
+
+class QuickReplyItem(BaseModel):
+    id: str | None = None
+    label: str = Field(min_length=1, max_length=32)
+    text: str = Field(min_length=2, max_length=500)
+
+
+class QuickRepliesPatchBody(BaseModel):
+    custom: list[QuickReplyItem] = Field(default_factory=list, max_length=12)
+
+
+@router.patch("/chat/quick-replies")
+async def merchant_patch_quick_replies(
+    body: QuickRepliesPatchBody,
+    user: AuthUser = Depends(require_merchant),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    shop = await resolve_merchant_shop(db, user)
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+    save_custom_quick_replies(
+        shop,
+        [item.model_dump() for item in body.custom],
+    )
+    await db.commit()
+    return {"items": list_quick_replies(shop)}
 
 
 class BulkDiscountBody(BaseModel):
@@ -149,6 +180,37 @@ async def get_operating_hours(
 
 class ConfirmPickupBody(BaseModel):
     note: str | None = Field(default=None, max_length=300)
+
+
+class PickupScanBody(BaseModel):
+    token: str = Field(min_length=20, max_length=512)
+
+
+@router.post("/pickup/scan")
+async def merchant_scan_pickup_qr(
+    body: PickupScanBody,
+    user: AuthUser = Depends(require_merchant),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """QR skaner — buyurtma tafsilotlari ko'rsatiladi va avtomatik yakunlanadi."""
+    service = OrderPickupCompletionService(db)
+    shop_id = await _shop_id(user, db)
+    try:
+        result = await service.scan_and_complete_pickup(shop_id, body.token)
+        await db.commit()
+        return result
+    except ValueError as exc:
+        code = str(exc)
+        status = 404 if code == "order_not_found" else 400
+        messages = {
+            "invalid_qr_token": "QR kod noto'g'ri yoki eskirgan",
+            "qr_token_expired": "QR muddati tugagan — mijozdan yangilashni so'rang",
+            "wrong_shop": "Bu buyurtma boshqa do'konga tegishli",
+            "not_pickup_order": "Yetkazish buyurtmasi — QR skaner ishlamaydi",
+            "order_cancelled": "Buyurtma bekor qilingan",
+            "order_not_ready_for_pickup": "Buyurtma hali tayyor emas",
+        }
+        raise HTTPException(status_code=status, detail=messages.get(code, code)) from exc
 
 
 @router.post("/orders/{order_id}/confirm-pickup")

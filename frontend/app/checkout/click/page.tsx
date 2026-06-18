@@ -10,6 +10,9 @@ import { Navigation } from "@/components/Navigation";
 import { allowOnlineCheckout } from "@/lib/runtime-flags";
 
 export default function CheckoutClickPage() {
+  const params = useSearchParams();
+  const parsed = parseCheckoutPaymentParams(params);
+
   if (!allowOnlineCheckout()) {
     return (
       <main className="min-h-screen bg-canvas px-4 pt-24">
@@ -25,15 +28,12 @@ export default function CheckoutClickPage() {
       </main>
     );
   }
-  const params = useSearchParams();
-  const parsed = parseCheckoutPaymentParams(params);
-
   if (!parsed) {
     return (
       <main className="min-h-screen bg-canvas px-4 pt-24">
         <Navigation />
         <p className="mx-auto max-w-md text-center text-sm text-ink-600">
-          Noto&apos;g&aposri to&apos;lov havolasi. Buyurtmalar bo&apos;limidan qayta urinib ko&apos;ring.
+          Noto&apos;g&apos;ri to&apos;lov havolasi. Buyurtmalar bo&apos;limidan qayta urinib ko&apos;ring.
         </p>
       </main>
     );

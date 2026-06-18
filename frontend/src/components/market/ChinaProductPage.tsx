@@ -76,7 +76,7 @@ export function ChinaProductPage({ initialQuery = "", compact = false }: ChinaPr
   const addToCart = (item: AutoSearchItem, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addItem(autoSearchItemToProduct(item), 1, "group");
+    addItem(autoSearchItemToProduct(item), 1, "single");
     push("Savatga qo'shildi", "success");
   };
 

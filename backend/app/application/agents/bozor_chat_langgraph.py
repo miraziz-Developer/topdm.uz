@@ -173,11 +173,20 @@ def _sanitize_ui_payload(
         items = [runner.product_snapshots[i] for i in stylist_ids if i in runner.product_snapshots]
         out_blocks.insert(0, {"type": "product_cards", "product_ids": stylist_ids, "items": items})
     elif not has_cards and runner.allowed_product_ids:
-        ids = _strict_card_ids(runner, user_text)
-        if not ids:
-            ids = list(runner.allowed_product_ids)[:8]
+        ids = list(runner.allowed_product_ids)[:8]
         items = [runner.product_snapshots[i] for i in ids if i in runner.product_snapshots]
         out_blocks.append({"type": "product_cards", "product_ids": ids, "items": items})
+    elif not has_cards:
+        neighbors = _catalog_neighbors(runner)
+        ids = [str(row.get("id")) for row in neighbors if row.get("id")][:8]
+        if ids:
+            for row in neighbors:
+                pid = str(row.get("id") or "")
+                if pid and pid not in runner.product_snapshots:
+                    runner.product_snapshots[pid] = row
+                    runner.allowed_product_ids.add(pid)
+            items = [runner.product_snapshots[i] for i in ids if i in runner.product_snapshots]
+            out_blocks.append({"type": "product_cards", "product_ids": ids, "items": items})
 
     if contains_banned_hallucination(assistant_text):
         assistant_text = scrub_hallucinated_phrases(assistant_text)

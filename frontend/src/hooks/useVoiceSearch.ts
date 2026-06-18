@@ -17,7 +17,22 @@ type SpeechRecognitionInstance = {
   abort: () => void;
 };
 
-const SPEECH_LANGS = ["ru-RU", "en-US"];
+const SPEECH_LANGS = ["uz-UZ", "ru-RU", "en-US"];
+
+async function micPermissionGranted(): Promise<boolean> {
+  try {
+    const perm = await navigator.permissions.query({ name: "microphone" as PermissionName });
+    return perm.state === "granted";
+  } catch {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
 
 function getSpeechRecognitionCtor(): (new () => SpeechRecognitionInstance) | null {
   if (typeof window === "undefined") return null;
@@ -88,6 +103,11 @@ export function useVoiceSearch(onTranscript: (text: string) => void) {
     busyRef.current = true;
     setListening(true);
 
+    const finish = () => {
+      busyRef.current = false;
+      setListening(false);
+    };
+
     const Ctor = getSpeechRecognitionCtor();
     if (!Ctor) {
       void runWhisperFallback()
@@ -99,73 +119,71 @@ export function useVoiceSearch(onTranscript: (text: string) => void) {
             push("Ovozli qidiruv ishlamadi. Chrome yoki Safari sinab ko'ring.", "error");
           }
         })
-        .finally(() => {
-          busyRef.current = false;
-          setListening(false);
-        });
+        .finally(finish);
       return;
     }
 
-    let langIndex = 0;
-    const recognition = new Ctor();
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognitionRef.current = recognition;
+    void (async () => {
+      const micOk = await micPermissionGranted();
+      if (!micOk) {
+        push("Mikrofon ruxsatini yoqing (brauzer sozlamalari)", "error");
+        finish();
+        return;
+      }
 
-    const tryNextLang = () => {
-      recognition.lang = SPEECH_LANGS[langIndex] ?? "ru-RU";
-      recognition.onresult = (event) => {
-        const transcript = event.results[0]?.[0]?.transcript?.trim();
-        if (transcript) {
-          onTranscript(transcript);
-        } else {
-          push("Ovoz aniqlanmadi", "error");
-        }
-      };
-      recognition.onerror = (event) => {
-        const code = event.error ?? "";
-        if (code === "not-allowed") {
-          push("Mikrofon ruxsatini yoqing", "error");
-          busyRef.current = false;
-          setListening(false);
-          return;
-        }
-        if (langIndex < SPEECH_LANGS.length - 1) {
-          langIndex += 1;
-          try {
-            recognition.start();
-          } catch {
-            void runWhisperFallback().finally(() => {
-              busyRef.current = false;
-              setListening(false);
-            });
-          }
-          return;
-        }
+      let langIndex = 0;
+      const recognition = new Ctor();
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognitionRef.current = recognition;
+
+      const runWhisper = () => {
         void runWhisperFallback()
           .catch(() => push("Ovozli qidiruv vaqtincha ishlamayapti", "error"))
-          .finally(() => {
-            busyRef.current = false;
-            setListening(false);
-          });
+          .finally(finish);
       };
-      recognition.onend = () => {
-        busyRef.current = false;
-        setListening(false);
-        recognitionRef.current = null;
-      };
-      try {
-        recognition.start();
-        push("Tinglayapman…", "info");
-      } catch {
-        void runWhisperFallback().finally(() => {
-          busyRef.current = false;
-          setListening(false);
-        });
-      }
-    };
 
-    tryNextLang();
+      const tryNextLang = () => {
+        recognition.lang = SPEECH_LANGS[langIndex] ?? "ru-RU";
+        recognition.onresult = (event) => {
+          const transcript = event.results[0]?.[0]?.transcript?.trim();
+          if (transcript) {
+            onTranscript(transcript);
+          } else {
+            push("Ovoz aniqlanmadi", "error");
+          }
+        };
+        recognition.onerror = (event) => {
+          const code = event.error ?? "";
+          if (code === "not-allowed" || code === "service-not-allowed") {
+            runWhisper();
+            return;
+          }
+          if (langIndex < SPEECH_LANGS.length - 1) {
+            langIndex += 1;
+            try {
+              recognition.start();
+            } catch {
+              runWhisper();
+            }
+            return;
+          }
+          runWhisper();
+        };
+        recognition.onend = () => {
+          finish();
+          recognitionRef.current = null;
+        };
+        try {
+          recognition.start();
+          push("Tinglayapman…", "info");
+        } catch {
+          runWhisper();
+        }
+      };
+
+      tryNextLang();
+    })();
   }, [onTranscript, push, runWhisperFallback]);
 
   const stopListening = useCallback(() => {

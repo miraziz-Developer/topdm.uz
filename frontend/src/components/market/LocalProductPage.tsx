@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, MapPin, Clock, Boxes } from "lucide-react";
 
 import { MarketShell } from "@/components/market/MarketShell";
@@ -28,6 +29,7 @@ function sizesForColor(item: LocalProduct, color: string): string[] {
 }
 
 export function LocalProductPage({ itemId }: Props) {
+  const router = useRouter();
   const { push } = useToast();
   const [item, setItem] = useState<LocalProduct | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,8 +130,11 @@ export function LocalProductPage({ itemId }: Props) {
 
             <PremiumActionButtons
               disabled={!item.is_available}
-              onBuy={() => push("Bron qilindi — sotuvchi tez orada bog'lanadi", "success")}
-              onCart={() => push("Savatga qo'shildi", "success")}
+              onBuy={() => router.push(`/product/${item.item_id}`)}
+              onCart={() => {
+                router.push(`/product/${item.item_id}`);
+                push("Mahsulot sahifasida variant tanlang", "info");
+              }}
             />
           </div>
         </div>

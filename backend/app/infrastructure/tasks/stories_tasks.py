@@ -9,13 +9,14 @@ from loguru import logger
 
 from app.application.stories.service import StoryService
 from app.infrastructure.db.session import AsyncSessionFactory
+from app.infrastructure.tasks.async_runner import run_async_task
 from app.infrastructure.tasks.celery_app import celery_app
 
 
 @celery_app.task(name="stories.gc_expired", bind=True, max_retries=1)
 def gc_expired_stories_task(self) -> dict:
     try:
-        return asyncio.run(_gc_async())
+        return run_async_task(_gc_async())
     except Exception as exc:
         logger.exception("stories_gc_failed")
         raise self.retry(exc=exc, countdown=300) from exc

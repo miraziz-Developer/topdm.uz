@@ -17,7 +17,7 @@ type Props = {
   onClose: () => void;
   packages: TopUpPackage[];
   loading?: boolean;
-  onCheckout: (packageId: string, provider: "click" | "payme") => void;
+  onCheckout: (packageId: string, provider: "click") => void;
 };
 
 export function BalanceTopUpModal({ open, onClose, packages, loading, onCheckout }: Props) {
@@ -37,7 +37,7 @@ export function BalanceTopUpModal({ open, onClose, packages, loading, onCheckout
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-text-100">Balans to&apos;ldirish</h3>
-            <p className="mt-0.5 text-sm text-text-400">Click yoki Payme — summa so&apos;m da</p>
+            <p className="mt-0.5 text-sm text-text-400">Click orqali — summa so&apos;m da</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-2 text-text-400 hover:bg-canvas" aria-label="Yopish">
             <X className="h-5 w-5" />
@@ -63,27 +63,16 @@ export function BalanceTopUpModal({ open, onClose, packages, loading, onCheckout
           {!packages.length ? <p className="py-6 text-center text-sm text-text-400">Paketlar yuklanmoqda…</p> : null}
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4">
           <Button
             type="button"
-            variant="secondary"
-            className="h-12"
+            className="h-12 w-full border-0 bg-electric-500 text-white hover:bg-electric-600"
             disabled={!selected}
             isLoading={loading}
             onClick={() => selected && onCheckout(selected, "click")}
           >
             <CreditCard className="mr-1.5 h-4 w-4" />
-            Click
-          </Button>
-          <Button
-            type="button"
-            className="h-12 border-0 bg-electric-500 text-white hover:bg-electric-600"
-            disabled={!selected}
-            isLoading={loading}
-            onClick={() => selected && onCheckout(selected, "payme")}
-          >
-            <CreditCard className="mr-1.5 h-4 w-4" />
-            Payme
+            Click orqali to&apos;lash
           </Button>
         </div>
       </div>

@@ -248,7 +248,7 @@ export function BannerCrmPanel() {
     }
   };
 
-  const handleVerify = async (method: "coin" | "click" | "payme") => {
+  const handleVerify = async (method: "coin" | "click") => {
     const id = pendingBannerId ?? activeCampaign?.id;
     if (!id) return;
     setError("");
@@ -278,7 +278,7 @@ export function BannerCrmPanel() {
     }
   };
 
-  const handleTopUp = async (provider: "click" | "payme") => {
+  const handleTopUp = async (provider: "click") => {
     if (!selectedPackageId) {
       setError("Coin paketini tanlang.");
       return;
@@ -437,15 +437,12 @@ export function BannerCrmPanel() {
           {(pendingBannerId || activeCampaign?.status === "pending_payment") ? (
             <div className="space-y-2 border-t border-border-subtle pt-4">
               <p className="text-xs font-bold uppercase tracking-wider text-text-400">To&apos;lov usuli</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Button variant="secondary" size="sm" leftIcon={<Coins className="h-4 w-4" />} isLoading={verify.isPending} onClick={() => void handleVerify("coin")}>
                   Coin
                 </Button>
                 <Button variant="secondary" size="sm" leftIcon={<CreditCard className="h-4 w-4" />} isLoading={verify.isPending} onClick={() => void handleVerify("click")}>
                   Click
-                </Button>
-                <Button variant="secondary" size="sm" leftIcon={<CreditCard className="h-4 w-4" />} isLoading={verify.isPending} onClick={() => void handleVerify("payme")}>
-                  Payme
                 </Button>
               </div>
             </div>

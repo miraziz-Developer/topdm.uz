@@ -134,13 +134,14 @@ class GroqClient:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ]
+        # Vision models often reject response_format=json_object — parse JSON from text instead.
         data = await self.chat_completion(
             messages=messages,
             model=model,
             vision=vision,
             stream=False,
             temperature=0.1,
-            response_format={"type": "json_object"},
+            response_format=None if vision else {"type": "json_object"},
         )
         content = data["choices"][0]["message"]["content"]
         cleaned = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()

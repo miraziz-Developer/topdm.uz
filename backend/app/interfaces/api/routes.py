@@ -18,8 +18,12 @@ from app.infrastructure.ai_clients.claude import ClaudeClient
 from app.infrastructure.ai_clients.embedding import EmbeddingClient
 from app.infrastructure.ai_clients.gemini import GeminiClient
 from app.core.config import get_settings
+from app.core.upload_validation import validate_image_bytes
+from app.infrastructure.auth.deps import require_merchant
+from app.infrastructure.auth.types import AuthUser
 from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 from app.infrastructure.db.session import get_db_session
+from app.interfaces.api.admin_routes import require_admin_key
 from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.infrastructure.repositories.product_repo import ProductRepo
@@ -89,7 +93,8 @@ def vision_search_hint(attributes: dict) -> str:
 
 class VisualSearchRefineRequest(BaseModel):
     label_uz: str = Field(min_length=1, max_length=120)
-    search_query: str = Field(min_length=1, max_length=500)
+    """Pure photo refine ignores text — empty allowed."""
+    search_query: str = Field(default="", max_length=500)
     selected_category: str | None = Field(default=None, max_length=64)
     category: str | None = Field(default=None, max_length=64)
     color: str | None = Field(default=None, max_length=64)
@@ -98,7 +103,7 @@ class VisualSearchRefineRequest(BaseModel):
     min_price: int | None = None
     max_price: int | None = None
     limit: int = Field(default=24, ge=4, le=48)
-    crop_base64: str | None = Field(default=None, max_length=500_000)
+    crop_base64: str | None = Field(default=None, max_length=2_000_000)
 
 
 class LookSearchRequest(BaseModel):
@@ -157,7 +162,7 @@ async def search_products_by_image(
     file: UploadFile = File(...),
     q: str | None = Form(None),
     page: int = 1,
-    limit: int = 24,
+    limit: int = 20,
     fast: bool = True,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
@@ -166,12 +171,7 @@ async def search_products_by_image(
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Empty image file")
-    if len(raw) > 8 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image must be 8MB or smaller")
-
-    content_type = (file.content_type or "").lower()
-    if content_type and not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only image uploads are supported")
+    validate_image_bytes(raw, max_bytes=8 * 1024 * 1024, label="Qidiruv rasmi")
 
     try:
         payload = await search_outfit_from_image(
@@ -235,6 +235,16 @@ async def search_products_look(
     return payload
 
 
+def _stylist_vision_image_url(raw: str | None) -> str | None:
+    """Only pass fetchable absolute URLs to vision — relative /api paths break Gemini."""
+    value = (raw or "").strip()
+    if not value:
+        return None
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+    return None
+
+
 @router.post("/stylist/lookbook")
 async def stylist_lookbook(payload: StylistRequest, db: AsyncSession = Depends(get_db_session)) -> dict:
     from app.application.stylist.budget_from_text import merge_payload_budget
@@ -249,7 +259,7 @@ async def stylist_lookbook(payload: StylistRequest, db: AsyncSession = Depends(g
     )
     result = await use_case.execute(
         user_id=payload.user_id,
-        query=SearchQuery(text=payload.text, image_url=payload.image_url),
+        query=SearchQuery(text=payload.text, image_url=_stylist_vision_image_url(payload.image_url)),
         min_price=eff_min,
         max_price=eff_max,
         block=payload.block,
@@ -338,7 +348,11 @@ async def chat_with_stylist(
 
 
 @router.post("/products")
-async def create_product(payload: ProductCreateRequest, db: AsyncSession = Depends(get_db_session)) -> dict:
+async def create_product(
+    payload: ProductCreateRequest,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
     use_case = MarketplaceUseCases(
         repo=MarketplaceRepository(db),
         notifier=TelegramNotifierGateway(get_settings().telegram_bot_token),
@@ -401,7 +415,13 @@ async def create_tracking_event(payload: TrackEventRequest, db: AsyncSession = D
 
 
 @router.get("/dashboard/shop/{shop_id}")
-async def shop_dashboard(shop_id: UUID, db: AsyncSession = Depends(get_db_session)) -> dict:
+async def shop_dashboard(
+    shop_id: UUID,
+    user: AuthUser = Depends(require_merchant),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    if user.shop_id != shop_id:
+        raise HTTPException(status_code=403, detail="Bu do'kon sizga tegishli emas")
     use_case = MarketplaceUseCases(
         repo=MarketplaceRepository(db),
         notifier=TelegramNotifierGateway(get_settings().telegram_bot_token),
@@ -522,7 +542,10 @@ async def get_product(id: UUID, db: AsyncSession = Depends(get_db_session)) -> d
     from app.application.marketplace.product_review_service import ProductReviewService
 
     review_summary = await ProductReviewService(db).get_summary(id)
-    payload = product_to_dict(p)
+    from app.application.marketplace.product_list_enrichment import _category_meta_map
+
+    category_meta = await _category_meta_map(db, [p])
+    payload = product_to_dict(p, category_meta=category_meta.get(p.id))
     payload["review_summary"] = review_summary
     return payload
 
@@ -598,6 +621,7 @@ from app.interfaces.api.chat_routes import router as shop_chat_router
 from app.api.map import router as map_router
 from app.api.orders import router as orders_router
 from app.interfaces.api.merchant_workspace_routes import router as merchant_workspace_router
+from app.interfaces.api.merchant_growth_routes import router as merchant_growth_router
 from app.interfaces.api.merchant_product_routes import router as merchant_product_router
 from app.interfaces.api.merchant_shop_routes import router as merchant_shop_router
 from app.interfaces.api.platform_routes import router as platform_router
@@ -614,7 +638,6 @@ from app.interfaces.api.crm_shop_trust_routes import router as crm_shop_trust_ro
 from app.interfaces.api.payment_routes import router as payment_router
 from app.interfaces.api.delivery_routes import router as delivery_router
 from app.interfaces.api.premium_market_routes import router as premium_market_router
-from app.interfaces.api.topdmbozor_routes import router as topdmbozor_router
 from app.interfaces.api.product_review_routes import router as product_review_router
 from app.interfaces.api.crm_review_routes import router as crm_review_router
 from app.interfaces.api.business_rules_routes import router as business_rules_router
@@ -631,6 +654,7 @@ router.include_router(chat_agent_router)
 router.include_router(merchant_pending_router)
 router.include_router(merchant_chat_router)
 router.include_router(merchant_workspace_router)
+router.include_router(merchant_growth_router)
 router.include_router(media_router)
 router.include_router(shop_chat_router)
 router.include_router(admin_router)
@@ -645,7 +669,6 @@ router.include_router(crm_shop_trust_router)
 router.include_router(payment_router)
 router.include_router(delivery_router)
 router.include_router(premium_market_router)
-router.include_router(topdmbozor_router)
 router.include_router(product_review_router)
 router.include_router(crm_review_router)
 router.include_router(business_rules_router)

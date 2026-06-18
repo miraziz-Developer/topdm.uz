@@ -1,7 +1,6 @@
 "use client";
 
-import { Phone, Truck, Zap } from "lucide-react";
-import Image from "next/image";
+import { LogIn, Phone, Truck, Zap } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -26,15 +25,18 @@ import {
   quoteDeliveryOptions,
   reserveDeliveryOrders,
   reservePickupOrders,
+  sendOrderLookupOtp,
+  verifyOrderLookupOtp,
   type DeliveryQuoteOption,
   type DeliveryQuoteResponse,
   type PickupReservationResponse,
 } from "@/lib/api";
 import { playSuccessDing } from "@/lib/audio";
+import { cartLineImages } from "@/lib/cart-images";
 import { cartLineKey } from "@/lib/cart-line";
 import { ApiError } from "@/lib/http-client";
 import { saveGuestPhone } from "@/lib/guest-phone";
-import { productImage } from "@/lib/media";
+import { ProductImage } from "@/components/ui/product-image";
 import { selectionKey, selectionLabel } from "@/lib/product-options";
 import { allowOnlineCheckout } from "@/lib/runtime-flags";
 import { getRefToken } from "@/lib/utils";
@@ -44,6 +46,7 @@ import {
   normalizeUzbekPhoneE164,
   UZ_PHONE_E164_REGEX,
 } from "@/utils/phone-mask";
+import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
 import { useLoyaltyStore } from "@/stores/loyalty-store";
 import { useUserStore } from "@/stores/user-store";
@@ -66,6 +69,13 @@ export function FastCheckout() {
   const totalPrice = useCartStore((state) => state.totalPrice());
   const earn = useLoyaltyStore((state) => state.earn);
   const profile = useUserStore((state) => state.profile);
+  const authHydrated = useAuthStore((state) => state.hydrated);
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const checkoutReturnPath = useMemo(() => {
+    const qs = searchParams.toString();
+    return qs ? `/checkout?${qs}` : "/checkout";
+  }, [searchParams]);
+  const loginHref = `/auth?next=${encodeURIComponent(checkoutReturnPath)}`;
 
   const initialMode: FulfillmentMode = searchParams.get("mode") === "delivery" ? "delivery" : "pickup";
   const [fulfillmentMode, setFulfillmentMode] = useState<FulfillmentMode>(initialMode);
@@ -83,6 +93,13 @@ export function FastCheckout() {
   const [loading, setLoading] = useState(false);
   const [reservation, setReservation] = useState<PickupReservationResponse | null>(null);
 
+  // Mehmon (login'siz) buyurtma — telefon OTP tasdiq
+  const [guestOtpSent, setGuestOtpSent] = useState(false);
+  const [guestOtp, setGuestOtp] = useState("");
+  const [guestToken, setGuestToken] = useState<string | null>(null);
+  const [guestVerifiedPhone, setGuestVerifiedPhone] = useState<string | null>(null);
+  const [otpLoading, setOtpLoading] = useState(false);
+
   const [addressQuery, setAddressQuery] = useState("");
   const [resolvedLabel, setResolvedLabel] = useState<string | null>(null);
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null);
@@ -96,8 +113,18 @@ export function FastCheckout() {
   const [loadingQuote, setLoadingQuote] = useState(false);
 
   const cartProducts = useMemo(() => lines.map((line) => line.product), [lines]);
+  const uniqueShopIds = useMemo(
+    () => new Set(lines.map((line) => line.product.shop?.id).filter(Boolean)),
+    [lines],
+  );
   const items = useMemo(
-    () => lines.map((line) => ({ product_id: line.product.id, quantity: line.quantity })),
+    () =>
+      lines.map((line) => ({
+        product_id: line.product.id,
+        quantity: line.quantity,
+        color: line.selectedOptions?.color,
+        size: line.selectedOptions?.size,
+      })),
     [lines],
   );
 
@@ -124,6 +151,62 @@ export function FastCheckout() {
   const handlePhoneChange = (value: string) => {
     setPhone(applyPhoneMaskInput(value));
     if (phoneError) setPhoneError(undefined);
+    // Telefon o'zgarsa — oldingi OTP tasdig'ini bekor qilamiz
+    if (guestToken || guestOtpSent) {
+      setGuestToken(null);
+      setGuestVerifiedPhone(null);
+      setGuestOtpSent(false);
+      setGuestOtp("");
+    }
+  };
+
+  const guestVerified =
+    !!guestToken &&
+    !!guestVerifiedPhone &&
+    guestVerifiedPhone === normalizeUzbekPhoneE164(phone);
+
+  const sendGuestOtp = async () => {
+    const phoneE164 = validatePhone();
+    if (!phoneE164) return;
+    setOtpLoading(true);
+    try {
+      const res = await sendOrderLookupOtp(phoneE164);
+      setGuestOtpSent(true);
+      if (res.dev_otp) {
+        push(`Test rejimi: kod ${res.dev_otp}`, "info");
+      } else {
+        push("Tasdiqlash kodi SMS orqali yuborildi", "success");
+      }
+    } catch (err) {
+      const message = err instanceof ApiError && err.message ? err.message : "Kod yuborilmadi. Qayta urinib ko'ring.";
+      push(message, "error");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const verifyGuestOtp = async () => {
+    const phoneE164 = normalizeUzbekPhoneE164(phone);
+    if (!UZ_PHONE_E164_REGEX.test(phoneE164)) {
+      setPhoneError("To'liq raqam kiriting: +998 (XX) XXX-XX-XX");
+      return;
+    }
+    if (guestOtp.trim().length < 4) {
+      push("Kodni to'liq kiriting", "error");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const res = await verifyOrderLookupOtp(phoneE164, guestOtp.trim());
+      setGuestToken(res.verification_token);
+      setGuestVerifiedPhone(phoneE164);
+      push("Telefon tasdiqlandi", "success");
+    } catch (err) {
+      const message = err instanceof ApiError && err.message ? err.message : "Kod noto'g'ri yoki muddati o'tgan.";
+      push(message, "error");
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   const validatePhone = (): string | null => {
@@ -176,8 +259,12 @@ export function FastCheckout() {
       });
       setQuote(data);
       setSelectedCarrier(data.recommended_carrier);
-    } catch {
-      push("Yetkazish narxini hisoblab bo'lmadi", "error");
+    } catch (err) {
+      const detail =
+        err && typeof err === "object" && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "";
+      push(detail && detail !== "internal_server_error" ? detail : "Yetkazish narxini hisoblab bo'lmadi", "error");
     } finally {
       setLoadingQuote(false);
     }
@@ -196,19 +283,17 @@ export function FastCheckout() {
         ? paymentMethod
         : "cash";
 
-    const data = await reservePickupOrders(
-      {
-        items,
-        user_phone: phoneE164,
-        user_email: email.trim() || undefined,
-        pickup_date: pickupDate,
-        pickup_time: pickupTime,
-        payment_method: effectivePayment,
-        note: mergedNote() || undefined,
-        ref_token: getRefToken(),
-      },
-      { silent: true },
-    );
+    const data = await reservePickupOrders({
+      items,
+      user_phone: phoneE164,
+      user_email: email.trim() || undefined,
+      pickup_date: pickupDate,
+      pickup_time: pickupTime,
+      payment_method: effectivePayment,
+      note: mergedNote() || undefined,
+      ref_token: getRefToken(),
+      verification_token: isLoggedIn ? undefined : guestToken ?? undefined,
+    });
 
     clear();
     saveGuestPhone(phoneE164);
@@ -218,6 +303,14 @@ export function FastCheckout() {
   };
 
   const submitDelivery = async (phoneE164: string) => {
+    if (uniqueShopIds.size > 1) {
+      push("Yetkazish uchun savatchada faqat bitta do'kon mahsuloti bo'lishi kerak", "error");
+      return;
+    }
+    if (deliveryLat == null || deliveryLng == null) {
+      push("Yetkazish manzilini xaritadan yoki qidiruvdan tanlang", "error");
+      return;
+    }
     if (!quote || !selectedOption) {
       push("Avval yetkazish narxini hisoblang", "error");
       return;
@@ -237,7 +330,7 @@ export function FastCheckout() {
         ? paymentMethod
         : "cash";
 
-    await reserveDeliveryOrders({
+    const data = await reserveDeliveryOrders({
       items,
       user_phone: phoneE164,
       user_email: email.trim() || undefined,
@@ -245,20 +338,44 @@ export function FastCheckout() {
       note: mergedNote() || undefined,
       ref_token: getRefToken(),
       destination_address: fullAddress,
-      destination_lat: deliveryLat ?? DEFAULT_LAT,
-      destination_lng: deliveryLng ?? DEFAULT_LNG,
+      destination_lat: deliveryLat,
+      destination_lng: deliveryLng,
       destination_city: city.trim() || "Toshkent",
       carrier_class: selectedOption.carrier_class,
       delivery_cost_uzs: selectedOption.delivery_cost_uzs,
       delivery_eta_minutes: selectedOption.eta_minutes ?? undefined,
       offer_payload: selectedOption.offer_payload ?? undefined,
+      verification_token: isLoggedIn ? undefined : guestToken ?? undefined,
     });
 
     clear();
     saveGuestPhone(phoneE164);
     earn(lines.length * 12);
+    void playSuccessDing();
+    if (data.online_checkout_url) {
+      setReservation({
+        reservations: data.reservations,
+        reservation_count: data.reservation_count,
+        total_price: data.total_payable_uzs,
+        status: "reserved",
+        pickup_date: "",
+        pickup_time: "",
+        pickup_window_label: "",
+        payment_method: effectivePayment,
+        payment_method_label: "",
+        store_location: fullAddress,
+        store_address: { block: "", floor: "", stall: "", formatted: fullAddress },
+        merchant_phone: "",
+        shop_name: quote.shop_name,
+        shop_slug: "",
+        map_url: "",
+        checkout_id: data.checkout_id ?? null,
+        online_checkout_url: data.online_checkout_url ?? null,
+      });
+      return;
+    }
     push("Yetkazish buyurtmasi qabul qilindi", "success");
-    router.push(profile ? "/orders" : "/search");
+    router.push("/orders");
   };
 
   const submit = async () => {
@@ -269,6 +386,13 @@ export function FastCheckout() {
     const phoneE164 = validatePhone();
     if (!phoneE164) return;
 
+    // Mehmon bo'lsa — telefon OTP bilan tasdiqlangan bo'lishi shart
+    if (!isLoggedIn && !guestVerified) {
+      push("Davom etish uchun telefon raqamingizni tasdiqlang", "error");
+      if (!guestOtpSent) void sendGuestOtp();
+      return;
+    }
+
     setLoading(true);
     try {
       if (fulfillmentMode === "pickup") {
@@ -277,6 +401,11 @@ export function FastCheckout() {
         await submitDelivery(phoneE164);
       }
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        push("Avval tizimga kiring", "error");
+        router.push(loginHref);
+        return;
+      }
       const message =
         err instanceof ApiError && err.message
           ? err.message
@@ -289,7 +418,7 @@ export function FastCheckout() {
 
   const closeSuccess = () => {
     setReservation(null);
-    router.push(profile ? "/orders" : "/search");
+    router.push("/orders");
   };
 
   if (!lines.length && !reservation) {
@@ -309,11 +438,39 @@ export function FastCheckout() {
 
   return (
     <CheckoutShell>
+      <div className="mb-8 animate-fade-in">
+        <span className="eyebrow-pill">Checkout</span>
+        <h1 className="display-section mt-4 text-ink-900">Buyurtmani rasmiylashtirish</h1>
+        <p className="mt-2 text-sm text-ink-500">Bir necha qadam — tez va xavfsiz</p>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
-          <Card className="overflow-hidden border-electric-500/12 bg-white shadow-sm">
+          {authHydrated && !isLoggedIn ? (
+            <Card className="ring-glow-electric border-electric-500/20 bg-electric-500/[0.05]">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-ink-900">Mehmon sifatida buyurtma berish</p>
+                  <p className="mt-1 text-xs text-ink-600">
+                    Ro&apos;yxatdan o&apos;tmasdan ham bo&apos;ladi — pastdan telefon raqamingizni SMS kod bilan tasdiqlang.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  leftIcon={<LogIn className="h-4 w-4" />}
+                  onClick={() => router.push(loginHref)}
+                >
+                  Hisobga kirish
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card className="overflow-hidden">
             <CardHeader className="pb-2">
-              <h2 className="text-lg font-semibold text-ink-900">Yetkazish usuli</h2>
+              <h2 className="text-lg font-bold tracking-tight text-ink-900">Yetkazish usuli</h2>
               <p className="text-sm text-ink-500">Bittadan tanlang — keyin shu bo‘yicha davom etasiz</p>
             </CardHeader>
             <CardContent>
@@ -323,9 +480,9 @@ export function FastCheckout() {
 
           {fulfillmentMode === "pickup" ? (
             <>
-              <Card className="overflow-hidden border-electric-500/12 bg-white shadow-sm">
+              <Card className="overflow-hidden">
                 <CardHeader className="pb-2">
-                  <h2 className="text-lg font-semibold text-ink-900">Do&apos;kondan olib ketish</h2>
+                  <h2 className="text-lg font-bold tracking-tight text-ink-900">Do&apos;kondan olib ketish</h2>
                   <p className="text-sm text-ink-500">Vaqt oralig&apos;ini tanlang</p>
                 </CardHeader>
                 <CardContent className="space-y-5 bg-white pt-1">
@@ -344,9 +501,9 @@ export function FastCheckout() {
               </Card>
             </>
           ) : (
-            <Card className="overflow-hidden border-orange-200 bg-white shadow-sm">
+            <Card className="overflow-hidden">
               <CardHeader className="pb-2">
-                <h2 className="text-lg font-semibold text-ink-900">Yetkazib berish manzili</h2>
+                <h2 className="text-lg font-bold tracking-tight text-ink-900">Yetkazib berish manzili</h2>
                 <p className="text-sm text-ink-500">Yozilgan manzil va xarita joyi birga yuboriladi</p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -392,9 +549,9 @@ export function FastCheckout() {
             </Card>
           )}
 
-          <Card className="border-electric-500/12 bg-white">
+          <Card>
             <CardHeader>
-              <h2 className="text-lg font-semibold text-ink-900">Aloqa</h2>
+              <h2 className="text-lg font-bold tracking-tight text-ink-900">Aloqa</h2>
             </CardHeader>
             <CardContent className="space-y-4">
               <Input
@@ -408,6 +565,62 @@ export function FastCheckout() {
                 leftIcon={<Phone className="h-4 w-4 text-electric-500" />}
                 error={phoneError}
               />
+              {authHydrated && !isLoggedIn ? (
+                guestVerified ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm font-medium text-emerald-700">
+                    <Phone className="h-4 w-4" />
+                    Telefon tasdiqlandi
+                  </div>
+                ) : (
+                  <div className="space-y-3 rounded-xl border border-electric-500/15 bg-electric-500/[0.03] p-3">
+                    {!guestOtpSent ? (
+                      <>
+                        <p className="text-xs text-ink-600">
+                          Buyurtmani tasdiqlash uchun raqamingizga SMS kod yuboramiz.
+                        </p>
+                        <Button
+                          variant="secondary"
+                          className="w-full"
+                          isLoading={otpLoading}
+                          disabled={otpLoading}
+                          onClick={sendGuestOtp}
+                        >
+                          SMS kod yuborish
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Input
+                          label="SMS kod"
+                          inputMode="numeric"
+                          placeholder="123456"
+                          value={guestOtp}
+                          onChange={(event) => setGuestOtp(event.target.value.replace(/\D/g, "").slice(0, 8))}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            variant="brand"
+                            className="flex-1"
+                            isLoading={otpLoading}
+                            disabled={otpLoading}
+                            onClick={verifyGuestOtp}
+                          >
+                            Tasdiqlash
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="shrink-0"
+                            disabled={otpLoading}
+                            onClick={sendGuestOtp}
+                          >
+                            Qayta yuborish
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              ) : null}
               <Input
                 label="Email (ixtiyoriy)"
                 type="email"
@@ -425,14 +638,14 @@ export function FastCheckout() {
             </CardContent>
           </Card>
 
-          <Card className="border-electric-500/12 bg-white p-5">
+          <Card className="p-5">
             <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />
           </Card>
         </div>
 
-        <Card className="h-fit border-electric-500/12 bg-white shadow-md ring-1 ring-electric-500/5">
+        <Card className="sticky top-24 h-fit ring-glow-electric">
           <CardHeader>
-            <h2 className="text-lg font-semibold text-ink-900">Buyurtma xulosasi</h2>
+            <h2 className="text-lg font-bold tracking-tight text-ink-900">Buyurtma xulosasi</h2>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="max-h-[min(40vh,320px)] space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain pr-1">
@@ -441,15 +654,14 @@ export function FastCheckout() {
                   key={cartLineKey(line.product.id, line.mode, selectionKey(line.selectedOptions))}
                   className="flex shrink-0 gap-3"
                 >
-                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-electric-500/10 bg-white">
-                    <Image
-                      src={productImage(line.product.images)}
-                      alt={line.product.name}
-                      fill
-                      className="object-cover"
-                      sizes="64px"
-                    />
-                  </div>
+                  <ProductImage
+                    images={cartLineImages(line.product, line.selectedOptions)}
+                    alt={line.product.name}
+                    fill
+                    wrapperClassName="h-16 w-16 shrink-0 rounded-xl border border-electric-500/10 bg-white"
+                    className="object-cover"
+                    sizes="64px"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-sm font-medium text-ink-900">{line.product.name}</p>
                     {selectionLabel(line.selectedOptions) ? (
@@ -546,10 +758,17 @@ export function FastCheckout() {
               isLoading={loading}
               disabled={loading || (fulfillmentMode === "delivery" && !quote)}
               onClick={submit}
-              leftIcon={!loading ? (fulfillmentMode === "delivery" ? <Truck className="h-4 w-4" /> : <Zap className="h-4 w-4" />) : undefined}
+              leftIcon={
+                !loading ? (fulfillmentMode === "delivery" ? <Truck className="h-4 w-4" /> : <Zap className="h-4 w-4" />) : undefined
+              }
             >
               {fulfillmentMode === "delivery" ? "Yetkazishni tasdiqlash" : "Zaxiraga olishni tasdiqlash"}
             </Button>
+            {authHydrated && !isLoggedIn && !guestVerified ? (
+              <p className="mt-2 text-center text-[11px] text-ink-500">
+                Tasdiqlash uchun avval telefon raqamingizni SMS kod bilan tasdiqlang.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

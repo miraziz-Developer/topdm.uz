@@ -90,6 +90,7 @@ export type MerchantShopProfile = {
   floor?: string | null;
   section?: string | null;
   is_verified?: boolean;
+  shop_type?: string | null;
 };
 
 export async function getMerchantMe() {
@@ -206,6 +207,7 @@ export async function createMerchantProduct(input: {
   stock_count?: number;
   is_featured?: boolean;
   variantCatalog?: VariantCatalogPayload;
+  wholesale?: Record<string, string>;
 }) {
   const form = new FormData();
   for (const file of input.files) {
@@ -221,6 +223,11 @@ export async function createMerchantProduct(input: {
   }
   if (input.imageMeta?.length) {
     form.append("image_meta", JSON.stringify(input.imageMeta));
+  }
+  if (input.wholesale) {
+    for (const [key, value] of Object.entries(input.wholesale)) {
+      form.append(key, value);
+    }
   }
   return postFormData<{ item: MerchantProduct }>("/merchant/products", form);
 }
@@ -500,6 +507,23 @@ export async function getMerchantFinanceWallet() {
   return getJson<{ shop_id: string; wallet: { current_balance: string; frozen_balance: string } }>("/merchant/finance/wallet");
 }
 
+export async function requestMerchantPayout(payload: {
+  amount_uzs: number;
+  card_number: string;
+  destination?: string;
+}) {
+  return postJson<{
+    payout_id: string;
+    amount_uzs: number;
+    status: string;
+    wallet: { current_balance: string; frozen_balance: string };
+  }>("/merchant/finance/payout-request", {
+    amount_uzs: payload.amount_uzs,
+    card_number: payload.card_number,
+    destination: payload.destination ?? "bank_card",
+  });
+}
+
 export async function confirmMerchantPickup(orderId: string, note?: string) {
   return postJson<{ order_id: string; status: string; completed_at: string; source: string }>(
     `/merchant/orders/${orderId}/confirm-pickup`,
@@ -621,7 +645,7 @@ export async function getCoinPackages() {
 
 export async function generateCoinTopUpInvoice(payload: {
   coin_package_id: string;
-  provider: "click" | "payme";
+  provider: "click";
 }) {
   return postJson<{
     transaction_id: string;
@@ -803,4 +827,108 @@ export async function getCrmShopTrust() {
     store_reviews: Array<{ id: string; rating: number; comment?: string }>;
     trust_metrics: Record<string, unknown>;
   }>("/crm/shop/trust");
+}
+
+export type SupplierBrief = {
+  shop_id: string;
+  name: string;
+  slug: string;
+  product_count: number;
+};
+
+export type SupplierProductBrief = {
+  id: string;
+  name: string;
+  price: number;
+  image_url?: string | null;
+  stock_count?: number;
+};
+
+export async function getSalesReportCard(period: "week" | "month" = "week") {
+  return getJson<{
+    period: string;
+    period_label: string;
+    shop_name: string;
+    orders_count: number;
+    revenue_uzs: number;
+    growth_pct: number;
+    headline: string;
+    share_text: string;
+    shop_url: string;
+    telegram_share_url: string;
+  }>(`/merchant/growth/sales-report-card?period=${period}`);
+}
+
+export async function getReferralPanel() {
+  return getJson<{
+    referral_code: string;
+    referral_link: string;
+    reward_coins_each: number;
+    referred_shops: number;
+    rewarded_shops: number;
+    share_text: string;
+  }>("/merchant/growth/referral");
+}
+
+export async function listSuppliers() {
+  return getJson<{ items: SupplierBrief[] }>("/merchant/growth/suppliers");
+}
+
+export async function linkSupplier(supplierSlug: string) {
+  return postJson<{ status: string }>("/merchant/growth/suppliers/link", { supplier_slug: supplierSlug });
+}
+
+export async function getSupplierProducts(supplierShopId: string) {
+  return getJson<{ items: SupplierProductBrief[] }>(`/merchant/growth/suppliers/${supplierShopId}/products`);
+}
+
+export async function importSupplierProduct(productId: string) {
+  return postJson<{ product_id: string; name: string }>(`/merchant/growth/suppliers/import/${productId}`, {});
+}
+
+export async function patchMerchantQuickReplies(
+  custom: Array<{ id?: string; label: string; text: string }>,
+) {
+  return patchJson<{ items: Array<{ id: string; label: string; text: string; custom?: boolean }> }>(
+    "/merchant/chat/quick-replies",
+    { custom },
+  );
+}
+
+export async function scanMerchantPickupQr(token: string) {
+  return postJson<{
+    order_id: string;
+    status: string;
+    already_completed: boolean;
+    quantity: number;
+    total_price: number;
+    customer_phone: string;
+    payment_method?: string | null;
+    pickup_date?: string | null;
+    pickup_time?: string | null;
+    product: { id: string; name: string; price: number };
+    shop: { id: string; name: string };
+  }>("/merchant/pickup/scan", { token });
+}
+
+export type CrmReviewRow = {
+  id: string;
+  product_id: string;
+  author_name: string;
+  rating: number;
+  body?: string | null;
+  photo_urls?: string[];
+  is_verified_purchase?: boolean;
+  status?: string;
+  created_at?: string | null;
+};
+
+export async function getCrmReviews(status = "pending_moderation") {
+  return getJson<{ items: CrmReviewRow[]; status: string }>(
+    `/crm/reviews?status=${encodeURIComponent(status)}`,
+  );
+}
+
+export async function moderateCrmReview(reviewId: string, action: "approve" | "reject", note?: string) {
+  return postJson<{ review: CrmReviewRow }>(`/crm/reviews/${reviewId}/action`, { action, note });
 }

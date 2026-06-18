@@ -8,6 +8,7 @@ class MerchantBotStates(StatesGroup):
     ready = State()
 
     reg_name = State()
+    reg_shop_type = State()
     reg_market = State()
     reg_block = State()
     reg_stall = State()
@@ -19,3 +20,14 @@ class MerchantBotStates(StatesGroup):
 
     product_edit_name = State()
     product_edit_price = State()
+    product_edit_hashtags = State()
+
+    product_manual_photo = State()
+    product_manual_name = State()
+    product_manual_price = State()
+
+    product_add_color_name = State()
+    product_add_color_photo = State()
+
+    product_edit_stock = State()
+    stock_set_quantity = State()

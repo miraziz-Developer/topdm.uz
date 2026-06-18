@@ -65,6 +65,7 @@ async def get_personalized_feed(
     3. Shop filter bo'lsa faqat shu shop
     """
     offset = page * limit
+    interest_cats = await _get_user_interest_categories(db, session_id) if session_id else []
 
     has_remote_video = case(
         (ReelsVideoModel.video_url.like("http%"), 1),
@@ -94,9 +95,30 @@ async def get_personalized_feed(
     if shop_id:
         stmt = stmt.where(ReelsVideoModel.shop_id == shop_id)
 
-    stmt = stmt.offset(offset).limit(limit)
+    if category_hint:
+        stmt = stmt.where(ReelsVideoModel.category_tags.contains([category_hint]))
+
+    stmt = stmt.offset(offset).limit(limit * 3 if interest_cats else limit)
     result = await db.execute(stmt)
-    videos = result.scalars().unique().all()
+    videos = list(result.scalars().unique().all())
+
+    if interest_cats and not shop_id:
+        def _interest_boost(v: ReelsVideoModel) -> float:
+            tags = set(v.category_tags or [])
+            overlap = len(tags.intersection(interest_cats))
+            return overlap * 2.5
+
+        videos.sort(
+            key=lambda v: (
+                _interest_boost(v),
+                float(v.algorithm_score or 0),
+                v.created_at.timestamp() if v.created_at else 0,
+            ),
+            reverse=True,
+        )
+        videos = videos[:limit]
+    else:
+        videos = videos[:limit]
 
     from app.application.reels.feed_enrichment import enrich_reel_dict, sort_feed_items
 

@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+# Celery worker/beat — torch/CLIP/YOLOs yo'q (~400MB RAM tejash, OOM oldini olish).
+
+FROM python:3.11-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+COPY backend/pyproject.toml /build/pyproject.toml
+COPY backend/app /build/app
+
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir /build
+
+
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    APP_ENV=production \
+    CELERY_LITE=1
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1001 appuser \
+    && useradd --system --uid 1001 --gid appuser --home /app --shell /usr/sbin/nologin appuser \
+    && mkdir -p /app/uploads/products /app/scripts
+
+COPY --from=builder /usr/local /usr/local
+COPY backend/app /app/app
+COPY backend/alembic.ini /app/alembic.ini
+COPY backend/migrations /app/migrations
+COPY scripts/verify_integrations.py /app/scripts/verify_integrations.py
+
+RUN chown -R appuser:appuser /app /app/uploads
+
+USER appuser

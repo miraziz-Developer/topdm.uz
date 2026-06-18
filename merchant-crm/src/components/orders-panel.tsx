@@ -11,6 +11,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { PickupQrScannerPanel } from "@/components/pickup-qr-scanner-panel";
+import { CustomerPhoneInsight } from "@/components/customer-phone-insight";
 import { CrmFilterChip } from "@/components/crm/filter-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,21 +32,21 @@ import { shortId } from "@/lib/short-id";
 import { cn, formatPrice } from "@/lib/utils";
 
 const STATUS_FLOW = [
-  { value: "reserved", label: "Bron" },
-  { value: "confirmed", label: "Tasdiq" },
+  { value: "reserved", label: "Band qilingan" },
+  { value: "confirmed", label: "Tasdiqlangan" },
   { value: "preparing", label: "Tayyorlanmoqda" },
   { value: "ready", label: "Tayyor" },
   { value: "completed", label: "Yakunlandi" },
-  { value: "cancelled", label: "Bekor" },
+  { value: "cancelled", label: "Bekor qilingan" },
 ] as const;
 
 const STATUS_META: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" }> = {
-  reserved: { label: "Bron", variant: "warning" },
-  confirmed: { label: "Tasdiq", variant: "default" },
+  reserved: { label: "Band qilingan", variant: "warning" },
+  confirmed: { label: "Tasdiqlangan", variant: "default" },
   preparing: { label: "Tayyorlanmoqda", variant: "warning" },
   ready: { label: "Tayyor", variant: "success" },
   completed: { label: "Yakunlandi", variant: "success" },
-  cancelled: { label: "Bekor", variant: "danger" },
+  cancelled: { label: "Bekor qilingan", variant: "danger" },
 };
 
 type OrderRow = {
@@ -184,7 +186,7 @@ function OrderActionsMenu({
                     onWaybill();
                   }}
                 >
-                  AWB yorliq
+                  Yetkazish yorlig&apos;i
                 </button>
               </>
             ) : null}
@@ -360,7 +362,7 @@ export function OrdersPanel() {
         delivery_cost_uzs: wb.delivery_cost_uzs,
       });
     } catch {
-      toast.error("AWB yuklanmadi");
+      toast.error("Yorliq yuklanmadi");
     }
   };
 
@@ -380,6 +382,7 @@ export function OrdersPanel() {
 
   return (
     <div className="space-y-4">
+      <PickupQrScannerPanel />
       <div className="crm-surface-card overflow-hidden">
         <div className="border-b border-border-subtle/80 bg-gradient-to-br from-surface via-surface to-canvas/40 p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
@@ -513,9 +516,12 @@ export function OrdersPanel() {
                         </td>
                         <td className="px-4 py-4">
                           {order.customer_phone ? (
-                            <a href={`tel:${order.customer_phone}`} className="font-medium text-electric-600 hover:underline">
-                              {order.customer_phone}
-                            </a>
+                            <div className="space-y-1">
+                              <a href={`tel:${order.customer_phone}`} className="font-medium text-electric-600 hover:underline">
+                                {order.customer_phone}
+                              </a>
+                              <CustomerPhoneInsight phone={order.customer_phone} />
+                            </div>
                           ) : (
                             <span className="text-text-400">—</span>
                           )}
@@ -640,7 +646,7 @@ export function OrdersPanel() {
       {waybill ? (
         <section className="crm-surface-card p-4 text-sm">
           <div className="mb-2 flex items-center justify-between">
-            <h4 className="font-semibold text-text-100">AWB yorliq</h4>
+            <h4 className="font-semibold text-text-100">Yetkazish yorlig&apos;i</h4>
             <Button size="sm" variant="secondary" onClick={() => setWaybill(null)}>
               Yopish
             </Button>

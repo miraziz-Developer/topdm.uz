@@ -20,7 +20,29 @@ from app.application.agents.bozor_chat_catalog import (
     parse_look_intent,
     parse_sale_type,
 )
+from app.application.visual_search.bbox_refine import (
+    _skin_ratio_in_bbox,
+    build_body_part_detections,
+    clamp_bbox_in_frame,
+    estimate_person_silhouette_bbox,
+    filter_sky_detections,
+    has_wearable_person,
+    is_invalid_outfit_bbox,
+    is_outfit_portrait_photo,
+    merge_fashion_slots,
+    merge_groq_metadata,
+    person_heuristic_zones,
+    refine_outfit_detections,
+)
+from app.application.visual_search.image_panels import (
+    ImagePanel,
+    crop_panel,
+    find_vertical_panels,
+    map_detections_to_global,
+    panel_product_bbox,
+)
 from app.application.visual_search.category_map import normalize_visual_category
+from app.application.visual_search.crop_preprocess import prepare_taobao_crop
 from app.application.visual_search.color_map import color_search_terms, color_uz_from_image, normalize_color_uz
 from app.application.visual_search.slot_metadata import build_strict_slot_filters
 from app.application.visual_search.taobao_fingerprint import build_taobao_fingerprint
@@ -48,47 +70,440 @@ class DetectedOutfitItem:
     product_ids: list[str]
 
 
-async def detect_outfit_items(raw: bytes) -> list[dict[str, Any]]:
-    """Taobao-style: detect wearables on a person with normalized bounding boxes."""
-    vision_raw = _downscale_image_bytes(raw, max_edge=768)
-    settings_prompt = (
-        "Sen O'zbekiston onlayn bozori (Bozorliii/Bozorliii) uchun vizual qidiruv AI sanaysan. "
-        "To'liq komplekt/kostyum rasmda HAR BIR alohida parchani ajrat (Taobao): kurtka, ichki ko'ylak/sviter, "
-        "shim, kamar (ko'rinsa), oyoq kiyim, sumka. Yuz, fon, qo'l — item emas. "
-        "Har bir bbox faqat o'sha parchaning chegarasida; rang — aynan shu parchadagi asosiy rang. "
-        "label_uz — qisqa o'zbekcha (Kurtka, Sviter, Shim, Krossovka, Kamar). "
-        "category — INGLIZCHA slug: shoes | jacket | pants | shirt | top | dress | belt | bag. "
-        "Sviter/xudi/futbolka → top yoki shirt; krossovka/tufli → shoes. "
-        "color — MAJBURIY o'zbekcha: sariq, qora, oq, ko'k, qizil, yashil, bej, jigarrang, kulrang. "
-        "search_query — rang + jins + buyum (masalan: 'qora erkak kurtka', 'oq sport krossovka'). "
-        "bbox: 0-1 normal (x,y yuqori chap, w,h). Maksimum 6 ta item — ko'rinadigan hammasi alohida. "
-        'Faqat JSON: {"items":[{"id":"1","label_uz":"Svitch","category":"top","color":"sariq",'
-        '"material":"poliester","search_query":"sariq ayol sport sviter","bbox":{"x":0.1,"y":0.1,"w":0.5,"h":0.35}}]}'
+_OUTFIT_HEURISTIC_LABELS = frozenset({"Kurtka", "Sviter / ko'ylak", "Yuqori kiyim", "Shim", "Oyoq kiyim"})
+
+# Taobao-style: query vector from crop pixels only — no label/category/color text in embedding hint
+PURE_VISUAL_SEARCH_HINT = "visual product image patch similarity"
+
+_CATEGORY_LABEL_UZ: dict[str, str] = {
+    "shoes": "Oyoq kiyim",
+    "jacket": "Kurtka",
+    "pants": "Shim",
+    "shirt": "Ko'ylak",
+    "top": "Yuqori kiyim",
+    "dress": "Libos",
+    "belt": "Kamar",
+    "bag": "Sumka",
+}
+
+
+def _silhouette_looks_like_standing_person(person: dict[str, float]) -> bool:
+    """Odam tik turgan — baland va tor; tufli/quti kadr — keng va past."""
+    aspect = float(person["w"]) / max(float(person["h"]), 0.01)
+    return float(person["h"]) >= 0.48 and aspect <= 0.62
+
+
+def _looks_like_outfit_photo(pil: Image.Image) -> bool:
+    if not is_outfit_portrait_photo(pil):
+        return False
+    person = estimate_person_silhouette_bbox(pil)
+    standing = _silhouette_looks_like_standing_person(person)
+    cx = person["x"] + person["w"] / 2
+    centered = (
+        float(person["h"]) >= 0.50
+        and float(person["y"]) <= 0.18
+        and 0.28 <= cx <= 0.72
     )
+    if not standing and not centered:
+        return False
+    upper = {
+        "x": person["x"],
+        "y": person["y"],
+        "w": person["w"],
+        "h": min(float(person["h"]) * 0.38, 0.34),
+    }
+    return _skin_ratio_in_bbox(pil, upper) >= 0.03
+
+
+def _looks_like_product_photo(pil: Image.Image) -> bool:
+    """Tovar foto: bitta buyum, odam emas — portret yoki landshaft."""
+    if _looks_like_outfit_photo(pil) or has_wearable_person(pil):
+        return False
+    w, h = pil.size
+    if w <= 0 or h <= 0:
+        return False
+    if h / w < 1.12:
+        return True
+    person = estimate_person_silhouette_bbox(pil)
+    aspect = float(person["w"]) / max(float(person["h"]), 0.01)
+    if aspect >= 0.62 or float(person["h"]) < 0.42:
+        return True
+    if not _silhouette_looks_like_standing_person(person):
+        return True
+    return _skin_ratio_in_bbox(pil, person) < 0.025
+
+
+def _should_collapse_product_fragments(pil: Image.Image, detections: list[dict[str, Any]]) -> bool:
+    """YOLOS tuflini 4 parchaga bo'lib yuborsa — bitta tovar qidiruviga qayt."""
+    if len(detections) < 2 or _looks_like_outfit_photo(pil):
+        return False
+    categories = {str(d.get("category") or d.get("id") or "") for d in detections}
+    if not categories <= {"shoes", "bag", "product"}:
+        return False
+    areas = [
+        float((d.get("bbox") or {}).get("w") or 0) * float((d.get("bbox") or {}).get("h") or 0)
+        for d in detections
+    ]
+    return bool(areas) and max(areas) < 0.40
+
+
+def _is_default_outfit_heuristic(items: list[dict[str, Any]]) -> bool:
+    if len(items) != 4:
+        return False
+    labels = {str(item.get("label_uz") or "") for item in items}
+    return labels == _OUTFIT_HEURISTIC_LABELS
+
+
+def _category_label_uz(category: str) -> str:
+    return _CATEGORY_LABEL_UZ.get(category, "Mahsulot")
+
+
+async def _groq_outfit_detections(
+    pil: Image.Image,
+    vision_raw: bytes,
+    groq: GroqClient,
+    settings_prompt: str,
+) -> list[dict[str, Any]]:
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if not settings.groq_api_key:
+        return []
+    try:
+        payload = await groq.chat_json(
+            system_prompt=(
+                "Fashion/product object detector for Uzbek marketplace. "
+                "Output valid JSON only. category must be English slug."
+            ),
+            user_prompt=settings_prompt,
+            vision=True,
+            image_bytes=vision_raw,
+            image_mime=_guess_mime(vision_raw),
+        )
+        items = payload.get("items") if isinstance(payload, dict) else None
+        if not isinstance(items, list) or not items:
+            return []
+        normalized = [_normalize_detection(item, index) for index, item in enumerate(items[:6])]
+        return refine_outfit_detections(pil, normalized)
+    except Exception as exc:
+        logger.warning("outfit_detect_groq_failed", error=str(exc))
+        return []
+
+
+def _pil_to_jpeg_bytes(pil: Image.Image, *, quality: int = 88) -> bytes:
+    buf = io.BytesIO()
+    pil.save(buf, format="JPEG", quality=quality)
+    return buf.getvalue()
+
+
+async def _detect_panel_outfit(panel_raw: bytes, panel_pil: Image.Image) -> list[dict[str, Any]]:
+    """Bitta panel ichida lokal koordinatalarda kiyim slotlari."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    fallback = _local_fallback_from_bytes(panel_raw, panel_pil)
+    color_raw = str(fallback.get("color") or "")
+    color = (
+        normalize_color_uz(color_raw.replace("#", ""))
+        if color_raw.startswith("#")
+        else normalize_color_uz(color_raw)
+    )
+    body_slots = build_body_part_detections(
+        panel_pil,
+        color=color or None,
+        material=fallback.get("material"),
+    )
+    if (settings.fashion_detect_backend or "yolos").lower() == "yolos":
+        from app.infrastructure.ai_clients.yolos_fashion_detect import detect_fashion_garments
+
+        yolos_slots = await detect_fashion_garments(panel_raw)
+        detections = merge_fashion_slots(yolos_slots, body_slots)
+    else:
+        detections = body_slots
+    return filter_sky_detections(panel_pil, detections)
+
+
+def _panel_product_detection(
+    panel: ImagePanel,
+    pil: Image.Image,
+    panel_pil: Image.Image,
+    panel_raw: bytes,
+    *,
+    det_id: str = "product",
+) -> dict[str, Any]:
+    fallback = _local_fallback_from_bytes(panel_raw, panel_pil)
+    color_raw = str(fallback.get("color") or "")
+    color = (
+        normalize_color_uz(color_raw.replace("#", ""))
+        if color_raw.startswith("#")
+        else normalize_color_uz(color_raw)
+    )
+    category = "shoes"
+    label = "Oyoq kiyim"
+    if panel_pil.size[0] > 0 and panel_pil.size[1] / panel_pil.size[0] < 1.05:
+        category = "shoes"
+    search_query = f"{color or ''} {label}".strip() or label
+    return {
+        "id": det_id,
+        "label_uz": "visual",
+        "category": category,
+        "color": color or None,
+        "material": fallback.get("material"),
+        "search_query": search_query,
+        "bbox": panel_product_bbox(panel, pil),
+        "panel": True,
+        "product_panel": True,
+    }
+
+
+def _dedupe_collage_slots(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Har slot uchun eng katta bbox — kollajda dublikat id'larni tozalash."""
+    if len(items) < 2:
+        return items
+    by_key: dict[str, dict[str, Any]] = {}
+    for item in items:
+        key = str(item.get("id") or item.get("slot") or "")
+        if not key:
+            continue
+        if key not in by_key:
+            by_key[key] = item
+            continue
+        prev = by_key[key]
+        prev_area = _bbox_area(prev.get("bbox") or {})
+        cur_area = _bbox_area(item.get("bbox") or {})
+        if item.get("product_panel"):
+            by_key[key] = item
+        elif not prev.get("product_panel") and cur_area > prev_area:
+            by_key[key] = item
+    order = ("product", "top", "jacket", "pants", "shoes", "bag", "dress")
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for key in order:
+        if key in by_key and key not in seen:
+            out.append(by_key[key])
+            seen.add(key)
+    for key, item in by_key.items():
+        if key not in seen:
+            out.append(item)
+            seen.add(key)
+    return out[:6]
+
+
+async def _detect_collage_items(
+    raw: bytes,
+    pil: Image.Image,
+    panels: list[ImagePanel],
+) -> list[dict[str, Any]]:
+    """Vertikal kollaj: har panel alohida — koordinata drift yo'q."""
+    all_dets: list[dict[str, Any]] = []
+    product_count = 0
+
+    for idx, panel in enumerate(panels):
+        panel_pil = crop_panel(pil, panel)
+        if panel_pil.size[0] < 24 or panel_pil.size[1] < 24:
+            continue
+        panel_raw = _pil_to_jpeg_bytes(panel_pil)
+
+        is_product = _looks_like_product_photo(panel_pil) and not _looks_like_outfit_photo(panel_pil)
+        is_outfit = _looks_like_outfit_photo(panel_pil)
+
+        if is_product:
+            product_count += 1
+            det_id = "product" if product_count == 1 else f"product_{idx}"
+            all_dets.append(_panel_product_detection(panel, pil, panel_pil, panel_raw, det_id=det_id))
+            continue
+
+        if is_outfit or is_outfit_portrait_photo(panel_pil):
+            panel_dets = await _detect_panel_outfit(panel_raw, panel_pil)
+            if panel_dets:
+                all_dets.extend(map_detections_to_global(panel, panel_dets))
+            continue
+
+        if panel_pil.size[1] / max(panel_pil.size[0], 1) >= 1.05:
+            panel_dets = await _detect_panel_outfit(panel_raw, panel_pil)
+            if panel_dets:
+                all_dets.extend(map_detections_to_global(panel, panel_dets))
+                continue
+
+        if _looks_like_product_photo(panel_pil):
+            all_dets.append(
+                _panel_product_detection(panel, pil, panel_pil, panel_raw, det_id=f"product_{idx}")
+            )
+
+    merged = _dedupe_collage_slots(all_dets)
+    if merged:
+        for item in merged:
+            item["label_uz"] = "visual"
+        logger.info("collage_panel_detect", panels=len(panels), items=len(merged))
+    return merged
+
+
+async def detect_outfit_items(raw: bytes) -> list[dict[str, Any]]:
+    """Taobao-style detection for outfit photos and single product shots."""
+    pil = Image.open(io.BytesIO(raw)).convert("RGB")
+    panels = find_vertical_panels(pil)
+    if len(panels) >= 2:
+        collage_items = await _detect_collage_items(raw, pil, panels)
+        if collage_items:
+            return collage_items
+
+    vision_raw = _downscale_image_bytes(raw, max_edge=768)
     groq = GroqClient()
     from app.core.config import get_settings
 
     settings = get_settings()
-    if settings.groq_api_key:
-        try:
-            payload = await groq.chat_json(
-                system_prompt=(
-                    "Fashion object detector for Uzbek marketplace. "
-                    "Output valid JSON only. category must be English slug."
-                ),
-                user_prompt=settings_prompt,
-                vision=True,
-                image_bytes=vision_raw,
-                image_mime=_guess_mime(vision_raw),
+
+    if _looks_like_outfit_photo(pil) or has_wearable_person(pil):
+        fallback = _local_fallback_from_bytes(raw, pil)
+        color_raw = str(fallback.get("color") or "")
+        color = (
+            normalize_color_uz(color_raw.replace("#", ""))
+            if color_raw.startswith("#")
+            else normalize_color_uz(color_raw)
+        )
+
+        body_slots = build_body_part_detections(
+            pil,
+            color=color or None,
+            material=fallback.get("material"),
+        )
+        detections: list[dict[str, Any]] = []
+        if (settings.fashion_detect_backend or "yolos").lower() == "yolos":
+            from app.infrastructure.ai_clients.yolos_fashion_detect import detect_fashion_garments
+
+            yolos_slots = await detect_fashion_garments(raw)
+            detections = merge_fashion_slots(yolos_slots, body_slots)
+        else:
+            detections = body_slots
+
+        detections = filter_sky_detections(pil, detections)
+
+        if detections:
+            settings_prompt = (
+                "Bu rasm odam kiyimi. Har bir kiyim uchun rang va category aniqlang. "
+                "Faqat JSON: {\"items\":["
+                "{\"category\":\"top\",\"color\":\"qora\",\"search_query\":\"qora futbolka\"},"
+                "{\"category\":\"pants\",\"color\":\"kulrang\",\"search_query\":\"kulrang shim\"},"
+                "{\"category\":\"shoes\",\"color\":\"oq\",\"search_query\":\"oq krossovka\"}"
+                "]}"
             )
-            items = payload.get("items") if isinstance(payload, dict) else None
-            if isinstance(items, list) and items:
-                normalized = [_normalize_detection(item, index) for index, item in enumerate(items[:6])]
-                return _resolve_bbox_overlaps(normalized)
-        except Exception as exc:
-            logger.warning("outfit_detect_groq_failed", error=str(exc))
+            groq_meta = await _groq_outfit_detections(pil, vision_raw, groq, settings_prompt)
+            merged = merge_groq_metadata(detections, groq_meta)
+            for item in merged:
+                item["label_uz"] = "visual"
+            return merged
+
+    settings_prompt = (
+        "Sen O'zbekiston onlayn bozori (Bozorliii) uchun vizual qidiruv AI sanaysan. "
+        "Avval rasm turini aniqlang: (A) odam kiyimi/komplekt yoki (B) bitta mahsulot (tovar) foto. "
+        "B bo'lsa — FAQAT 1 ta item qaytaring; bbox butun mahsulotni qamrab olsin (taxminan x:0.05,y:0.05,w:0.9,h:0.9). "
+        "A bo'lsa — har bir kiyim parchasini alohida ajrat (Taobao): kurtka, sviter/ko'ylak, shim, oyoq kiyim, sumka. "
+        "bbox FAQAT kiyim matosini qamrasin — tor va aniq; fon, daraxt, osmon, yuz, quti, qo'l KIRMASIN. "
+        "Odam markazida qoling — chetdagi fonni tanlamang. "
+        "Yuz, fon, quti, qo'l — item emas. "
+        "label_uz — qisqa o'zbekcha (Kurtka, Tufli, Krossovka, Shim). "
+        "category — INGLIZCHA slug: shoes | jacket | pants | shirt | top | dress | belt | bag. "
+        "Tufli/krossovka/bot → shoes. Sviter/futbolka → top yoki shirt. "
+        "color — MAJBURIY o'zbekcha: sariq, qora, oq, ko'k, qizil, yashil, bej, jigarrang, kulrang. "
+        "search_query — rang + buyum (masalan: 'pushti ayol tufli', 'qora sport krossovka'). "
+        "bbox: 0-1 normal (x,y yuqori chap, w,h). Maksimum 6 ta item. "
+        'Faqat JSON: {"items":[{"id":"1","label_uz":"Tufli","category":"shoes","color":"pushti",'
+        '"material":"mato","search_query":"pushti ayol tufli","bbox":{"x":0.1,"y":0.15,"w":0.8,"h":0.7}}]}'
+    )
+    normalized = await _groq_outfit_detections(pil, vision_raw, groq, settings_prompt)
+    if normalized:
+        normalized = _resolve_bbox_overlaps(normalized)
+
+    if normalized and not (_looks_like_product_photo(pil) and _is_default_outfit_heuristic(normalized)):
+        return normalized
+
+    if settings.groq_api_key:
+        product_items = await _detect_product_only_items(vision_raw, groq)
+        if product_items:
+            return product_items
+
+    if _looks_like_product_photo(pil):
+        single = await _heuristic_single_product_detection(raw, pil)
+        if single:
+            return single
+
+    if normalized:
+        return normalized
+
+    if has_wearable_person(pil):
+        fallback = _local_fallback_from_bytes(raw, pil)
+        color_raw = str(fallback.get("color") or "")
+        color = (
+            normalize_color_uz(color_raw.replace("#", ""))
+            if color_raw.startswith("#")
+            else normalize_color_uz(color_raw)
+        )
+        slots = filter_sky_detections(
+            pil,
+            build_body_part_detections(pil, color=color or None, material=fallback.get("material")),
+        )
+        if slots:
+            for item in slots:
+                item["label_uz"] = "visual"
+            return slots
 
     return _heuristic_zone_detections(raw)
+
+
+async def _detect_product_only_items(vision_raw: bytes, groq: GroqClient) -> list[dict[str, Any]]:
+    prompt = (
+        "Bu rasm bitta mahsulot (tovar) fotosurati. Odamlar yoki to'liq kiyim komplekti emas. "
+        "Faqat 1 ta asosiy mahsulotni aniqlang (oyoq kiyim, kurtka, sumka va h.k.). "
+        "bbox butun mahsulotni qamrab olsin. "
+        'JSON: {"items":[{"id":"1","label_uz":"Tufli","category":"shoes","color":"pushti",'
+        '"search_query":"pushti ayol tufli","bbox":{"x":0.05,"y":0.05,"w":0.9,"h":0.9}}]}'
+    )
+    try:
+        payload = await groq.chat_json(
+            system_prompt="Product photo detector. JSON only.",
+            user_prompt=prompt,
+            vision=True,
+            image_bytes=vision_raw,
+            image_mime=_guess_mime(vision_raw),
+        )
+        items = payload.get("items") if isinstance(payload, dict) else None
+        if isinstance(items, list) and items:
+            normalized = [_normalize_detection(item, index) for index, item in enumerate(items[:1])]
+            return _resolve_bbox_overlaps(normalized)
+    except Exception as exc:
+        logger.warning("product_detect_groq_failed", error=str(exc))
+    return []
+
+
+async def _heuristic_single_product_detection(raw: bytes, pil: Image.Image) -> list[dict[str, Any]]:
+    fallback = _local_fallback_from_bytes(raw, pil)
+    color_raw = str(fallback.get("color") or "")
+    color = normalize_color_uz(color_raw.replace("#", "")) if color_raw.startswith("#") else normalize_color_uz(color_raw)
+    category = "shoes"
+    label = "Mahsulot"
+    try:
+        vision = await GeminiClient().extract_attributes(raw)
+        cat_hint = str(vision.get("category") or "")
+        category = normalize_visual_category(label_uz=cat_hint, category=cat_hint)
+        label = _category_label_uz(category)
+        vision_color = normalize_color_uz(str(vision.get("color") or ""))
+        if vision_color:
+            color = vision_color
+    except Exception as exc:
+        logger.warning("single_product_vision_failed", error=str(exc))
+
+    search_query = f"{color or ''} {label}".strip() or label
+    return [
+        {
+            "id": "1",
+            "label_uz": label,
+            "category": category,
+            "color": color,
+            "material": fallback.get("material"),
+            "search_query": search_query,
+            "bbox": {"x": 0.05, "y": 0.05, "w": 0.9, "h": 0.9},
+        }
+    ]
 
 
 def _normalize_detection(item: dict[str, Any], index: int) -> dict[str, Any]:
@@ -124,28 +539,22 @@ def _normalize_detection(item: dict[str, Any], index: int) -> dict[str, Any]:
 
 
 def _heuristic_zone_detections(raw: bytes) -> list[dict[str, Any]]:
-    """Fallback: upper / middle / lower body zones (common outfit photo layout)."""
-    fallback = _local_fallback_from_bytes(raw)
+    """Fallback: body zones anchored on the person column."""
+    pil = Image.open(io.BytesIO(raw)).convert("RGB")
+    fallback = _local_fallback_from_bytes(raw, pil)
     color = fallback.get("color") or ""
-    zones = [
-        ("Kurtka", "jacket", {"x": 0.08, "y": 0.05, "w": 0.84, "h": 0.28}),
-        ("Sviter / ko'ylak", "top", {"x": 0.12, "y": 0.2, "w": 0.76, "h": 0.2}),
-        ("Shim", "pants", {"x": 0.1, "y": 0.42, "w": 0.8, "h": 0.26}),
-        ("Oyoq kiyim", "shoes", {"x": 0.12, "y": 0.7, "w": 0.76, "h": 0.26}),
-    ]
-    items = [
-        {
-            "id": str(i + 1),
-            "label_uz": label,
-            "category": cat,
-            "color": color.replace("#", "") if color.startswith("#") else color,
-            "material": fallback.get("material"),
-            "search_query": f"{color} {label}".strip(),
-            "bbox": bbox,
-        }
-        for i, (label, cat, bbox) in enumerate(zones)
-    ]
-    return _resolve_bbox_overlaps(items)
+    color_s = color.replace("#", "") if str(color).startswith("#") else str(color)
+    from app.application.visual_search.bbox_refine import estimate_subject_column
+
+    cx, sw = estimate_subject_column(pil)
+    items = person_heuristic_zones(
+        center_x=cx,
+        subject_w=sw,
+        color=color_s or None,
+        material=fallback.get("material"),
+        pil=pil,
+    )
+    return filter_sky_detections(pil, _resolve_bbox_overlaps(items))
 
 
 def _attributes_to_query(attrs: dict[str, Any]) -> str:
@@ -160,6 +569,17 @@ def _clamp01(value: float) -> float:
 
 def _bbox_area(bbox: dict[str, float]) -> float:
     return float(bbox["w"]) * float(bbox["h"])
+
+
+def _filter_visual_detections(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for det in detections:
+        if str(det.get("id")) == "whole":
+            continue
+        if is_invalid_outfit_bbox(det.get("bbox")):
+            continue
+        out.append(det)
+    return out[:6]
 
 
 def _bbox_iou(a: dict[str, float], b: dict[str, float]) -> float:
@@ -216,17 +636,19 @@ def _resolve_bbox_overlaps(items: list[dict[str, Any]], *, min_gap: float = 0.01
                 else:
                     s["x"] = min(1.0 - s["w"], l["x"] + l["w"] + min_gap)
 
-            boxes[smaller] = {
-                "x": _clamp01(s["x"]),
-                "y": _clamp01(s["y"]),
-                "w": _clamp01(s["w"]),
-                "h": _clamp01(s["h"]),
-            }
+            boxes[smaller] = clamp_bbox_in_frame(
+                {
+                    "x": _clamp01(s["x"]),
+                    "y": _clamp01(s["y"]),
+                    "w": _clamp01(s["w"]),
+                    "h": _clamp01(s["h"]),
+                }
+            )
 
     resolved: list[dict[str, Any]] = []
     for item, bbox in zip(items, boxes):
         merged = dict(item)
-        merged["bbox"] = bbox
+        merged["bbox"] = clamp_bbox_in_frame(bbox)
         resolved.append(merged)
     return resolved
 
@@ -284,6 +706,42 @@ def thumbnail_data_url(pil: Image.Image) -> str:
     thumb.save(buf, format="JPEG", quality=85)
     b64 = base64.b64encode(buf.getvalue()).decode("ascii")
     return f"data:image/jpeg;base64,{b64}"
+
+
+def refine_crop_data_url(pil: Image.Image) -> str:
+    """High-res crop for refine API — Taobao sends full region, not tiny thumb."""
+    thumb = prepare_taobao_crop(pil)
+    thumb.thumbnail((512, 512))
+    buf = io.BytesIO()
+    thumb.save(buf, format="JPEG", quality=88)
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{b64}"
+
+
+def _maybe_add_whole_image_slot(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Taobao: 'search entire image' alongside region chips."""
+    if not detections or any(str(d.get("id")) == "whole" for d in detections):
+        return detections
+    if len(detections) == 1:
+        bbox = detections[0].get("bbox") or {}
+        if _bbox_area(bbox) >= 0.72:
+            return detections
+    primary = detections[0]
+    color = primary.get("color")
+    label = str(primary.get("label_uz") or "Mahsulot")
+    category = str(primary.get("category") or "top")
+    query = str(primary.get("search_query") or label).strip()
+    whole = {
+        "id": "whole",
+        "label_uz": "Butun rasm",
+        "category": category,
+        "color": color,
+        "material": primary.get("material"),
+        "search_query": query or "rasm bo'yicha mahsulot",
+        "bbox": {"x": 0.02, "y": 0.02, "w": 0.96, "h": 0.96},
+        "loose_slot": True,
+    }
+    return [whole, *detections]
 
 
 def _fuse_taobao_rank(
@@ -393,7 +851,7 @@ def _filter_slot_products(rows: list[dict[str, Any]], filters: dict[str, Any]) -
         if keywords:
             if any(kw in hay for kw in keywords):
                 matched.append(row)
-            elif int(row.get("visual_match_pct") or 0) >= 52 and row.get("visual_match"):
+            elif int(row.get("visual_match_pct") or 0) >= 38 and row.get("visual_match"):
                 if not any(bad in hay for bad in hard_block):
                     matched.append(row)
         elif not strict:
@@ -402,10 +860,19 @@ def _filter_slot_products(rows: list[dict[str, Any]], filters: dict[str, Any]) -
     if not matched and rows and strict:
         # Vizual o'xshashlik yuqori — slot kalit so'zisiz ham (Taobao crop match)
         for row in rows:
-            if int(row.get("visual_match_pct") or 0) >= 58 and row.get("visual_match"):
+            pct = int(row.get("visual_match_pct") or 0)
+            if row.get("visual_match") and pct >= 38:
                 hay = _product_blob(row)
                 if not any(bad in hay for bad in hard_block + exclude):
                     matched.append(row)
+
+    if not matched and rows and not strict:
+        for row in rows:
+            hay = _product_blob(row)
+            if any(bad in hay for bad in hard_block + exclude):
+                continue
+            matched.append(row)
+        matched = matched[: max(8, len(rows))]
 
     return matched
 
@@ -414,17 +881,28 @@ def _rank_visual_products(rows: list[dict[str, Any]], filters: dict[str, Any]) -
     color_terms = [t.lower() for t in (filters.get("color_terms") or color_search_terms(filters.get("color")))]
     exclude = [str(p).lower() for p in (filters.get("exclude_name_patterns") or []) if len(str(p)) >= 3]
 
+    slot_keywords = [str(k).lower() for k in (filters.get("slot_category_keywords") or []) if str(k).strip()]
+
     def score(row: dict[str, Any]) -> int:
-        hay = f"{row.get('name', '')} {row.get('description', '')}".lower()
+        hay = _product_blob(row)
         pts = int(row.get("visual_match_pct") or 0)
+        if pts >= 70:
+            pts += 15
+        elif pts >= 55:
+            pts += 6
         for term in color_terms:
             if term in hay:
-                pts += 12
+                pts += 14
+        for kw in slot_keywords:
+            if kw in hay:
+                pts += 18
         for bad in exclude:
             if bad in hay:
-                pts -= 25
+                pts -= 28
         if row.get("is_fallback"):
-            pts -= 2
+            pts -= 8
+        if row.get("is_featured"):
+            pts += 4
         return pts
 
     return sorted(rows, key=score, reverse=True)
@@ -462,6 +940,60 @@ async def _products_from_matches(
     return products
 
 
+def _rank_pure_visual(rows: list[dict[str, Any]], *, strict: bool = True) -> list[dict[str, Any]]:
+    """Image-to-image only — sort by visual_match_pct."""
+    from app.application.visual_search.visual_search_engine import (
+        MIN_OUTFIT_MATCH_PCT,
+        MIN_PRODUCT_MATCH_PCT,
+        _is_trusted_match,
+    )
+
+    min_pct = MIN_OUTFIT_MATCH_PCT if strict else MIN_PRODUCT_MATCH_PCT
+    trusted = [r for r in rows if _is_trusted_match(r)]
+    rest = [r for r in rows if r not in trusted]
+    strong = [r for r in rest if int(r.get("visual_match_pct") or 0) >= min_pct]
+    pool = trusted + (strong if strong else (rest[:6] if not strict else trusted))
+    return sorted(
+        pool,
+        key=lambda row: (
+            1 if row.get("visual_match") else 0,
+            int(row.get("visual_match_pct") or 0),
+        ),
+        reverse=True,
+    )
+
+
+async def _resolve_pure_visual_matches(
+    product_repo: ProductRepo,
+    marketplace_repo: MarketplaceRepository,
+    *,
+    crop_bytes: bytes,
+    limit: int,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    strict: bool = True,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Taobao core: crop → visual ANN → rank by similarity. No text/slot/keyword."""
+    if not crop_bytes:
+        return [], True
+    try:
+        rows = await taobao_search_by_crop(
+            product_repo,
+            marketplace_repo,
+            crop_bytes,
+            limit=limit,
+            min_price=min_price,
+            max_price=max_price,
+            search_hint=PURE_VISUAL_SEARCH_HINT,
+            fast=True,
+            strict=strict,
+        )
+        return _rank_pure_visual(rows, strict=strict)[:limit], True
+    except Exception as exc:
+        logger.warning("pure_visual_search_failed", error=str(exc))
+        return [], True
+
+
 async def _resolve_visual_matches_fast(
     product_repo: ProductRepo,
     marketplace_repo: MarketplaceRepository,
@@ -473,6 +1005,18 @@ async def _resolve_visual_matches_fast(
     crop_bytes: bytes | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Fast path: parallel crop visual + keyword slot — no OpenAI embed / hybrid."""
+    if filters.get("image_only_search") and crop_bytes:
+        strict = False
+        return await _resolve_pure_visual_matches(
+            product_repo,
+            marketplace_repo,
+            crop_bytes=crop_bytes,
+            limit=limit,
+            min_price=float(filters["min_price"]) if filters.get("min_price") is not None else None,
+            max_price=float(filters["max_price"]) if filters.get("max_price") is not None else None,
+            strict=strict,
+        )
+
     strict_filters = filters if filters.get("strict_slot") else build_strict_slot_filters(
         det=det, vision=vision, intent_text=str(filters.get("text") or "")
     )
@@ -523,10 +1067,46 @@ async def _resolve_visual_matches_fast(
         strict_filters,
     )
 
+    if visual_filtered and keyword_filtered:
+        fused = _fuse_taobao_rank(visual_filtered, keyword_filtered, limit=limit)
+        return fused, True
     if visual_filtered:
         return visual_filtered[:limit], True
     if keyword_filtered:
         return keyword_filtered[:limit], False
+
+    # Matn vektor zaxirasi — katalogda visual_embedding bo'lmasa ham topadi
+    try:
+        from app.infrastructure.ai_clients.embedding import EmbeddingClient
+
+        embedder = EmbeddingClient()
+        vector = await embedder.embed(hint)
+        loose_filters = {**strict_filters, "strict_slot": False}
+        text_matches = await product_repo.hybrid_search(
+            vector,
+            loose_filters,
+            limit=limit,
+            min_price=float(min_p) if min_p is not None else None,
+            max_price=float(max_p) if max_p is not None else None,
+        )
+        text_rows = await _products_from_matches(marketplace_repo, text_matches)
+        text_ranked = _prefer_color_aligned(
+            _filter_slot_products(_rank_visual_products(text_rows, loose_filters), loose_filters),
+            loose_filters,
+        )
+        if text_ranked:
+            for row in text_ranked:
+                row["match_mode"] = row.get("match_mode") or "text"
+            return text_ranked[:limit], False
+    except Exception as exc:
+        logger.warning("visual_text_fallback_failed", error=str(exc))
+
+    # Vizual qatorlar filtrdan o'tmagan bo'lsa ham — eng yaqin rasmlar
+    if visual_rows:
+        loose = [r for r in _rank_visual_products(visual_rows, strict_filters) if r]
+        if loose:
+            return loose[:limit], True
+
     return [], True
 
 
@@ -775,26 +1355,59 @@ async def search_look_from_text(
     }
 
 
-def _fast_assistant_text(detected_payloads: list[dict[str, Any]]) -> str:
-    """Per-slot summary — avoids mixing kamar + kurtka + random fallback names."""
+def _fast_assistant_text(
+    detected_payloads: list[dict[str, Any]],
+    *,
+    flat_items: list[dict[str, Any]] | None = None,
+) -> str:
+    """Vizual moslik xulosasi — mahsulot nomlari ko'rsatilmaydi (faqat rasm→rasm)."""
     if not detected_payloads:
-        return "Bazada mos mahsulot topilmadi. Boshqa rasm yoki matn bilan qidiring."
+        if flat_items:
+            top_pct = int(flat_items[0].get("visual_match_pct") or 0)
+            return (
+                f"{len(flat_items)} ta vizual mos rasm"
+                + (f" (eng yuqori {top_pct}%)" if top_pct else "")
+            )
+        return "Bazada vizual mos mahsulot topilmadi. Boshqa rasm sinab ko'ring."
 
     parts: list[str] = []
     for block in detected_payloads:
         prods = block.get("products") or []
         if not prods:
             continue
-        label = str(block.get("label_uz") or "Buyum")
-        names = [str(p.get("name") or "").strip() for p in prods[:2] if p.get("name")]
-        if names:
-            parts.append(f"{label} ({len(prods)}): {', '.join(names)}")
-        else:
-            parts.append(f"{label} — {len(prods)} ta")
+        top_pct = int(prods[0].get("visual_match_pct") or 0)
+        parts.append(f"{len(prods)} ta vizual moslik" + (f" (≤{top_pct}%)" if top_pct else ""))
 
     if parts:
         return "Rasm bo'yicha topildi — " + " · ".join(parts)
-    return "Rasm tahlil qilindi. Nuqta yoki chip tanlab aniqroq qidiring."
+    return "Nuqta yoki ramka tanlang — faqat shu qism rasmi bo'yicha qidiriladi."
+
+
+def _synthetic_detection_payload(
+    *,
+    det_id: str,
+    pil: Image.Image,
+    products: list[dict[str, Any]],
+    bbox: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    box = bbox or {"x": 0.02, "y": 0.02, "w": 0.96, "h": 0.96}
+    raw_crop = crop_bbox(pil, box, padding=0.02)
+    clip_crop = prepare_taobao_crop(raw_crop)
+    return {
+        "id": det_id,
+        "label_uz": "visual",
+        "category": None,
+        "color": None,
+        "material": None,
+        "search_query": "",
+        "bbox": box,
+        "thumbnail_url": thumbnail_data_url(raw_crop),
+        "refine_crop_url": refine_crop_data_url(clip_crop),
+        "vision": None,
+        "products": products,
+        "total": len(products),
+        "is_fallback": False,
+    }
 
 
 async def search_outfit_from_image(
@@ -807,14 +1420,86 @@ async def search_outfit_from_image(
     fast: bool = True,
 ) -> dict[str, Any]:
     if fast:
-        max_items = min(max_items, 4)
-        limit_per_item = min(limit_per_item, 5)
+        max_items = min(max_items, 5)
+        limit_per_item = min(limit_per_item, 12)
 
     pil = Image.open(io.BytesIO(raw)).convert("RGB")
-    detections = (await detect_outfit_items(raw))[:max_items]
-    embedder = EmbeddingClient()
+    collage_panels = find_vertical_panels(pil)
+    is_collage = len(collage_panels) >= 2
     product_repo = ProductRepo(session)
     marketplace_repo = MarketplaceRepository(session)
+    if _looks_like_product_photo(pil) and not is_collage:
+        products = await taobao_search_by_crop(
+            product_repo,
+            marketplace_repo,
+            raw,
+            limit=limit_per_item,
+            search_hint=PURE_VISUAL_SEARCH_HINT,
+            fast=True,
+            strict=False,
+        )
+        chip = _synthetic_detection_payload(det_id="product", pil=pil, products=products)
+        assistant = _fast_assistant_text([chip], flat_items=products)
+        return {
+            "items": products,
+            "total": len(products),
+            "page": 1,
+            "vision": _local_fallback_from_bytes(raw, pil),
+            "query_label": "Rasm bo'yicha qidiruv",
+            "detected_items": [chip],
+            "primary_detection_id": "product",
+            "mode": "product_photo_fast",
+            "is_fallback": False,
+            "jonli_katalog_natijasi": build_jonli_katalog_natijasi(exact_items=products, vector_neighbors=products),
+            "assistant_text": assistant,
+            "selected_product_ids": [str(p["id"]) for p in products[:8] if p.get("id")],
+            "look_groups": [],
+            "look_intent": parse_look_intent(intent_text or ""),
+        }
+
+    detections = _maybe_add_whole_image_slot((await detect_outfit_items(raw))[:max_items])
+    outfit_slots = ("top", "jacket", "pants", "shoes", "product")
+    detections = [
+        d
+        for d in detections
+        if str(d.get("id") or d.get("slot") or "").startswith("product")
+        or str(d.get("id") or d.get("slot") or "") in outfit_slots
+    ][:max_items]
+    if not detections:
+        detections = _heuristic_zone_detections(raw)[:3]
+
+    if not is_collage and not has_wearable_person(pil) and (
+        _looks_like_product_photo(pil) or _should_collapse_product_fragments(pil, detections)
+    ):
+        products = await taobao_search_by_crop(
+            product_repo,
+            marketplace_repo,
+            raw,
+            limit=limit_per_item,
+            search_hint=PURE_VISUAL_SEARCH_HINT,
+            fast=True,
+            strict=False,
+        )
+        chip = _synthetic_detection_payload(det_id="product", pil=pil, products=products)
+        assistant = _fast_assistant_text([chip], flat_items=products)
+        return {
+            "items": products,
+            "total": len(products),
+            "page": 1,
+            "vision": _local_fallback_from_bytes(raw, pil),
+            "query_label": "Rasm bo'yicha qidiruv",
+            "detected_items": [chip],
+            "primary_detection_id": "product",
+            "mode": "product_photo_fast",
+            "is_fallback": False,
+            "jonli_katalog_natijasi": build_jonli_katalog_natijasi(exact_items=products, vector_neighbors=products),
+            "assistant_text": assistant,
+            "selected_product_ids": [str(p["id"]) for p in products[:8] if p.get("id")],
+            "look_groups": [],
+            "look_intent": parse_look_intent(intent_text or ""),
+        }
+
+    embedder = EmbeddingClient()
 
     detected_payloads: list[dict[str, Any]] = []
     flat_items: list[dict] = []
@@ -828,11 +1513,12 @@ async def search_outfit_from_image(
     async def _process_detection_with_session(det: dict[str, Any], item_session: AsyncSession) -> dict[str, Any]:
         item_product_repo = ProductRepo(item_session)
         item_marketplace_repo = MarketplaceRepository(item_session)
-        crop = crop_bbox(pil, det["bbox"])
-        det = _apply_crop_color_to_detection(det, crop)
+        raw_crop = crop_bbox(pil, det["bbox"], padding=0.02)
+        clip_crop = prepare_taobao_crop(raw_crop)
+        det = _apply_crop_color_to_detection(det, raw_crop)
         crop_bytes = io.BytesIO()
-        quality = 82 if fast else 88
-        crop.save(crop_bytes, format="JPEG", quality=quality)
+        quality = 86 if fast else 90
+        clip_crop.save(crop_bytes, format="JPEG", quality=quality)
         crop_raw = crop_bytes.getvalue()
 
         vision: dict[str, Any]
@@ -898,25 +1584,50 @@ async def search_outfit_from_image(
                 crop_bytes=crop_raw,
                 fast=False,
             )
-        products = _prefer_color_aligned(_filter_slot_products(products, filters), filters)
+        if filters.get("image_only_search"):
+            products = _rank_pure_visual(products, strict=str(det.get("id")) != "product")
+        else:
+            products = _prefer_color_aligned(products, filters)
+            if not products and crop_raw:
+                try:
+                    global_hits = await taobao_search_by_crop(
+                        item_product_repo,
+                        item_marketplace_repo,
+                        crop_raw,
+                        limit=limit_per_item,
+                        search_hint=PURE_VISUAL_SEARCH_HINT,
+                        fast=True,
+                    )
+                    products = _rank_pure_visual(global_hits, strict=False)
+                except Exception as exc:
+                    logger.warning("slot_global_visual_retry_failed", error=str(exc))
 
         return {
             "det": det,
-            "crop": crop,
+            "crop": clip_crop,
             "search_text": search_text,
             "vision": vision,
             "products": products,
             "used_vector": used_vector,
         }
 
-    processed = await asyncio.gather(*[_process_detection(det) for det in detections], return_exceptions=True)
+    if fast and len(detections) > 1:
+        processed: list[Any] = []
+        for det in detections:
+            try:
+                processed.append(await _process_detection(det))
+            except BaseException as exc:
+                processed.append(exc)
+    else:
+        processed = await asyncio.gather(*[_process_detection(det) for det in detections], return_exceptions=True)
 
     for result in processed:
         if isinstance(result, BaseException):
             logger.warning("outfit_item_process_failed", error=repr(result))
             continue
         det = result["det"]
-        crop = result["crop"]
+        clip_crop = result["crop"]
+        display_crop = crop_bbox(pil, det["bbox"], padding=0.02)
         search_text = result["search_text"]
         vision = result["vision"]
         products = result["products"]
@@ -931,13 +1642,14 @@ async def search_outfit_from_image(
         detected_payloads.append(
             {
                 "id": str(det["id"]),
-                "label_uz": det["label_uz"],
+                "label_uz": "visual",
                 "category": det.get("category"),
                 "color": det.get("color"),
                 "material": det.get("material"),
                 "search_query": search_text,
                 "bbox": det["bbox"],
-                "thumbnail_url": thumbnail_data_url(crop),
+                "thumbnail_url": thumbnail_data_url(display_crop),
+                "refine_crop_url": refine_crop_data_url(clip_crop),
                 "vision": vision if not fast else None,
                 "products": products,
                 "total": len(products),
@@ -945,8 +1657,7 @@ async def search_outfit_from_image(
             }
         )
 
-    # Global visual fallback only when detection found nothing — never mix random catalog into slots.
-    if not flat_items and not detected_payloads:
+    if not flat_items:
         global_rows = await taobao_search_by_crop(
             product_repo,
             marketplace_repo,
@@ -954,6 +1665,7 @@ async def search_outfit_from_image(
             limit=limit_per_item * max(2, max_items),
             search_hint=intent_text or "fashion outfit clothing photo",
             fast=fast,
+            strict=True,
         )
         for row in global_rows:
             pid = str(row["id"])
@@ -961,15 +1673,18 @@ async def search_outfit_from_image(
                 seen.add(pid)
                 flat_items.append(row)
 
+    if flat_items and not detected_payloads:
+        detected_payloads.append(_synthetic_detection_payload(det_id="full", pil=pil, products=flat_items[:limit_per_item]))
+
     primary_vision = detected_payloads[0]["vision"] if detected_payloads else _local_fallback_from_bytes(raw)
-    query_label = (intent_text or "").strip() or ", ".join(d["label_uz"] for d in detected_payloads) or "Rasm bo'yicha qidiruv"
+    query_label = (intent_text or "").strip() or "Rasm bo'yicha qidiruv"
     exact_only = [p for p in flat_items if not p.get("is_fallback")]
     jonli = build_jonli_katalog_natijasi(exact_items=exact_only, vector_neighbors=flat_items)
     look_intent = parse_look_intent(intent_text or query_label)
     _, budget_max = parse_budget_from_text(intent_text or "")
 
     if fast:
-        assistant_text = _fast_assistant_text(detected_payloads)
+        assistant_text = _fast_assistant_text(detected_payloads, flat_items=flat_items)
         primary_products = (detected_payloads[0].get("products") or []) if detected_payloads else flat_items
         selected_ids = [str(p["id"]) for p in primary_products[:8] if p.get("id")]
         look_groups: list[Any] = []
@@ -988,6 +1703,25 @@ async def search_outfit_from_image(
 
     display_items = _order_items_by_stylist_ids(flat_items, selected_ids)
 
+    def _block_best_pct(block: dict[str, Any]) -> int:
+        products = block.get("products") or []
+        if not products:
+            return 0
+        return max(int(p.get("visual_match_pct") or 0) for p in products)
+
+    detected_payloads = [b for b in detected_payloads if str(b.get("id")) != "whole"]
+    def _block_sort_key(block: dict[str, Any]) -> tuple[int, int, int, float]:
+        bid = str(block.get("id") or "")
+        id_rank = 4 if bid == "top" else 3 if bid == "pants" else 2 if bid == "shoes" else 1
+        bbox = block.get("bbox") or {}
+        y = float(bbox.get("y") or 0.5)
+        sky_penalty = -30 if y < 0.18 else (-8 if y < 0.22 else 0)
+        body_rank = 3 if 0.18 <= y < 0.52 else 0
+        return (_block_best_pct(block), id_rank + body_rank + sky_penalty, len(block.get("products") or []), -y)
+
+    detected_payloads = sorted(detected_payloads, key=_block_sort_key, reverse=True)
+    primary_detection_id = str(detected_payloads[0]["id"]) if detected_payloads else None
+
     return {
         "items": display_items[: limit_per_item * max_items],
         "total": len(display_items),
@@ -995,6 +1729,7 @@ async def search_outfit_from_image(
         "vision": primary_vision if not fast else {},
         "query_label": query_label,
         "detected_items": detected_payloads,
+        "primary_detection_id": primary_detection_id,
         "mode": "outfit_multi_fast" if fast else "outfit_multi",
         "is_fallback": bool(jonli.get("is_fallback")),
         "jonli_katalog_natijasi": jonli,
@@ -1031,117 +1766,32 @@ async def refine_visual_search_category(
     limit: int = 24,
     crop_base64: str | None = None,
 ) -> dict[str, Any]:
-    """Re-run search for one chip — image-first (Taobao), then text slot."""
+    """Chip qayta qidiruv — faqat crop rasm vizual mosligi (nom/kategoriya ishlatilmaydi)."""
+    _ = (search_query, color, material, intent_text, label_uz)
     category_slug = normalize_visual_category(label_uz=label_uz, category=category or "")
-    det = {
-        "label_uz": label_uz,
-        "category": category_slug,
-        "category_slug": category_slug,
-        "search_query": search_query,
-        "color": color,
-        "material": material,
-    }
-    embedder = EmbeddingClient()
     product_repo = ProductRepo(session)
     marketplace_repo = MarketplaceRepository(session)
 
     crop_bytes = _decode_crop_base64(crop_base64)
-    if crop_bytes:
-        try:
-            pil_crop = Image.open(io.BytesIO(crop_bytes)).convert("RGB")
-            det = _apply_crop_color_to_detection(det, pil_crop)
-            color = det.get("color")
-            search_query = str(det.get("search_query") or search_query)
-        except Exception as exc:
-            logger.warning("refine_crop_color_failed", error=str(exc))
+    if not crop_bytes:
+        return {
+            "products": [],
+            "total": 0,
+            "category": category_slug,
+            "selected_category": category_slug,
+            "label_uz": label_uz,
+            "is_fallback": False,
+            "match_mode": "visual",
+        }
 
-    if crop_bytes:
-        try:
-            hint = (search_query or "").strip() or label_uz
-            visual_hits = await taobao_search_by_crop(
-                product_repo,
-                marketplace_repo,
-                crop_bytes,
-                limit=limit,
-                min_price=float(min_price) if min_price is not None else None,
-                max_price=float(max_price) if max_price is not None else None,
-                search_hint=hint,
-                fast=True,
-            )
-            if visual_hits:
-                filters_pre = build_strict_slot_filters(
-                    det=det,
-                    vision={"color": det.get("color")},
-                    intent_text=intent_text,
-                    photo_mode=True,
-                )
-                ranked = _prefer_color_aligned(
-                    _filter_slot_products(_rank_visual_products(visual_hits, filters_pre), filters_pre),
-                    filters_pre,
-                )
-                if ranked:
-                    return {
-                        "products": ranked[:limit],
-                        "total": len(ranked[:limit]),
-                        "category": category_slug,
-                        "selected_category": category_slug,
-                        "label_uz": label_uz,
-                        "is_fallback": False,
-                        "match_mode": "visual",
-                    }
-        except Exception as exc:
-            logger.warning("refine_visual_crop_failed", error=str(exc))
-
-    search_text = (search_query or "").strip() or f"{color or ''} {label_uz}".strip() or label_uz
-    filters = build_strict_slot_filters(
-        det=det,
-        vision={"color": color, "material": material, "category": category_slug},
-        intent_text=intent_text,
-        photo_mode=True,
+    products, _ = await _resolve_pure_visual_matches(
+        product_repo,
+        marketplace_repo,
+        crop_bytes=crop_bytes,
+        limit=limit,
+        min_price=float(min_price) if min_price is not None else None,
+        max_price=float(max_price) if max_price is not None else None,
     )
-    filters["text"] = search_text
-    if min_price is not None:
-        filters["min_price"] = min_price
-    if max_price is not None:
-        filters["max_price"] = max_price
-
-    if crop_bytes:
-        products, used_vector = await _resolve_visual_matches(
-            product_repo,
-            marketplace_repo,
-            vector=[],
-            filters=filters,
-            vision={"color": color, "material": material, "category": category_slug},
-            det=det,
-            limit=limit,
-            crop_bytes=crop_bytes,
-            fast=True,
-        )
-    else:
-        vector = await embedder.embed(search_text)
-        products, used_vector = await _resolve_visual_matches(
-            product_repo,
-            marketplace_repo,
-            vector=vector,
-            filters=filters,
-            vision={"color": color, "material": material, "category": category_slug},
-            det=det,
-            limit=limit,
-            crop_bytes=None,
-            fast=False,
-        )
-    products = _prefer_color_aligned(_filter_slot_products(products, filters), filters)
-
-    if not products and filters.get("slot_key"):
-        kw_matches = await product_repo.keyword_slot_search(
-            filters,
-            limit=limit,
-            min_price=float(min_price) if min_price is not None else None,
-            max_price=float(max_price) if max_price is not None else None,
-        )
-        products = await _products_from_matches(marketplace_repo, kw_matches)
-        products = _prefer_color_aligned(_filter_slot_products(products, filters), filters)
-        used_vector = False
 
     return {
         "products": products,
@@ -1149,5 +1799,6 @@ async def refine_visual_search_category(
         "category": category_slug,
         "selected_category": category_slug,
         "label_uz": label_uz,
-        "is_fallback": used_vector,
+        "is_fallback": False,
+        "match_mode": "visual",
     }

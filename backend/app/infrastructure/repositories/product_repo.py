@@ -91,7 +91,13 @@ class ProductRepo:
             select(ProductModel)
             .options(selectinload(ProductModel.shop))
             .join(ShopModel, ShopModel.id == ProductModel.shop_id)
-            .where(ProductModel.is_available == True, ProductModel.embedding.is_not(None))
+            .where(
+                ProductModel.is_available == True,
+                ProductModel.embedding.is_not(None),
+                ShopModel.is_active.is_(True),
+                ShopModel.is_verified.is_(True),
+                ShopModel.is_blocked.is_(False),
+            )
         )
 
         clauses: list = []
@@ -226,6 +232,9 @@ class ProductRepo:
                 ProductModel.is_available == True,
                 ProductModel.embedding.is_not(None),
                 distance <= distance_cap,
+                ShopModel.is_active.is_(True),
+                ShopModel.is_verified.is_(True),
+                ShopModel.is_blocked.is_(False),
             ]
             if strict_slot:
                 _apply_strict_metadata_filters(clauses, meta)
@@ -302,7 +311,12 @@ class ProductRepo:
                 select(ProductModel)
                 .options(selectinload(ProductModel.shop))
                 .join(ShopModel, ShopModel.id == ProductModel.shop_id)
-                .where(ProductModel.is_available == True)
+                .where(
+                    ProductModel.is_available == True,
+                    ShopModel.is_active.is_(True),
+                    ShopModel.is_verified.is_(True),
+                    ShopModel.is_blocked.is_(False),
+                )
             )
             clauses: list = []
             if min_price is not None:
@@ -369,11 +383,11 @@ class ProductRepo:
             return self._rows_to_products(result.scalars().unique().all()[:limit])
 
         if image_only:
-            for cap in (max_cosine_distance, 0.72, 0.88):
+            for cap in (max_cosine_distance, 0.72, 0.88, 1.15):
                 rows = await _run(cap)
                 if rows:
                     return rows
-            return []
+            return await _run(1.35)
 
         # Legacy path: optional metadata filters (text-assisted visual)
         clauses = [
@@ -409,9 +423,13 @@ class ProductRepo:
         min_price: float | None = None,
         max_price: float | None = None,
         image_only: bool = True,
+        embed_sources: list[str] | None = None,
     ) -> list[tuple[Product, float]]:
         _ = image_only
         distance_expr = ProductModel.visual_embedding.cosine_distance(query_visual)
+        embed_src_col = ProductModel.attributes.op("->>")("visual_embed_source")
+
+        from sqlalchemy import or_
 
         async def _run(cap: float) -> list[tuple[Product, float]]:
             clauses: list = [
@@ -419,6 +437,15 @@ class ProductRepo:
                 ProductModel.visual_embedding.is_not(None),
                 distance_expr <= cap,
             ]
+            if embed_sources:
+                # Eski mahsulotlar (visual_embed_source yo'q) ham qidiruvda qatnashadi
+                clauses.append(
+                    or_(
+                        embed_src_col.in_(embed_sources),
+                        embed_src_col.is_(None),
+                        embed_src_col == "",
+                    )
+                )
             if min_price is not None:
                 clauses.append(ProductModel.price >= int(min_price))
             if max_price is not None:
@@ -438,11 +465,11 @@ class ProductRepo:
                     out.append((prod, float(dist)))
             return out
 
-        for cap in (max_cosine_distance, 0.78, 0.92):
+        for cap in (max_cosine_distance, 0.78, 0.92, 1.15):
             rows = await _run(cap)
             if rows:
                 return rows
-        return []
+        return await _run(1.35)
 
     def _rows_to_products(self, rows) -> list[Product]:
         products: list[Product] = []

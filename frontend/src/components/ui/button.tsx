@@ -10,9 +10,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-gradient-gold text-white shadow-gold hover:scale-[1.02] hover:shadow-hover hover:brightness-110 relative overflow-hidden",
+          "bg-gradient-electric text-white shadow-[0_4px_18px_rgba(0,102,255,0.38)] hover:scale-[1.02] hover:shadow-[0_8px_28px_rgba(0,102,255,0.45)] hover:brightness-105 relative overflow-hidden border-0",
         brand:
-          "checkout-cta bg-gradient-electric text-white shadow-[0_4px_16px_rgba(0,102,255,0.35)] hover:brightness-105 hover:shadow-[0_6px_20px_rgba(0,102,255,0.42)] relative overflow-hidden border-0",
+          "checkout-cta bg-gradient-electric text-white shadow-[0_4px_18px_rgba(0,102,255,0.38)] hover:brightness-105 hover:shadow-[0_8px_28px_rgba(0,102,255,0.45)] relative overflow-hidden border-0",
+        accent:
+          "bg-gradient-gold text-white shadow-gold hover:scale-[1.02] hover:shadow-hover hover:brightness-110 relative overflow-hidden border-0",
         secondary:
           "bg-white text-ink-900 border-2 border-border-default shadow-card hover:border-electric-500/40 hover:shadow-hover hover:bg-white active:bg-elevated",
         ghost: "bg-transparent text-ink-500 hover:text-ink-900 hover:bg-elevated active:bg-elevated",
@@ -49,7 +51,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isLoading || disabled}
         {...props}
       >
-        {(variant === "primary" || variant === "brand") && !isLoading && !disabled && (
+        {(variant === "primary" || variant === "brand" || variant === "accent") && !isLoading && !disabled && (
           <span
             aria-hidden
             className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent"

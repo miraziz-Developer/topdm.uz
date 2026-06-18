@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.core.config import get_settings
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.models import GlobalShopModel, ProductLeadEventModel, UnifiedProductModel  # noqa: F401
+from app.models.finance import PlatformProfitSweepModel  # noqa: F401
 from app.models.story import StoryModel  # noqa: F401
-from app.models.topdmbozor import TdbMerchant, TdbOrder, TdbUser  # noqa: F401
 from app.models.business_rule import BusinessRuleModel  # noqa: F401
 from app.models.campaign import FlashSaleModel, LightningDealModel  # noqa: F401
 from app.models.transaction_ledger import TransactionLedgerModel  # noqa: F401

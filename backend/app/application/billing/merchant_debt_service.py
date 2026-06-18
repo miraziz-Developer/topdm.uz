@@ -19,16 +19,15 @@ from app.infrastructure.repositories.order_payment_repo import OrderPaymentRepos
 logger = logging.getLogger(__name__)
 
 OFFLINE_PAYMENT_METHODS = frozenset({"cash", "terminal"})
-_ONLINE_PAYMENT_METHODS = frozenset({"click", "payme"})
+_ONLINE_PAYMENT_METHODS = frozenset({"click"})
 _PAYMENT_NOTE_RE = re.compile(
-    r"To'lov:\s*(Naqd pul|Terminal|Click|Payme)",
+    r"To'lov:\s*(Naqd pul|Terminal|Click)",
     re.IGNORECASE,
 )
 _PAYMENT_LABEL_TO_CODE = {
     "naqd pul": "cash",
     "terminal": "terminal",
     "click": "click",
-    "payme": "payme",
 }
 
 
@@ -105,8 +104,9 @@ class MerchantDebtService:
         if (order.status or "").lower() != "completed":
             return {"status": "skipped", "reason": "not_completed"}
 
-        if (order.fulfillment_type or "").lower() != "pickup":
-            return {"status": "skipped", "reason": "not_pickup"}
+        fulfillment = (order.fulfillment_type or "").lower()
+        if fulfillment not in ("pickup", "delivery"):
+            return {"status": "skipped", "reason": "not_fulfillment_order"}
 
         if order.debt_commission_recorded:
             return {"status": "skipped", "reason": "already_recorded"}
@@ -237,7 +237,7 @@ class MerchantDebtService:
             raise ValueError("no_debt")
 
         prov = provider.strip().lower()
-        if prov not in ("click", "payme"):
+        if prov not in ("click",):
             raise ValueError("invalid_provider")
 
         checkout = await self._checkout_repo.create_pending(
@@ -260,9 +260,10 @@ class MerchantDebtService:
         """
         Har oy boshida: qarzi > 0 bo'lgan va hali bloklanmagan do'konlarni bloklaydi.
         """
+        threshold = int(self._settings.merchant_debt_block_threshold_uzs)
         result = await self._session.execute(
             select(ShopModel)
-            .where(ShopModel.debt_balance > 0, ShopModel.is_blocked.is_(False))
+            .where(ShopModel.debt_balance >= threshold, ShopModel.is_blocked.is_(False))
             .with_for_update()
         )
         shops = list(result.scalars().all())

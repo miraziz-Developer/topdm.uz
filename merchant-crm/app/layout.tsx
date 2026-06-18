@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="uz">
-      <body className={`${outfit.variable} ${dmMono.variable} font-sans`}>
+      <body className={`${outfit.variable} ${dmMono.variable} crm-mesh-bg font-sans antialiased`}>
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <AppProviders>{children}</AppProviders>
       </body>

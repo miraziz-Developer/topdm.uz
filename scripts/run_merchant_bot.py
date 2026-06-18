@@ -18,6 +18,15 @@ elif (repo_root / "app").is_dir():
 
 logging.basicConfig(level=logging.INFO)
 
+from app.core.sentry_init import init_sentry
+
+try:
+    from sentry_sdk.integrations.asyncio import AsyncioIntegration
+
+    init_sentry(extra_integrations=[AsyncioIntegration()])
+except Exception:
+    init_sentry()
+
 from app.infrastructure.bots.merchant_aiogram_bot import run_merchant_bot_polling
 
 

@@ -28,6 +28,15 @@ def _parse_ip_list(raw: str) -> list[ipaddress._BaseNetwork]:
 
 
 def client_ip(request: Request) -> str:
+    """IP manzil — nginx X-Real-IP birinchi; X-Forwarded-For faqat ishonchli proxy orqali."""
+    real_ip = (request.headers.get("x-real-ip") or "").strip()
+    if real_ip:
+        return real_ip
+    cfg = get_settings()
+    if cfg.is_production:
+        if request.client:
+            return request.client.host
+        return ""
     forwarded = request.headers.get("x-forwarded-for", "")
     if forwarded:
         return forwarded.split(",")[0].strip()

@@ -42,7 +42,6 @@ class PaymentMethod(str, Enum):
     cash = "cash"
     terminal = "terminal"
     click = "click"
-    payme = "payme"
 
 
 class StoreAddressSchema(BaseModel):
@@ -55,6 +54,8 @@ class StoreAddressSchema(BaseModel):
 class ReserveOrderItemSchema(BaseModel):
     product_id: UUID
     quantity: int = Field(default=1, ge=1, le=99)
+    color: str | None = Field(default=None, max_length=80)
+    size: str | None = Field(default=None, max_length=40)
 
 
 class OrderReserveRequest(BaseModel):
@@ -66,6 +67,8 @@ class OrderReserveRequest(BaseModel):
     payment_method: PaymentMethod = PaymentMethod.cash
     note: str | None = Field(default=None, max_length=500)
     ref_token: str | None = Field(default=None, max_length=50)
+    # Mehmon (login'siz) buyurtma uchun telefon OTP tasdiq tokeni
+    verification_token: str | None = Field(default=None, min_length=8, max_length=64)
 
     @field_validator("user_phone")
     @classmethod

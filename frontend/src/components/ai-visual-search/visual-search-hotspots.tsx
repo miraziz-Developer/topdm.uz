@@ -5,7 +5,6 @@ import type { PixelRect } from "@/lib/bbox-layout";
 
 export type HotspotLayoutItem = {
   id: string;
-  label_uz: string;
   displayRect: PixelRect;
 };
 
@@ -33,18 +32,21 @@ export function VisualSearchHotspots({
 
         return (
           <div key={item.id}>
-            {active ? (
-              <div
-                className="pointer-events-none absolute z-[8] bg-blue-500/10 backdrop-blur-[2px] transition-all duration-300 rounded-xl"
-                style={{
-                  left: item.displayRect.left,
-                  top: item.displayRect.top,
-                  width: Math.max(item.displayRect.width, 8),
-                  height: Math.max(item.displayRect.height, 8),
-                }}
-                aria-hidden
-              />
-            ) : null}
+            <div
+              className={cn(
+                "pointer-events-none absolute z-[8] rounded-lg border-2 transition-all duration-300",
+                active
+                  ? "border-electric-500 bg-electric-500/15 shadow-[0_0_16px_rgba(0,102,255,0.35)]"
+                  : "border-electric-500/45 bg-electric-500/5",
+              )}
+              style={{
+                left: item.displayRect.left,
+                top: item.displayRect.top,
+                width: Math.max(item.displayRect.width, 8),
+                height: Math.max(item.displayRect.height, 8),
+              }}
+              aria-hidden
+            />
 
             <button
               type="button"
@@ -58,7 +60,7 @@ export function VisualSearchHotspots({
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric-500",
               )}
               style={{ left: centerX, top: centerY }}
-              aria-label={item.label_uz}
+              aria-label="Rasm qismini tanlash"
               aria-pressed={selectedId === item.id}
             >
               <span

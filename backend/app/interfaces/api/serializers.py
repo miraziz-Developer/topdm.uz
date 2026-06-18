@@ -79,7 +79,7 @@ def build_store_address_payload(shop) -> dict[str, str]:
     }
 
 
-def product_to_dict(product, *, for_merchant: bool = False) -> dict:
+def product_to_dict(product, *, for_merchant: bool = False, category_meta: dict | None = None) -> dict:
     from app.application.pricing.product_markup import (
         customer_sale_price_uzs,
         merchant_base_uzs,
@@ -90,8 +90,22 @@ def product_to_dict(product, *, for_merchant: bool = False) -> dict:
     attrs = getattr(product, "attributes", None) or {}
     if not isinstance(attrs, dict):
         attrs = {}
-    sale_type = getattr(product, "sale_type", None) or attrs.get("sale_type") or "Chakana"
-    min_qty = getattr(product, "min_order_quantity", None) or attrs.get("min_order_quantity") or 1
+    from app.application.merchant.product_variants import normalize_product_variant_attrs
+
+    attrs = normalize_product_variant_attrs(attrs)
+    meta = category_meta or {}
+    category_name = meta.get("category_name") or _category_label(product)
+    root_category_name = meta.get("root_category_name") or attrs.get("root_category")
+    sub_category = meta.get("sub_category") or attrs.get("sub_category")
+    root_category = meta.get("root_category") or attrs.get("root_category")
+    category_id = meta.get("category_id") or (
+        str(product.category_id) if getattr(product, "category_id", None) else None
+    )
+    from app.application.merchant.wholesale_pack import resolve_product_pricing
+
+    pricing = resolve_product_pricing(product)
+    sale_type = pricing["sale_type"]
+    min_qty = pricing["min_order_quantity"]
     base_merchant = merchant_base_uzs(int(product.price))
     sale_uzs = customer_sale_price_uzs(base_merchant)
     display_price = float(base_merchant if for_merchant else sale_uzs)
@@ -109,11 +123,20 @@ def product_to_dict(product, *, for_merchant: bool = False) -> dict:
         "height_cm": int(getattr(product, "height_cm", 0) or 0),
         "sale_type": str(sale_type),
         "min_order_quantity": int(min_qty),
+        "pricing_unit": pricing["pricing_unit"],
+        "units_per_pack": pricing["units_per_pack"],
+        "pack_composition": pricing["pack_composition"],
+        "pack_label": pricing["pack_label"],
+        "price_is_pack": pricing["price_is_pack"],
+        "wholesale_pack": attrs.get("wholesale_pack"),
         "images": list(product.images or []),
         "attributes": attrs,
-        "category": _category_label(product),
-        "root_category": attrs.get("root_category"),
-        "sub_category": attrs.get("sub_category"),
+        "category": category_name,
+        "category_id": category_id,
+        "category_name": category_name,
+        "root_category": root_category,
+        "root_category_name": root_category_name,
+        "sub_category": sub_category,
         "market_zone": attrs.get("market_zone") or (getattr(shop, "market_zone", None) if shop else None),
         "block_sector": attrs.get("block_sector") or (getattr(shop, "block_sector", None) if shop else None),
         "is_available": product.is_available,
@@ -215,4 +238,8 @@ def shop_to_dict(shop) -> dict:
         "ipadrom": market_name,
         "ipadrom_name": market_name,
         "is_featured": bool(getattr(shop, "is_featured", False)),
+        "shop_type": getattr(shop, "shop_type", None) or "chakana",
+        "market_zone": getattr(shop, "market_zone", None),
+        "location_comment": getattr(shop, "location_comment", None),
+        "block_sector": getattr(shop, "block_sector", None),
     }

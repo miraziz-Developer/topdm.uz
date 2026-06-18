@@ -17,7 +17,8 @@ class StoreRatingMetrics(BaseModel):
     """Aggregated store reputation + operational CRM KPIs (backend-computed)."""
 
     store_id: UUID
-    average_rating: float = Field(..., ge=1.0, le=5.0)
+    # 0.0 = hali sharh yo'q (yangi do'kon); aks holda 1.0–5.0 oralig'ida.
+    average_rating: float = Field(..., ge=0.0, le=5.0)
     total_reviews_count: int = Field(..., ge=0)
 
     order_fulfillment_rate: float = Field(..., ge=0.0, le=100.0)

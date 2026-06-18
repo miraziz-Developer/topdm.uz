@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Copy, Eye, MapPin, MessageSquare, Phone, ShoppingBag } from "lucide-react";
+import { ChevronRight, Copy, Eye, MapPin, MessageSquare, Package, Phone, ShoppingBag } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,6 +22,17 @@ import { resolveShopLogoUrl } from "@/lib/shop-branding";
 import { extractSelectableOptions, selectionLabel, type ProductSelectionOptions } from "@/lib/product-options";
 import { formatShopLocationBadge, parseShopLocation } from "@/lib/shop-location";
 import { cn } from "@/lib/utils";
+import {
+  defaultCartQuantity,
+  formatPackComposition,
+  isPackProduct,
+  minOrderQuantity,
+  optomCardHint,
+  packLabel,
+  perPieceFromPack,
+  priceLabel,
+  quantityUnitLabel,
+} from "@/lib/wholesale";
 import { useCartStore } from "@/stores/cart-store";
 import type { Product } from "@/types";
 
@@ -116,7 +127,7 @@ export function ProductDetail({
       onRequireSelection?.();
       return;
     }
-    addItem(product, 1, "single", selectedOptions);
+    addItem(product, defaultCartQuantity(product), "single", selectedOptions);
     onReserveGroup();
     router.push("/checkout");
   };
@@ -141,6 +152,12 @@ export function ProductDetail({
             </span>
           ) : null}
           <SellerBadges product={product} />
+          {isPackProduct(product) ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+              <Package className="h-3 w-3" />
+              Optom · {packLabel(product)}
+            </span>
+          ) : null}
         </div>
 
         <h1 className="break-anywhere text-2xl font-semibold leading-[1.2] tracking-tight text-ink-900 sm:text-[1.65rem]">
@@ -176,11 +193,39 @@ export function ProductDetail({
 
       <div className={productBuyCard}>
         <div className="border-b border-black/[0.05] bg-gradient-to-br from-[#faf9f7] to-white px-5 py-4 sm:px-6">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-400">Narx</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-400">{priceLabel(product)}</p>
           <p className="price-mono mt-1 text-[1.75rem] font-bold leading-none tracking-tight text-ink-900 sm:text-3xl">
             {formatPrice(product.price)}
           </p>
-          <p className="mt-2 text-xs text-ink-500">Yetkazib berish yoki do&apos;kondan olib ketish</p>
+          {isPackProduct(product) ? (
+            <div className="mt-2 space-y-1 text-xs text-ink-600">
+              {optomCardHint(product, formatPrice) ? (
+                <p className="font-semibold text-electric-600">{optomCardHint(product, formatPrice)}</p>
+              ) : null}
+              {formatPackComposition(product) ? (
+                <p>
+                  Pachka tarkibi: <span className="font-medium">{formatPackComposition(product)}</span>
+                </p>
+              ) : null}
+              {perPieceFromPack(product) ? (
+                <p className="text-ink-500">
+                  1 dona ≈ {formatPrice(perPieceFromPack(product)!)}
+                </p>
+              ) : null}
+              <p>
+                Minimal buyurtma:{" "}
+                <span className="font-medium">
+                  {minOrderQuantity(product)} {quantityUnitLabel(product)}
+                </span>
+              </p>
+            </div>
+          ) : product.sale_type === "Optom" ? (
+            <p className="mt-2 text-xs font-medium text-electric-600">
+              {optomCardHint(product, formatPrice) ?? `Optom · min ${minOrderQuantity(product)} dona`}
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-ink-500">Yetkazib berish yoki do&apos;kondan olib ketish</p>
+          )}
         </div>
         <div className={cn(productBuyCardInner, "space-y-3")}>
           <Button

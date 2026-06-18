@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import Image from "next/image";
 import Link from "next/link";
+import { ProductImage } from "@/components/ui/product-image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -59,9 +59,14 @@ export function PerfectMatchSidebar() {
           <div className="space-y-3">
             {matches.map((item) => (
               <Link key={item.id} href={`/product/${item.id}`} className="flex items-center gap-3 rounded-2xl border border-border-subtle p-2 transition hover:border-electric-500/40">
-                <div className="relative h-14 w-14 overflow-hidden rounded-xl bg-elevated">
-                  <Image src={item.images?.[0] || "/placeholder.png"} alt={item.name} fill className="object-cover" sizes="56px" />
-                </div>
+                <ProductImage
+                  images={item.images}
+                  alt={item.name}
+                  fill
+                  wrapperClassName="h-14 w-14 rounded-xl bg-elevated"
+                  className="object-cover"
+                  sizes="56px"
+                />
                 <div>
                   <p className="line-clamp-2 text-sm font-medium text-ink-900">{item.name}</p>
                   <p className="price-mono mt-1 text-sm font-bold text-neon-500">{formatPrice(item.price)}</p>

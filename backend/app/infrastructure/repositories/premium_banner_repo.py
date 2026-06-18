@@ -200,6 +200,17 @@ class PremiumBannerRepository:
         wallet = await self.get_wallet(shop_id)
         return wallet
 
+    async def external_reference_used(self, external_reference: str) -> bool:
+        ref = (external_reference or "").strip()
+        if not ref:
+            return False
+        stmt = select(BannerPaymentTransactionModel.id).where(
+            BannerPaymentTransactionModel.external_reference == ref,
+            BannerPaymentTransactionModel.status == "completed",
+        )
+        row = await self._session.scalar(stmt)
+        return row is not None
+
     async def add_payment_transaction(
         self,
         *,

@@ -156,8 +156,10 @@ function LoginPageInner() {
     <button
       type="button"
       className={cn(
-        "rounded-full px-3.5 py-1.5 text-xs font-semibold transition",
-        mode === m ? "bg-gradient-electric text-white shadow-sm" : "bg-elevated text-text-400 hover:text-text-100",
+        "rounded-full px-4 py-2 text-xs font-semibold transition-all duration-300",
+        mode === m
+          ? "bg-gradient-electric text-white shadow-[0_4px_14px_rgba(0,102,255,0.35)]"
+          : "bg-elevated/80 text-text-400 hover:bg-elevated hover:text-text-100",
       )}
       onClick={() => setMode(m)}
     >
@@ -166,34 +168,40 @@ function LoginPageInner() {
   );
 
   return (
-    <main className="relative flex min-h-screen flex-col bg-canvas bg-hero-glow lg:flex-row">
-      <div className="relative hidden flex-1 flex-col justify-between p-10 lg:flex">
+    <main className="relative flex min-h-screen flex-col overflow-hidden bg-canvas lg:flex-row">
+      <div className="premium-aurora pointer-events-none absolute inset-0 opacity-80" />
+
+      <div className="relative hidden flex-1 flex-col justify-between p-12 lg:flex">
         <BozorliiiLogo variant="full" size="lg" href={null} badge="CRM" showTagline />
-        <div className="max-w-md">
-          <h2 className="text-3xl font-bold leading-tight tracking-tight text-text-100">
-            Do&apos;koningizni bir joydan boshqaring
+        <div className="max-w-md space-y-5">
+          <span className="inline-flex items-center gap-2 rounded-full border border-electric-500/20 bg-electric-500/[0.08] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-electric-600">
+            Premium merchant panel
+          </span>
+          <h2 className="text-4xl font-extrabold leading-[1.1] tracking-tight text-text-100">
+            Do&apos;koningizni{" "}
+            <span className="text-gradient-electric">bir joydan</span> boshqaring
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-text-400">
-            Buyurtmalar, chat, QR ulashish va xarita — mijoz sayti bilan bir xil brendda.
+          <p className="text-base leading-relaxed text-text-400">
+            Buyurtmalar, chat, mahsulotlar va pul yechish — barchasi bir xil brendda, mobil va desktopda.
           </p>
         </div>
         <p className="text-xs text-text-400">© {BRAND.name}</p>
       </div>
 
-      <div className="flex flex-1 items-center justify-center bg-mesh-accent px-4 py-10">
-        <div className="crm-page-enter w-full max-w-md space-y-6 rounded-3xl border border-border-subtle bg-surface p-8 shadow-elevated">
+      <div className="relative flex flex-1 items-center justify-center px-4 py-10 sm:px-6">
+        <div className="crm-page-enter premium-glass w-full max-w-md space-y-6 rounded-3xl p-8 sm:p-10">
         <div className="mb-2 lg:hidden">
           <BozorliiiLogo variant="full" size="sm" href={null} badge="CRM" />
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-500">Kirish</p>
-          <h1 className="mt-2 text-2xl font-bold text-text-100">Hisobingizga kiring</h1>
-          <p className="mt-1 text-sm text-text-400">
-            Telegram bot + web CRM — bitta hisob. /register dan keyin login va parol.
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-electric-500">Kirish</p>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-text-100">Hisobingizga kiring</h1>
+          <p className="mt-2 text-sm leading-relaxed text-text-400">
+            Login va parol — eng tez yo&apos;l. Boshqa usullar pastdagi tablarda.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 rounded-2xl bg-elevated/50 p-1.5">
           {modeBtn("shop_password", "Login + parol")}
           {modeBtn("shop_otp", "Do'kon OTP")}
           {modeBtn("telegram", "@username")}
@@ -238,8 +246,8 @@ function LoginPageInner() {
               <>
                 <Input
                   value={shopOtp}
-                  onChange={(e) => setShopOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  label="4 xonali kod"
+                  onChange={(e) => setShopOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  label="6 xonali kod"
                   leftIcon={<KeyRound className="h-4 w-4" />}
                 />
                 <Button className="w-full" onClick={verifyShopOtp} disabled={loading}>
@@ -280,8 +288,8 @@ function LoginPageInner() {
             <>
               <Input
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                label="4 xonali kod"
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                label="6 xonali kod"
                 leftIcon={<KeyRound className="h-4 w-4" />}
               />
               <Input

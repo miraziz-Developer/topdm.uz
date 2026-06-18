@@ -14,8 +14,8 @@ import { isUuidLike, productImage } from "@/lib/media";
 import { cardHover } from "@/lib/motion-presets";
 import { extractSelectableOptions, type ProductSelectionOptions } from "@/lib/product-options";
 import { productDiscountPercent } from "@/lib/deal-pricing";
-import { getGroupPrice } from "@/lib/pricing";
 import { productPriceUzs } from "@/lib/product-price";
+import { optomCardHint, priceUnitSuffix } from "@/lib/wholesale";
 import { useCurrency } from "@/components/providers/currency-provider";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart-store";
@@ -57,6 +57,8 @@ export function ProductCard({
     product.category && !isUuidLike(product.category) ? product.category : "Kiyim";
   const baseUzs = productPriceUzs(product);
   const discountPct = productDiscountPercent(product);
+  const optomHint = optomCardHint(product, formatPrice);
+  const unitSuffix = priceUnitSuffix(product);
   const [optionOpen, setOptionOpen] = useState(false);
   const [pendingPoint, setPendingPoint] = useState<{ x: number; y: number } | null>(null);
 
@@ -76,14 +78,14 @@ export function ProductCard({
       return;
     }
     launch({ image: imageUrl, x: rect.left, y: rect.top });
-    addItem(product, 1, "group");
+    addItem(product, 1, "single");
   };
 
   const confirmOptions = (selectedOptions: ProductSelectionOptions) => {
     if (pendingPoint) {
       launch({ image: imageUrl, x: pendingPoint.x, y: pendingPoint.y });
     }
-    addItem(product, 1, "group", selectedOptions);
+    addItem(product, 1, "single", selectedOptions);
     setOptionOpen(false);
     setPendingPoint(null);
   };
@@ -127,7 +129,7 @@ export function ProductCard({
             className="object-cover transition duration-500 group-hover:scale-105"
             sizes={variant === "list" ? "112px" : "(max-width: 768px) 50vw, 25vw"}
           />
-          {typeof product.visual_match_pct === "number" && product.visual_match_pct >= 55 ? (
+          {typeof product.visual_match_pct === "number" && product.visual_match_pct >= 35 ? (
             <span className="absolute left-2 top-2 z-10 rounded-full bg-electric-500/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
               Rasm {product.visual_match_pct}%
             </span>
@@ -194,8 +196,11 @@ export function ProductCard({
           ) : null}
           <div className="mt-3 flex items-end justify-between gap-2">
             <motion.div>
-              <p className="price-mono text-lg font-bold text-neon-500">{formatPrice(getGroupPrice(baseUzs))}</p>
-              <p className="text-xs text-ink-400 line-through">{formatPrice(baseUzs)}</p>
+              <p className="price-mono text-lg font-bold text-neon-500">
+                {formatPrice(baseUzs)}
+                {unitSuffix ? <span className="ml-0.5 text-xs font-medium text-ink-500">{unitSuffix}</span> : null}
+              </p>
+              {optomHint ? <p className="mt-0.5 text-[10px] font-semibold text-electric-600">{optomHint}</p> : null}
             </motion.div>
             <span className="truncate text-xs text-ink-500">⭐ {product.shop.name}</span>
           </div>

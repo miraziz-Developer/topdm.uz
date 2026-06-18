@@ -6,10 +6,10 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { fetchPaymentRedirect } from "@/lib/api";
+import { completeSandboxCheckout, fetchPaymentRedirect, getCheckoutPaymentOptions } from "@/lib/api";
 
 type OnlinePaymentBridgeProps = {
-  provider: "click" | "payme";
+  provider: "click";
   amount: number;
   checkoutId?: string;
   orderId?: string;
@@ -18,18 +18,21 @@ type OnlinePaymentBridgeProps = {
 
 const LABELS = {
   click: { title: "Click orqali to'lov", brand: "Click" },
-  payme: { title: "Payme orqali to'lov", brand: "Payme" },
 } as const;
 
 export function OnlinePaymentBridge({ provider, checkoutId, orderId, amount, labelId }: OnlinePaymentBridgeProps) {
   const [loading, setLoading] = useState(true);
   const [gatewayUrl, setGatewayUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [sandboxMode, setSandboxMode] = useState(false);
+  const [sandboxBusy, setSandboxBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
+        const opts = await getCheckoutPaymentOptions().catch(() => null);
+        if (!cancelled) setSandboxMode(Boolean(opts?.online.sandbox_mode));
         const res = await fetchPaymentRedirect({
           provider,
           amount,
@@ -89,6 +92,27 @@ export function OnlinePaymentBridge({ provider, checkoutId, orderId, amount, lab
             }}
           >
             {meta.brand} da to&apos;lash
+          </Button>
+        ) : null}
+
+        {sandboxMode && checkoutId && !loading ? (
+          <Button
+            variant="secondary"
+            className="w-full"
+            disabled={sandboxBusy}
+            onClick={() => {
+              setSandboxBusy(true);
+              void completeSandboxCheckout({ checkout_id: checkoutId, provider })
+                .then(() => {
+                  window.location.href = "/orders";
+                })
+                .catch(() => {
+                  setMessage("Test to'lov yakunlanmadi. Qayta urinib ko'ring.");
+                })
+                .finally(() => setSandboxBusy(false));
+            }}
+          >
+            {sandboxBusy ? "Test to'lov…" : "Sandbox: test to'lovni yakunlash"}
           </Button>
         ) : null}
 

@@ -1,10 +1,17 @@
 "use client";
 
-import Image from "next/image";
+import { motion } from "framer-motion";
 import Link from "next/link";
-import { Film, MapPin, Search, Sparkles, Store } from "lucide-react";
+import { Film, MapPin, QrCode, Search, Sparkles, Store, Zap } from "lucide-react";
 
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { BRAND } from "@/components/brand/brand-tokens";
+
+const PROOF_CHIPS = [
+  { icon: Zap, label: "2 daqiqada bron" },
+  { icon: QrCode, label: "QR bilan olib ketish" },
+  { icon: MapPin, label: "Rasta xaritasi" },
+] as const;
 
 const FEATURES = [
   { icon: MapPin, label: "Xarita", hint: "Rastani toping" },
@@ -44,6 +51,23 @@ export function HomeSaleHero() {
               {BRAND.tagline}. Do&apos;konni xaritadan toping, mahsulotni ko&apos;ring, bron qiling — reels, story va
               chat ham shu yerda.
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {PROOF_CHIPS.map((chip, i) => {
+                const Icon = chip.icon;
+                return (
+                  <motion.span
+                    key={chip.label}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.08 * i }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-semibold backdrop-blur-sm"
+                  >
+                    <Icon className="h-3.5 w-3.5 text-amber-200" aria-hidden />
+                    {chip.label}
+                  </motion.span>
+                );
+              })}
+            </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href="#catalog"
@@ -70,21 +94,11 @@ export function HomeSaleHero() {
           </div>
 
           <div className="flex shrink-0 flex-col items-center gap-4 sm:flex-row lg:flex-col lg:items-end">
-            <div className="flex items-center gap-3 rounded-2xl bg-black/20 px-4 py-3 ring-1 ring-white/20 backdrop-blur-md">
-              <div className="relative h-14 w-14 overflow-hidden rounded-xl bg-white shadow-lg ring-2 ring-white/40">
-                <Image
-                  src={BRAND.assets.icon}
-                  alt={BRAND.shortName}
-                  fill
-                  className="object-contain p-1.5"
-                  sizes="56px"
-                  priority
-                />
-              </div>
-              <div className="text-left">
-                <p className="text-lg font-black leading-none tracking-tight">{BRAND.shortName}</p>
-                <p className="mt-0.5 text-xs font-medium text-white/75">{BRAND.name}</p>
-              </div>
+            <div className="rounded-2xl bg-white/95 px-4 py-3 shadow-lg ring-1 ring-white/50 backdrop-blur-md">
+              <BozorliiiLogo variant="full" size="lg" href="/" />
+              <p className="mt-1.5 text-center text-[10px] font-medium tracking-wide text-slate-500">
+                {BRAND.name}
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     """Required for Bozorliii stylist — Groq Cloud 70B (see app.ai.config)."""
     groq_model: str = "llama-3.3-70b-versatile"
     groq_agent_model: str = ""
-    groq_vision_model: str = "llama-3.2-11b-vision-preview"
+    groq_vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     usd_to_uzs_rate: int = 13_000
     eur_to_uzs_rate: int = 14_000
     rapidapi_key: str = ""
@@ -56,7 +56,16 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
     gemini_embedding_model: str = "models/gemini-embedding-2"
-    visual_search_use_gemini: bool = True
+    """clip = local FastEmbed (free, no quota); gemini = Google API; signature = color histogram fallback."""
+    visual_search_backend: str = "clip"
+    """yolos = YOLOS Fashionpedia crop; heuristic = body zones fallback."""
+    fashion_detect_backend: str = "yolos"
+    yolos_fashion_model: str = "valentinafevu/yolos-fashionpedia"
+    clip_image_model: str = "Qdrant/Unicom-ViT-B-16"
+    clip_cache_dir: str = "/app/.cache/fastembed"
+    visual_search_use_gemini: bool = False
+    """Telegram/CRM publish — CLIP model VPS da OOM qiladi; signature ishlatiladi."""
+    publish_visual_embed_lightweight: bool = True
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-3-5-sonnet-20241022"
     embedding_model: str = "text-embedding-3-small"
@@ -65,6 +74,10 @@ class Settings(BaseSettings):
     user_rate_limit_per_minute: int = 10
     order_reserve_rate_limit_per_minute: int = 8
     order_lookup_rate_limit_per_minute: int = 12
+    eskiz_email: str = ""
+    eskiz_password: str = ""
+    eskiz_api_token: str = ""
+    eskiz_from: str = "4546"
     session_cookie_name: str = "bozor_session"
     enable_online_checkout: bool = False
     telegram_bot_token: str = ""
@@ -81,15 +94,27 @@ class Settings(BaseSettings):
     click_service_id: str = ""
     click_secret_key: str = ""
     click_merchant_id: str = ""
-    payme_merchant_id: str = ""
-    payme_secret_key: str = ""
+    """Click Business (o'zini o'zi band qilgan ham) — Merchant API + hosted to'lov sahifasi."""
+    click_merchant_user_id: str = ""
+    click_api_base_url: str = "https://api.click.uz/v2/merchant"
+    click_pay_base_url: str = "https://my.click.uz/services/pay"
+    """True bo'lsa checkout rasmiy my.click.uz sahifasiga yo'naltiriladi (self-employed uchun ham)."""
+    click_hosted_checkout: bool = True
     payment_callback_ip_whitelist: str = ""
     payment_callback_max_age_seconds: int = 900
     payment_sandbox_mode: bool = False
+    """Staging/demo: productionda ham sandbox Click (haqiqiy kalitsiz test)."""
+    allow_payment_sandbox_in_production: bool = False
     payment_sandbox_click_service_id: str = "sandbox-service"
     payment_sandbox_click_secret_key: str = "sandbox-click-secret"
-    payment_sandbox_payme_merchant_id: str = "sandbox-merchant"
-    payment_sandbox_payme_secret_key: str = "sandbox-payme-secret"
+
+    # Q-PAY / PLUM (myuzcard) — self-employed host-to-host (Uzcard/Humo + OTP).
+    # Aniq endpoint/maydonlar PLUM biznes kabinetidan (business.plum.uz) olinadi.
+    qpay_base_url: str = ""
+    qpay_service_id: str = ""
+    qpay_merchant_id: str = ""
+    qpay_secret_key: str = ""
+    qpay_api_key: str = ""
 
     # Order settlement splitter (UZS)
     finance_order_commission_rate_pct: float = 5.0
@@ -101,38 +126,48 @@ class Settings(BaseSettings):
     finance_delivery_fallback_uzs: int = 25_000
     finance_delivery_base_uzs: int = 12_000
     finance_delivery_uzs_per_km: int = 3_500
+    """Xarita geokoder (Yandex Maps) — yetkazish emas."""
     yandex_router_api_key: str = ""
-    yandex_delivery_token: str = Field(
-        default="",
-        validation_alias=AliasChoices("YANDEX_DELIVERY_TOKEN", "YANDEX_DELIVERY_API_TOKEN"),
-    )
-    yandex_delivery_base_url: str = Field(
-        default="https://b2b.taxi.yandex.net",
-        validation_alias=AliasChoices("YANDEX_DELIVERY_BASE_URL", "YANDEX_API_URL"),
-    )
-    yandex_delivery_rub_to_uzs: int = 150
-    is_delivery_sandbox: bool = Field(default=False, validation_alias=AliasChoices("IS_DELIVERY_SANDBOX", "YANDEX_DELIVERY_SANDBOX"))
 
-    @property
-    def yandex_delivery_api_token(self) -> str:
-        """Backward-compatible alias."""
-        return self.yandex_delivery_token
+    # BTS Express yetkazish (asosiy logistika)
+    bts_api_base_url: str = Field(
+        default="https://api.bts.uz",
+        validation_alias=AliasChoices("BTS_API_BASE_URL", "TDB_BTS_API_BASE_URL"),
+    )
+    bts_api_login: str = Field(default="", validation_alias=AliasChoices("BTS_API_LOGIN", "BTS_LOGIN"))
+    bts_api_password: str = Field(default="", validation_alias=AliasChoices("BTS_API_PASSWORD", "BTS_PASSWORD"))
+    bts_api_token: str = Field(default="", validation_alias=AliasChoices("BTS_API_TOKEN", "TDB_BTS_API_TOKEN"))
+    bts_api_mock: bool = Field(default=True, validation_alias=AliasChoices("BTS_API_MOCK", "TDB_BTS_API_MOCK"))
+    bts_default_city_code: str = "0101"
+    bts_package_id: int = 4
+    bts_post_type_id: int = 26
+    bts_poll_interval_seconds: int = Field(
+        default=1800,
+        validation_alias=AliasChoices("BTS_POLL_INTERVAL_SECONDS", "TDB_BTS_POLL_INTERVAL_SECONDS"),
+    )
+    bts_webhook_secret: str = ""
 
-    # topdmbozor.uz — P2P Click + SMS webhook + BTS
-    tdb_click_p2p_card_number: str = ""
-    tdb_sms_webhook_secret: str = ""
+    # BTS legacy env fallbacks (TDB_BTS_* — asosiy bts_client uchun)
     tdb_bts_api_base_url: str = "https://api.bts.uz"
     tdb_bts_api_token: str = ""
     tdb_bts_api_mock: bool = True
-    tdb_bts_fee_uzs: int = 25_000
-    tdb_bts_payout_card_number: str = ""
-    tdb_platform_commission_pct: float = 10.0
     tdb_bts_poll_interval_seconds: int = 2700
-    tdb_p2p_provider_url: str = "https://api.provayder.uz"
-    tdb_p2p_provider_api_key: str = ""
-    tdb_p2p_provider_mock: bool = True
 
     admin_api_key: str = ""
+    # SQLAdmin web panel (faqat platforma egasi uchun — Django-admin uslubidagi panel)
+    admin_panel_enabled: bool = True
+    admin_panel_username: str = "admin"
+    admin_panel_password: str = ""
+    admin_panel_secret: str = ""
+    # Do'konchilarga to'lov (payout):
+    #   batch — reestr fayl + qo'lda tasdiq (self-employed uchun, default)
+    #   auto  — payout API orqali to'liq avtomatik (YaTT/MChJ + provayder shartnomasi kerak)
+    payout_mode: str = "batch"
+    payout_provider: str = "multicard"
+    multicard_payout_base_url: str = "https://dev.multicard.uz"
+    multicard_payout_app_id: str = ""
+    multicard_payout_secret: str = ""
+    multicard_payout_mock: bool = True
     price_outlier_multiplier: float = 20.0
     supabase_url: str = ""
     supabase_anon_key: str = ""
@@ -165,8 +200,10 @@ class Settings(BaseSettings):
             if self.premium_china_demo_mode:
                 object.__setattr__(self, "premium_china_demo_mode", False)
             object.__setattr__(self, "tdb_bts_api_mock", False)
-            object.__setattr__(self, "tdb_p2p_provider_mock", False)
-            object.__setattr__(self, "payment_sandbox_mode", False)
+            object.__setattr__(self, "bts_api_mock", False)
+            object.__setattr__(self, "publish_visual_embed_lightweight", False)
+            if not self.allow_payment_sandbox_in_production:
+                object.__setattr__(self, "payment_sandbox_mode", False)
         return self
 
     @property

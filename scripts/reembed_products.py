@@ -1,9 +1,11 @@
 """
 Rebuild product embeddings from title + description + category metadata.
 Run: docker compose exec backend python /app/scripts/reembed_products.py
+     docker compose exec backend python /app/scripts/reembed_products.py --visual-only
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 import sys
@@ -47,16 +49,23 @@ def _embed_text(name: str, desc: str, attrs: dict | None) -> str:
     return " ".join(p for p in parts if p).strip()
 
 
-async def main() -> None:
-    embedder = EmbeddingClient()
+async def main(*, visual_only: bool = False, limit: int | None = None, offset: int = 0) -> None:
+    embedder = None if visual_only else EmbeddingClient()
     updated = 0
     visual_ok = 0
+    visual_fail = 0
+    clip_ok = 0
     gemini_ok = 0
     async with SessionFactory() as db:
-        rows = (await db.execute(select(ProductModel))).scalars().all()
+        rows = (await db.execute(select(ProductModel).order_by(ProductModel.id))).scalars().all()
+        if offset > 0:
+            rows = rows[offset:]
+        if limit is not None and limit > 0:
+            rows = rows[:limit]
         for product in rows:
             text = _embed_text(product.name, product.description or "", product.attributes or {})
-            product.embedding = await embedder.embed(text or product.name)
+            if not visual_only and embedder is not None:
+                product.embedding = await embedder.embed(text or product.name)
             hint = text or product.name
             try:
                 vec, source, phash = await index_product_from_image_urls(
@@ -70,17 +79,45 @@ async def main() -> None:
                 attrs["visual_embed_source"] = source
                 product.attributes = attrs
                 visual_ok += 1
-                if source == "gemini":
+                if source in ("clip", "clip_multi"):
+                    clip_ok += 1
+                elif source in ("gemini", "gemini_multi"):
                     gemini_ok += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                visual_fail += 1
+                print(f"  FAIL {product.id}: {exc}", file=sys.stderr)
             updated += 1
+            if visual_only and updated % 25 == 0:
+                await db.commit()
+                print(f"  … {updated}/{len(rows)} vizual indeks")
         await db.commit()
+    text_mode = "skipped" if visual_only else ("openai" if settings.openai_api_key else "deterministic")
     print(
-        f"Re-embedded {updated} products | visual: {visual_ok} (gemini: {gemini_ok}) | "
-        f"text_embed={'openai' if settings.openai_api_key else 'deterministic'}"
+        f"Re-embedded {updated} products | visual: {visual_ok} ok, {visual_fail} fail "
+        f"(clip: {clip_ok}, gemini: {gemini_ok}) | text_embed={text_mode}"
     )
+    if visual_fail and updated and visual_fail / updated > 0.25:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="Mahsulot embedding qayta yaratish")
+    parser.add_argument(
+        "--visual-only",
+        action="store_true",
+        help="Faqat CLIP visual_embedding (Gemini matn embedsiz)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Faqat N ta mahsulot (deploy/test uchun)",
+    )
+    parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="ProductModel.id tartibida skip (batch re-embed)",
+    )
+    args = parser.parse_args()
+    asyncio.run(main(visual_only=args.visual_only, limit=args.limit, offset=args.offset))

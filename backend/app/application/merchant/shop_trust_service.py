@@ -17,19 +17,15 @@ from app.models.shop_review import ShopReviewModel
 
 
 def _default_kpis(review_count: int) -> StoreOperationalKpis:
+    """Ma'lumot yetmasa soxta KPI ko'rsatilmaydi."""
+    del review_count
     return StoreOperationalKpis(
-        order_fulfillment_rate=98.0 if review_count >= 10 else 92.0,
-        product_match_rate=96.0 if review_count >= 10 else 90.0,
-        average_response_time_min=15 if review_count >= 10 else 30,
-        quality_guarantee=True,
-        badges=["quality_guarantee", "on_time_delivery"],
-        rating_distribution={
-            "5": max(review_count - 26, 0),
-            "4": 20,
-            "3": 4,
-            "2": 1,
-            "1": 1,
-        },
+        order_fulfillment_rate=0.0,
+        product_match_rate=0.0,
+        average_response_time_min=0,
+        quality_guarantee=False,
+        badges=[],
+        rating_distribution={"5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
     )
 
 
@@ -60,7 +56,7 @@ class ShopTrustService:
     def build_store_rating_metrics(shop) -> StoreRatingMetrics:
         review_count = int(getattr(shop, "review_count", 0) or 0)
         rating = float(getattr(shop, "rating", 0) or 0)
-        average = round(max(1.0, min(5.0, rating if rating >= 1 else 4.5)), 1)
+        average = round(max(0.0, min(5.0, rating if rating >= 1 else 0.0)), 1)
         kpis = ShopTrustService.resolve_operational_kpis(shop)
         updated = getattr(shop, "updated_at", None) or datetime.now(timezone.utc)
         return StoreRatingMetrics(

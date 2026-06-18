@@ -30,14 +30,14 @@ class RedisCacheGateway:
     async def _set_raw(self, key: str, value: str, ttl_seconds: int) -> None:
         await self._redis.set(key, value, ex=ttl_seconds)
 
-    async def get(self, key: str) -> dict | None:
+    async def get(self, key: str) -> dict | list | None:
         try:
             raw = await self._get_raw(key)
         except RedisError:
             return None
         return json.loads(raw) if raw else None
 
-    async def set(self, key: str, value: dict, ttl_seconds: int = 1800) -> None:
+    async def set(self, key: str, value: dict | list, ttl_seconds: int = 1800) -> None:
         adaptive_ttl = self._adaptive_ttl(value, ttl_seconds)
         try:
             await self._set_raw(key, json.dumps(value), adaptive_ttl)
@@ -69,7 +69,13 @@ class RedisCacheGateway:
 
     async def invalidate_by_product(self, product_id: str) -> None:
         try:
-            keys = await self._redis.keys("stylist:*")
+            cursor = 0
+            keys: list[str] = []
+            while True:
+                cursor, batch = await self._redis.scan(cursor, match="stylist:*", count=100)
+                keys.extend(batch)
+                if cursor == 0:
+                    break
             if keys:
                 await self._redis.delete(*keys)
             await self._redis.publish("cache_invalidation", product_id)
@@ -77,7 +83,9 @@ class RedisCacheGateway:
             return
 
     @staticmethod
-    def _adaptive_ttl(value: dict, default_ttl: int) -> int:
+    def _adaptive_ttl(value: dict | list, default_ttl: int) -> int:
+        if not isinstance(value, dict):
+            return default_ttl
         explanation = str(value.get("explanation", "")).lower()
         if "trend" in explanation or "season" in explanation:
             return max(default_ttl, 7200)

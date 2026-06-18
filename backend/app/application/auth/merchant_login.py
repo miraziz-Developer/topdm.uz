@@ -54,7 +54,7 @@ async def send_merchant_shop_otp(session: AsyncSession, *, login_code: str) -> d
             detail="Avval merchant botda /start bosing va ro'yxatdan o'ting",
         )
 
-    otp = f"{random.randint(1000, 9999)}"
+    otp = f"{random.randint(100000, 999999)}"
     try:
         await telegram_otp_gateway.send_otp_to_chat(chat_id=int(shop.telegram_chat_id), otp=otp)
     except BotNotStartedError as exc:

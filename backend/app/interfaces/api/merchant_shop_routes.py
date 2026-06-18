@@ -23,15 +23,12 @@ async def _shop_or_404(db: AsyncSession, user: AuthUser):
     return shop
 
 
+from app.core.upload_validation import validate_image_bytes
+
+
 async def _read_image(file: UploadFile) -> tuple[bytes, str]:
     raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Rasm bo'sh")
-    if len(raw) > _MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=400, detail="Rasm 5 MB dan kichik bo'lishi kerak")
-    content_type = (file.content_type or "image/jpeg").lower()
-    if content_type and not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Faqat rasm fayli")
+    content_type = validate_image_bytes(raw, max_bytes=_MAX_IMAGE_BYTES, label="Rasm")
     return raw, content_type
 
 

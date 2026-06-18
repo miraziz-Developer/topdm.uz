@@ -2,6 +2,7 @@
 
 import { CrmPageHeader } from "@/components/crm-page-header";
 import { ShopLiveChatPanel } from "@/components/shop-live-chat-panel";
+import { MerchantQuickRepliesEditor } from "@/components/merchant-quick-replies-editor";
 
 export default function ChatPage() {
   return (
@@ -11,6 +12,7 @@ export default function ChatPage() {
         title="Jonli mijoz chati"
         description="Saytdan yozgan mijozlarga tez javob bering — suhbatlar va tez javoblar bitta joyda"
       />
+      <MerchantQuickRepliesEditor />
       <ShopLiveChatPanel />
     </div>
   );

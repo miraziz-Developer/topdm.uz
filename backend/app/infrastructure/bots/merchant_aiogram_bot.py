@@ -9,7 +9,7 @@ import uuid
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.memory import MemoryStorage
+from app.infrastructure.bots.fsm_storage import build_fsm_storage
 from aiogram.enums import ChatAction
 from aiogram.types import Message
 
@@ -21,10 +21,13 @@ from app.infrastructure.bots.merchant_bot_ui import (
     merchant_menu_keyboard,
     start_inline_keyboard,
 )
+from app.infrastructure.bots.merchant_bulk_handlers import bulk_router
+from app.infrastructure.bots.merchant_order_handlers import order_router
 from app.infrastructure.bots.merchant_product_handlers import prod_router
 from app.infrastructure.bots.merchant_registration_handlers import reg_router
 from app.infrastructure.bots.merchant_states import MerchantBotStates
 from app.infrastructure.bots.merchant_phone import phones_match
+from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 from app.infrastructure.db.session import AsyncSessionFactory
 from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
 from app.infrastructure.messaging.telegram_otp import telegram_otp_gateway
@@ -68,17 +71,22 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             await state.update_data(shop_id=str(existing.id))
             await message.answer(
                 f"Qayta xush kelibsiz, {existing.name}!\n\n"
-                "📸 Rasm yuboring — AI mahsulot to'ldiradi\n"
-                "📱 CRM Panel — buyurtma, chat, statistika (ilova shart emas)\n"
-                "🗺 Xarita — rasta joylashuvi CRM bilan bir xil",
+                "📸 Rasm yuboring — izohda narx yozing (150000)\n"
+                "✍️ «Mahsulot qo'lda» — nom va narxni o'zingiz kiriting\n"
+                "📱 CRM Panel — buyurtma, chat, statistika\n"
+                "🗺 Xarita — rasta joylashuvi\n"
+                "🏷 /chegirma 10 — barcha narxga chegirma",
                 reply_markup=merchant_menu_keyboard(existing.id),
             )
             await message.answer("Tezkor:", reply_markup=start_inline_keyboard(existing.id))
             return
 
+        # Tugallanmagan ro'yxatdan o'tish/qoralama holatini tozalaymiz
+        await state.clear()
         await message.answer(
             "Bozorliii Merchant bot\n\n"
-            "Yangi do'kon: /register — ro'yxatdan o'tish (8 qadam)\n"
+            "Yangi do'kon: /register tez — 3 daqiqada\n"
+            "To'liq ro'yxat: /register\n"
             "Admin havolasi: /start shop_<UUID> + kontakt\n\n"
             "CRM: login + parol yoki Telegram OTP",
             reply_markup=start_inline_keyboard(None),
@@ -103,7 +111,9 @@ async def cmd_help(message: Message) -> None:
         "/start shop_<UUID> — admin havolasi\n"
         "/crm — CRM tugmalari\n"
         "Rasm — mahsulot (AI + tasdiq)\n"
-        "Ovoz — mahsulot qoralama"
+        "Mahsulot qo'lda — rasm + nom + narx\n"
+        "Ombor yangilash — tugagan mahsulotga zaxira qo'shish\n"
+        "Ovoz — tovar tavsifi (keyin rasm yuboring)"
     )
 
 
@@ -188,6 +198,10 @@ async def on_web_app_data(message: Message) -> None:
         await message.answer(f"OK: {action or 'done'}")
 
 
+def _voice_prefill_key(chat_id: int) -> str:
+    return f"voice_prefill:chat:{chat_id}"
+
+
 async def _process_voice_background(
     *,
     bot: Bot,
@@ -203,22 +217,33 @@ async def _process_voice_background(
         return
     try:
         async with AsyncSessionFactory() as session:
-            result = await _voice_handler.process(
+            extraction, vision_attrs = await _voice_handler.transcribe_to_attributes(
                 session,
-                shop_id=shop_id,
                 audio_bytes=audio_bytes,
-                telegram_user_id=telegram_user_id,
-                telegram_chat_id=chat_id,
-                telegram_file_id=telegram_file_id,
             )
-        reply = MerchantVoiceHandler.format_telegram_reply(result)
+        # Ovozda rasm yo'q — ma'lumotni vaqtincha saqlaymiz, keyingi rasmga birlashtiriladi
+        prefill = {
+            "product_name": vision_attrs.get("product_name"),
+            "price_uzs": vision_attrs.get("price_uzs"),
+            "quantity": vision_attrs.get("quantity"),
+            "size": vision_attrs.get("size"),
+            "color": vision_attrs.get("color"),
+            "material": vision_attrs.get("material"),
+            "transcription": vision_attrs.get("transcription"),
+        }
+        cache = RedisCacheGateway()
+        await cache.set(_voice_prefill_key(chat_id), prefill, ttl_seconds=1800)
+
+        reply = MerchantVoiceHandler.format_telegram_reply(extraction)
         await bot.send_message(
             chat_id,
-            reply + "\n\nCRM dan kategoriya va narxni tasdiqlang.",
+            "🎙 Ovoz qabul qilindi:\n"
+            f"{reply}\n\n"
+            "📸 Endi shu mahsulotning RASMINI yuboring — nom va narx avtomatik qo'shiladi.",
         )
     except Exception:
         logger.exception("voice_background_failed")
-        await bot.send_message(chat_id, "Ovozda xatolik. Qayta urinib ko'ring.")
+        await bot.send_message(chat_id, "Ovozda xatolik. Qayta urinib ko'ring yoki rasm yuboring.")
 
 
 @router.message(MerchantBotStates.ready, F.voice)
@@ -272,9 +297,11 @@ async def run_merchant_bot_polling() -> None:
     if not settings.telegram_bot_token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is required to run the merchant bot")
     bot = Bot(token=settings.telegram_bot_token)
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=build_fsm_storage(settings.redis_url))
     dp.include_router(reg_router)
     dp.include_router(prod_router)
+    dp.include_router(order_router)
+    dp.include_router(bulk_router)
     dp.include_router(router)
     asyncio.create_task(_smart_alerts_loop())
     await dp.start_polling(bot)

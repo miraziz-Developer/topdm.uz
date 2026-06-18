@@ -55,7 +55,7 @@ export function BillingWalletCard({ wallet, onTopUp, compact }: Props) {
         <div className="crm-surface-card p-4 sm:p-5">
           <p className="text-sm font-semibold text-text-100">Qanday ishlaydi?</p>
           <ol className="mt-3 space-y-2 text-sm text-text-400">
-            <li>1. Click yoki Payme orqali balansni so&apos;m da to&apos;ldirasiz.</li>
+            <li>1. Click orqali balansni so&apos;m da to&apos;ldirasiz.</li>
             <li>2. Bosh sahifa banneri yoki mahsulot boost — narx so&apos;mda ko&apos;rinadi.</li>
             <li>3. To&apos;lov shu balansdan yechiladi — tanga/coin yo&apos;q.</li>
           </ol>

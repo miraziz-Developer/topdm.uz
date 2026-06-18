@@ -1,6 +1,6 @@
 import type { DetectedOutfitItem, PhotoSearchResponse, Product, ShopSummary } from "@/types";
 
-export const PHOTO_SEARCH_STORAGE_KEY = "bozor-photo-search-v7";
+export const PHOTO_SEARCH_STORAGE_KEY = "bozor-photo-search-v21";
 export const PHOTO_SEARCH_UPDATED_EVENT = "bozor-photo-search-updated";
 
 export type PhotoSearchVision = PhotoSearchResponse["vision"];
@@ -8,6 +8,9 @@ export type PhotoSearchVision = PhotoSearchResponse["vision"];
 export type PhotoSearchPayload = PhotoSearchResponse & {
   previewUrl: string;
 };
+
+const MIN_PRODUCT_MATCH_PCT = 35;
+const MIN_OUTFIT_MATCH_PCT = 44;
 
 export function readStoredPhotoSearch(): PhotoSearchPayload | null {
   if (typeof window === "undefined") return null;
@@ -20,7 +23,6 @@ export function readStoredPhotoSearch(): PhotoSearchPayload | null {
   }
 }
 
-/** Strip heavy base64 crops so sessionStorage stays under quota (~5MB). */
 export function compactPhotoSearchForStorage(payload: PhotoSearchPayload): PhotoSearchPayload {
   return {
     ...payload,
@@ -65,13 +67,15 @@ export function storePhotoSearch(payload: PhotoSearchPayload): void {
       mode: compact.mode,
       previewUrl: compact.previewUrl,
       assistant_text: compact.assistant_text,
-      detected_items: compact.detected_items?.map(({ products, id, label_uz, total, bbox }) => ({
+      primary_detection_id: compact.primary_detection_id,
+      detected_items: compact.detected_items?.map(({ products, id, total, bbox, thumbnail_url, refine_crop_url }) => ({
         id,
-        label_uz,
+        label_uz: "visual",
         total,
         bbox,
         products,
-        thumbnail_url: "",
+        thumbnail_url: thumbnail_url ?? "",
+        refine_crop_url: refine_crop_url ?? "",
         search_query: "",
       })),
     };
@@ -93,9 +97,8 @@ export function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-/** Compress large phone photos before upload (Taobao-style pipeline). */
-export async function preparePhotoForUpload(file: File, maxEdge = 720): Promise<File> {
-  if (!file.type.startsWith("image/") || file.size < 200_000) {
+export async function preparePhotoForUpload(file: File, maxEdge = 960): Promise<File> {
+  if (!file.type.startsWith("image/") || file.size < 180_000) {
     return file;
   }
   const dataUrl = await readFileAsDataUrl(file);
@@ -114,13 +117,53 @@ export async function preparePhotoForUpload(file: File, maxEdge = 720): Promise<
   const ctx = canvas.getContext("2d");
   if (!ctx) return file;
   ctx.drawImage(image, 0, 0, width, height);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), "image/jpeg", 0.78));
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), "image/jpeg", 0.88));
   if (!blob) return file;
   return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
 }
 
+export function isProductPhotoSearch(payload: PhotoSearchPayload | null): boolean {
+  if (!payload) return false;
+  if (payload.mode === "product_photo_fast") return true;
+  return Boolean(payload.detected_items?.some((b) => b.id === "product"));
+}
+
 export function getDetectedItems(payload: PhotoSearchPayload | null): DetectedOutfitItem[] {
-  return payload?.detected_items?.length ? payload.detected_items : [];
+  const items = payload?.detected_items?.length ? payload.detected_items : [];
+  return items.filter((item) => item.id !== "whole");
+}
+
+export function pickDefaultDetectedId(payload: PhotoSearchPayload | null): string | null {
+  if (!payload) return null;
+  const blocks = getDetectedItems(payload);
+  if (!blocks.length) return null;
+  const primary = payload.primary_detection_id;
+  if (primary && blocks.some((b) => b.id === primary)) {
+    const block = blocks.find((b) => b.id === primary);
+    const y = block?.bbox?.y ?? 0.5;
+    if (y >= 0.18) return primary;
+  }
+  const score = (block: DetectedOutfitItem) => {
+    const products = block.products ?? [];
+    const match = products.length
+      ? Math.max(...products.map((p) => p.visual_match_pct ?? 0))
+      : 0;
+    const y = block.bbox?.y ?? 0.5;
+    const bodyPrior = y < 0.22 ? -40 : y < 0.55 ? 14 : y > 0.72 ? -4 : 6;
+    const idPrior =
+      block.id === "product" || block.id.startsWith("product_")
+        ? 10
+        : block.id === "top"
+          ? 6
+          : block.id === "pants"
+            ? 4
+            : block.id === "shoes"
+              ? 2
+              : 0;
+    return match + bodyPrior + idPrior;
+  };
+  const best = [...blocks].sort((a, b) => score(b) - score(a))[0];
+  return best?.id ?? blocks[0]?.id ?? null;
 }
 
 function normalizeProduct(raw: unknown): Product | null {
@@ -150,6 +193,28 @@ function normalizeProduct(raw: unknown): Product | null {
   };
 }
 
+function isTrustedMatch(p: Product): boolean {
+  return (p.visual_match_pct ?? 0) >= 90 || p.match_mode === "phash";
+}
+
+function sortPhotoProducts(items: Product[], productPhoto = false): Product[] {
+  const minPct = productPhoto ? MIN_PRODUCT_MATCH_PCT : MIN_OUTFIT_MATCH_PCT;
+  const floorPct = productPhoto ? MIN_PRODUCT_MATCH_PCT : 30;
+  const trusted = items.filter(isTrustedMatch);
+  const rest = items.filter((p) => !isTrustedMatch(p));
+  const strong = rest.filter((p) => (p.visual_match_pct ?? 0) >= minPct);
+  const soft = rest.filter((p) => (p.visual_match_pct ?? 0) >= floorPct);
+  const pool = [...trusted, ...(strong.length ? strong : soft.slice(0, 6))];
+  const unique = new Map<string, Product>();
+  for (const p of pool) unique.set(p.id, p);
+  return [...unique.values()].sort((a, b) => {
+    const av = a.visual_match ? 1 : 0;
+    const bv = b.visual_match ? 1 : 0;
+    if (av !== bv) return bv - av;
+    return (b.visual_match_pct ?? 0) - (a.visual_match_pct ?? 0);
+  });
+}
+
 export function photoSearchUsesFallback(payload: PhotoSearchPayload | null): boolean {
   if (!payload) return false;
   if (payload.is_fallback) return true;
@@ -165,51 +230,25 @@ export function patchDetectedBlockProducts(
   const detected_items = payload.detected_items?.map((block) =>
     block.id === blockId ? { ...block, products, total: products.length } : block,
   );
-  const flat = detected_items?.flatMap((b) => b.products) ?? payload.items;
-  const seen = new Set<string>();
-  const items = flat.filter((p) => {
-    if (seen.has(p.id)) return false;
-    seen.add(p.id);
-    return true;
-  });
-  return { ...payload, detected_items, items, total: items.length };
+  return { ...payload, detected_items, items: mergePhotoItems(detected_items, payload.items), total: products.length };
 }
 
-const SLOT_KEYWORDS: Record<string, string[]> = {
-  kamar: ["kamar", "belbog", "belt"],
-  belt: ["kamar", "belbog", "belt"],
-  shim: ["shim", "jinsi", "pant", "chino"],
-  pants: ["shim", "jinsi", "pant", "chino"],
-  kurtka: ["kurtka", "jacket", "palto", "blazer"],
-  "ko'ylak": ["ko'ylak", "koylak", "shirt", "futbolka", "sviter"],
-  koylak: ["ko'ylak", "koylak", "shirt", "futbolka"],
-  poyabzal: ["poyabzal", "krossovka", "tufli", "oyoq", "bot"],
-  bot: ["poyabzal", "krossovka", "tufli"],
-};
-
-const SLOT_BLOCK: Record<string, string[]> = {
-  kamar: ["mato", "ko'rpa", "korpa", "pardabop", "tufli", "krossovka", "poyabzal", "bolalar", "maktab", "atir", "sarpo", "soat", "watch"],
-  belt: ["mato", "ko'rpa", "pardabop", "tufli", "krossovka", "bolalar", "maktab", "soat", "watch"],
-  shim: ["soat", "watch", "qo'l soat", "smart", "atir", "parfyum", "mato", "ko'rpa", "tufli", "krossovka", "poyabzal"],
-  pants: ["soat", "watch", "atir", "mato", "ko'rpa", "tufli", "krossovka", "poyabzal"],
-  kurtka: ["soat", "watch", "shim", "tufli", "mato", "ko'rpa"],
-  "ko'ylak": ["soat", "watch", "shim", "tufli", "mato", "ko'rpa"],
-};
-
-function filterProductsForSlot(label: string, items: Product[]): Product[] {
-  const key = label.trim().toLowerCase();
-  const slotKey =
-    Object.keys(SLOT_KEYWORDS).find((k) => key.includes(k) || k.includes(key)) ?? "";
-  const must = SLOT_KEYWORDS[slotKey];
-  const block = SLOT_BLOCK[slotKey] ?? [];
-  if (!must?.length) return items;
-
-  const filtered = items.filter((p) => {
-    const hay = `${p.name} ${p.category ?? ""}`.toLowerCase();
-    if (block.some((b) => hay.includes(b))) return false;
-    return must.some((kw) => hay.includes(kw));
-  });
-  return filtered;
+function mergePhotoItems(
+  blocks: DetectedOutfitItem[] | undefined,
+  flat: Product[] | undefined,
+): Product[] {
+  const pick = (list: unknown[]) =>
+    list.map(normalizeProduct).filter((p): p is Product => Boolean(p));
+  const fromBlocks = pick((blocks ?? []).flatMap((b) => b.products ?? []) as unknown[]);
+  const fromFlat = pick((flat ?? []) as unknown[]);
+  const seen = new Set<string>();
+  const out: Product[] = [];
+  for (const p of [...fromBlocks, ...fromFlat]) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push(p);
+  }
+  return out;
 }
 
 export function productsForDetected(
@@ -217,30 +256,29 @@ export function productsForDetected(
   detectedId: string | null,
 ): { items: PhotoSearchPayload["items"]; label: string } {
   if (!payload) return { items: [], label: "" };
+  const productPhoto = isProductPhotoSearch(payload);
   const blocks = getDetectedItems(payload);
   const pick = (list: unknown[]) =>
     list.map(normalizeProduct).filter((p): p is Product => Boolean(p));
+
   if (detectedId && blocks.length) {
     const block = blocks.find((b) => b.id === detectedId);
-    if (block) {
-      const items = sortPhotoProducts(pick(block.products as unknown[]), block.label_uz);
-      return { items, label: block.label_uz };
+    if (block?.products?.length) {
+      return { items: sortPhotoProducts(pick(block.products as unknown[]), productPhoto), label: "" };
     }
   }
-  if (blocks.length) {
-    const block = blocks[0];
-    const items = sortPhotoProducts(pick(block.products as unknown[]), block.label_uz);
-    return { items, label: block.label_uz };
-  }
-  return { items: [], label: payload.query_label };
-}
 
-function sortPhotoProducts(items: Product[], label: string): Product[] {
-  const filtered = filterProductsForSlot(label, items);
-  return [...filtered].sort((a, b) => {
-    const av = a.visual_match ? 1 : 0;
-    const bv = b.visual_match ? 1 : 0;
-    if (av !== bv) return bv - av;
-    return (b.visual_match_pct ?? 0) - (a.visual_match_pct ?? 0);
-  });
+  if (blocks.length) {
+    const defaultId = pickDefaultDetectedId(payload);
+    const block = (defaultId ? blocks.find((b) => b.id === defaultId) : null) ?? blocks.find((b) => b.products?.length);
+    if (block?.products?.length) {
+      return { items: sortPhotoProducts(pick(block.products as unknown[]), productPhoto), label: "" };
+    }
+  }
+
+  const merged = sortPhotoProducts(
+    mergePhotoItems(blocks, payload.items as Product[] | undefined),
+    productPhoto,
+  );
+  return { items: merged, label: "" };
 }

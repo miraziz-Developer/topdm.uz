@@ -125,8 +125,30 @@ async def crm_create_banner(
 
 class VerifyPaymentBody(BaseModel):
     banner_id: UUID
-    payment_method: str = Field(..., pattern="^(coin|click|payme)$")
+    payment_method: str = Field(..., pattern="^(coin|click)$")
     external_reference: str | None = None
+
+
+class BannerCheckoutBody(BaseModel):
+    banner_id: UUID
+    provider: str = Field(..., pattern="^(click)$")
+
+
+@router.post("/checkout")
+async def crm_banner_online_checkout(
+    body: BannerCheckoutBody,
+    shop_id: UUID = Depends(_merchant_shop_id),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    service = CrmBannerService(db)
+    try:
+        return await service.create_online_checkout(
+            shop_id=shop_id,
+            banner_id=body.banner_id,
+            provider=body.provider,
+        )
+    except ValueError as exc:
+        raise _map_service_error(exc) from exc
 
 
 @router.post("/verify-payment")

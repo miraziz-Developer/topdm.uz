@@ -5,13 +5,10 @@ import {
   getLightningDeals,
   searchProducts,
 } from "@/lib/api";
+import { partitionHomeDealFeed, type HomeDealFeed } from "@/lib/home-deal-sections";
 import type { Product } from "@/types";
 
-export type HomeDealFeed = {
-  lightning: Product[];
-  clearance: Product[];
-  recommended: Product[];
-};
+export type { HomeDealFeed };
 
 async function fetchDealFeed(limit: number): Promise<HomeDealFeed | null> {
   try {
@@ -78,28 +75,27 @@ async function legacyFallback(limit: number): Promise<HomeDealFeed> {
     }
   }
 
-  if (clearance.length < 4) {
-    const seen = new Set(clearance.map((p) => p.id));
-    const sorted = [...lightning].sort(
-      (a, b) => (a.price_uzs ?? a.price) - (b.price_uzs ?? b.price),
-    );
-    for (const p of sorted) {
-      if (!seen.has(p.id) && clearance.length < limit) {
-        clearance.push(p);
-        seen.add(p.id);
-      }
-    }
+  const lightningIds = new Set(lightning.map((p) => p.id));
+  clearance = clearance.filter((p) => !lightningIds.has(p.id));
+
+  const used = new Set([...lightningIds, ...clearance.map((p) => p.id)]);
+  let recommended: Product[] = [];
+  try {
+    const search = await searchProducts({ limit, page: 1 });
+    recommended = (search.items ?? []).filter((p) => !used.has(p.id));
+  } catch {
+    recommended = [];
   }
 
   return {
     lightning: lightning.slice(0, limit),
     clearance: clearance.slice(0, limit),
-    recommended: lightning.slice(0, limit),
+    recommended: recommended.slice(0, limit),
   };
 }
 
 export async function loadHomeDealFeed(limit = 16): Promise<HomeDealFeed> {
   const unified = await fetchDealFeed(limit);
-  if (unified) return unified;
-  return legacyFallback(limit);
+  const raw = unified ?? (await legacyFallback(limit));
+  return partitionHomeDealFeed(raw);
 }

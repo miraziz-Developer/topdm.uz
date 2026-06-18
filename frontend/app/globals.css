@@ -3,7 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --bg-canvas: #f9fafb;
+  --font-sans: var(--font-outfit), "Outfit", system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-dm-mono), "DM Mono", ui-monospace, monospace;
+  --bg-canvas: #f2f4f8;
   --bg-base: #ffffff;
   --bg-surface: #ffffff;
   --bg-elevated: #e8ecf4;
@@ -41,9 +43,10 @@
   --border-300: rgba(3, 3, 8, 0.18);
   --border-gold: rgba(255, 77, 18, 0.4);
 
-  --shadow-card: 0 4px 6px -1px rgba(3, 3, 8, 0.05), 0 12px 32px -8px rgba(3, 3, 8, 0.1);
-  --shadow-hover: 0 8px 16px -4px rgba(0, 102, 255, 0.18), 0 24px 48px -12px rgba(0, 102, 255, 0.22);
-  --shadow-elevated: 0 20px 50px -12px rgba(3, 3, 8, 0.18);
+  --shadow-card: 0 1px 2px rgba(3, 3, 8, 0.04), 0 8px 32px -8px rgba(3, 3, 8, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  --shadow-hover: 0 12px 28px -8px rgba(0, 102, 255, 0.22), 0 32px 64px -16px rgba(0, 102, 255, 0.14);
+  --shadow-elevated: 0 24px 64px -16px rgba(3, 3, 8, 0.2), 0 0 0 1px rgba(0, 102, 255, 0.06);
+  --shadow-premium: 0 4px 24px -4px rgba(0, 102, 255, 0.12), 0 16px 48px -12px rgba(3, 3, 8, 0.14);
   --shadow-gold: 0 8px 28px -4px rgba(255, 77, 18, 0.35);
   --shadow-modal: 0 32px 80px -16px rgba(3, 3, 8, 0.28);
   --shadow-pin: 0 2px 8px rgba(3, 3, 8, 0.06), 0 12px 28px -8px rgba(3, 3, 8, 0.12);
@@ -196,9 +199,65 @@ video {
   .mesh-bg {
     background-color: var(--bg-canvas);
     background-image:
-      radial-gradient(ellipse 90% 60% at 50% -15%, rgba(0, 102, 255, 0.14) 0%, transparent 55%),
-      radial-gradient(ellipse 50% 40% at 100% 0%, rgba(255, 77, 18, 0.06) 0%, transparent 45%),
-      radial-gradient(ellipse 40% 35% at 0% 100%, rgba(0, 102, 255, 0.05) 0%, transparent 40%);
+      radial-gradient(ellipse 100% 70% at 50% -20%, rgba(0, 102, 255, 0.16) 0%, transparent 52%),
+      radial-gradient(ellipse 55% 45% at 100% 0%, rgba(255, 77, 18, 0.07) 0%, transparent 42%),
+      radial-gradient(ellipse 45% 40% at 0% 100%, rgba(0, 102, 255, 0.06) 0%, transparent 38%),
+      radial-gradient(ellipse 30% 25% at 80% 90%, rgba(255, 77, 18, 0.04) 0%, transparent 50%);
+  }
+
+  .premium-aurora {
+    background:
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(0, 102, 255, 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 90% 20%, rgba(255, 77, 18, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 35% at 50% 100%, rgba(0, 102, 255, 0.06) 0%, transparent 45%);
+  }
+
+  .premium-card {
+    border-radius: var(--r-xl);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    box-shadow: var(--shadow-premium);
+    transition: box-shadow var(--t-normal), transform var(--t-normal), border-color var(--t-normal);
+  }
+
+  .premium-card:hover {
+    box-shadow: var(--shadow-hover);
+    border-color: rgba(0, 102, 255, 0.14);
+  }
+
+  .premium-card-glow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .premium-card-glow::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 102, 255, 0.45), transparent);
+  }
+
+  .premium-dock {
+    border-radius: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    box-shadow:
+      0 8px 32px -8px rgba(3, 3, 8, 0.14),
+      0 0 0 1px rgba(0, 102, 255, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .premium-nav-active {
+    background: linear-gradient(180deg, rgba(0, 102, 255, 0.12) 0%, rgba(0, 102, 255, 0.04) 100%);
+    box-shadow: inset 0 0 0 1px rgba(0, 102, 255, 0.12);
   }
 
   /* Premium Market — full dark canvas, no light mesh bleed */
@@ -306,14 +365,13 @@ video {
 
   .pin-card {
     border-radius: var(--r-xl);
-    background: #fff;
+    background: rgba(255, 255, 255, 0.95);
     box-shadow: var(--shadow-pin);
     transition: box-shadow var(--t-normal), transform var(--t-normal);
   }
 
   .pin-card:hover {
     box-shadow: var(--shadow-hover);
-    transform: translateY(-2px);
   }
 
   /* Checkout date — always visible on glass/dark shells (Safari + Chrome) */
@@ -446,23 +504,32 @@ video {
 
   /* ── Do'kon vitrina (shaxsiy sayt uslubi) ── */
   .shop-page {
-    background: linear-gradient(180deg, #f4f6fb 0%, var(--bg-canvas) 12rem);
+    font-feature-settings: "kern" 1, "liga" 1;
+    -webkit-font-smoothing: antialiased;
   }
 
   .shop-storefront-hero {
     isolation: isolate;
   }
 
+  .shop-featured-product {
+    isolation: isolate;
+  }
+
   .shop-hero-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium tracking-wide transition active:scale-[0.98];
+  }
+
+  .shop-hero-btn--primary {
+    @apply bg-ink-900 text-white shadow-[0_12px_28px_-14px_rgba(0,0,0,0.5)] hover:opacity-90;
   }
 
   .shop-hero-btn--secondary {
-    @apply bg-surface text-text-100 shadow-sm ring-1 ring-border-subtle hover:bg-elevated;
+    @apply bg-white text-ink-700 shadow-sm ring-1 ring-black/[0.07] hover:bg-[#faf9f7];
   }
 
   .shop-hero-btn--ghost {
-    @apply bg-canvas text-text-400 ring-1 ring-border-subtle hover:text-text-100;
+    @apply bg-[#f6f4f1] text-ink-500 ring-1 ring-black/[0.06] hover:text-ink-700;
   }
 
   .break-anywhere {

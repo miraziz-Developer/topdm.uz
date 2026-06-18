@@ -4,9 +4,7 @@
  */
 export function allowDevMocks(): boolean {
   if (process.env.NODE_ENV === "production") return false;
-  if (process.env.NEXT_PUBLIC_ALLOW_DEV_MOCKS === "false") return false;
-  if (process.env.NEXT_PUBLIC_ALLOW_DEV_MOCKS === "true") return true;
-  return true;
+  return process.env.NEXT_PUBLIC_ALLOW_DEV_MOCKS === "true";
 }
 
 /**
@@ -14,9 +12,10 @@ export function allowDevMocks(): boolean {
  * Prod: NEXT_PUBLIC_DEMO_FAKE_DATA=true
  */
 export function allowDemoFakeData(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
   if (process.env.NEXT_PUBLIC_DEMO_FAKE_DATA === "true") return true;
   if (process.env.NEXT_PUBLIC_DEMO_FAKE_DATA === "false") return false;
-  return allowDevMocks();
+  return false;
 }
 
 export function merchantCrmUrl(): string {
@@ -24,7 +23,7 @@ export function merchantCrmUrl(): string {
 }
 
 /**
- * Click / Payme mijoz checkout — backend `ENABLE_ONLINE_CHECKOUT` bilan birga yoqing:
+ * Click mijoz checkout — backend `ENABLE_ONLINE_CHECKOUT` bilan birga yoqing:
  * NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT=true
  */
 export function allowOnlineCheckout(): boolean {

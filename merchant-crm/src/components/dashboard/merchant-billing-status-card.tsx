@@ -52,7 +52,7 @@ export function MerchantBillingStatusCard() {
         "/billing/pay-debt",
         { amount_uzs: status.debt_balance_uzs },
       );
-      toast.success(res.message ?? "To'lov qabul qilindi (demo: Click/Payme).");
+      toast.success(res.message ?? "To'lov qabul qilindi.");
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "To'lov amalga oshmadi");
@@ -91,9 +91,9 @@ export function MerchantBillingStatusCard() {
             {blocked ? <AlertTriangle className="h-6 w-6" /> : <ShieldCheck className="h-6 w-6" />}
           </span>
           <div>
-            <h2 className="text-base font-bold text-text-100">Billing &amp; Account Status</h2>
+            <h2 className="text-base font-bold text-text-100">Hisob va qarz holati</h2>
             <p className="mt-1 text-xs text-text-400">
-              Naqd/terminal buyurtmalarda platforma ustamasi ({markup}%) qarz balansiga yoziladi.
+              Naqd yoki terminal buyurtmalarda platforma ustamasi ({markup}%) qarz balansiga yoziladi.
             </p>
             <dl className="mt-3 space-y-1.5 text-sm">
               <div className="flex flex-wrap items-baseline gap-2">
@@ -108,7 +108,7 @@ export function MerchantBillingStatusCard() {
                     blocked ? "text-red-700" : "text-emerald-700",
                   )}
                 >
-                  {blocked ? "BLOCKED due to unpaid debt" : "Active"}
+                  {blocked ? "Qarz tufayli bloklangan" : "Faol"}
                 </dd>
               </div>
               {!blocked && debt > 0 ? (
@@ -127,7 +127,7 @@ export function MerchantBillingStatusCard() {
           onClick={() => void payNow()}
         >
           <CreditCard className="h-4 w-4" />
-          {paying ? "To'lanmoqda…" : "Pay Now via Click/Payme"}
+          {paying ? "To'lanmoqda…" : "Click orqali to'lash"}
         </Button>
       </div>
     </section>

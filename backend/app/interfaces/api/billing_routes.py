@@ -263,7 +263,7 @@ class PayDebtBody(BaseModel):
 
 
 class DebtCheckoutBody(BaseModel):
-    provider: str = Field(..., pattern="^(click|payme)$")
+    provider: str = Field(..., pattern="^(click)$")
 
 
 @router.post("/debt/checkout")

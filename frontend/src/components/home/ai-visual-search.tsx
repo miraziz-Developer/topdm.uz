@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 
-import { PremiumTrustAnchors } from "@/components/home/premium-trust-anchors";
 import { useT } from "@/i18n/locale-provider";
 import { LaserScanOverlay } from "@/components/ui/laser-scan-overlay";
 import { ScanBeam } from "@/components/ui/scan-beam";
@@ -91,8 +90,6 @@ export function AiVisualSearch() {
             {t("home.hero.subtitle")}
           </p>
         </div>
-
-        <PremiumTrustAnchors />
 
         <motion.div
           {...scaleIn}

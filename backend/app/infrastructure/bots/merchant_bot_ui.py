@@ -14,22 +14,19 @@ from app.core.config import get_settings
 
 
 def crm_url(path: str, shop_id: uuid.UUID | None = None, *, next_path: str | None = None) -> str:
-    """WebApp URL — asosan /telegram kirish; next= ichki sahifa."""
-    from app.infrastructure.bots.merchant_crm_links import crm_entry_url
-
-    if path in ("/telegram", "/mini") and shop_id is not None:
-        inner = "/mini" if path == "/mini" else next_path
-        return crm_entry_url(shop_id, next_path=inner or next_path)
+    """WebApp URL — /mini xarita, /telegram CRM kirish (to'g'ridan-to'g'ri, redirectsiz)."""
     base = get_settings().merchant_crm_webapp_url.rstrip("/")
     url = f"{base}{path}"
+    params: list[str] = []
     if shop_id:
-        sep = "&" if "?" in url else "?"
-        url = f"{url}{sep}shop_id={shop_id}"
+        params.append(f"shop_id={shop_id}")
     if next_path:
-        sep = "&" if "?" in url else "?"
         from urllib.parse import quote
 
-        url = f"{url}{sep}next={quote(next_path, safe='/')}"
+        params.append(f"next={quote(next_path, safe='/')}")
+    if params:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}{'&'.join(params)}"
     return url
 
 
@@ -47,7 +44,11 @@ def merchant_menu_keyboard(shop_id: uuid.UUID) -> ReplyKeyboardMarkup:
                 web_app=WebAppInfo(url=crm_url("/mini", shop_id)),
             ),
         ],
-        [KeyboardButton(text="Mahsulot yuklash (rasm)")],
+        [
+            KeyboardButton(text="Mahsulot yuklash (rasm)"),
+            KeyboardButton(text="Mahsulot qo'lda"),
+        ],
+        [KeyboardButton(text="Ombor yangilash")],
     ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -99,5 +100,13 @@ def market_zone_keyboard() -> ReplyKeyboardMarkup:
     from app.application.merchant.registration import MARKET_ZONE_OPTIONS
 
     rows = [[KeyboardButton(text=z)] for z in MARKET_ZONE_OPTIONS]
+    rows.append([KeyboardButton(text="Bekor qilish")])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, one_time_keyboard=True)
+
+
+def shop_type_keyboard() -> ReplyKeyboardMarkup:
+    from app.application.merchant.registration import SHOP_TYPE_OPTIONS
+
+    rows = [[KeyboardButton(text=z)] for z in SHOP_TYPE_OPTIONS]
     rows.append([KeyboardButton(text="Bekor qilish")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, one_time_keyboard=True)

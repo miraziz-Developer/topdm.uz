@@ -216,6 +216,33 @@ class BozorToolRunner:
             self._register_catalog_items(vector_neighbors)
             vector_neighbors = filter_catalog_items_for_intent(vector_neighbors, source_text or search_text)
 
+        if not items and not vector_neighbors and max_p is not None:
+            relaxed = True
+            overflow_matches = await self._products.hybrid_search(
+                vector,
+                filters,
+                limit=12,
+                min_price=min_p,
+                max_price=None,
+            )
+            overflow_items: list[dict[str, Any]] = []
+            for m in overflow_matches:
+                pid = str(m.id)
+                full = await self._market.get_product_by_id(UUID(pid))
+                if not full:
+                    continue
+                d = product_to_dict(full)
+                price = float(d.get("price") or 0)
+                if price > float(max_p) * 3.5:
+                    continue
+                d["budget_overflow"] = price > float(max_p) * 1.15
+                overflow_items.append(d)
+            overflow_items.sort(key=lambda row: float(row.get("price") or 0))
+            overflow_items = filter_catalog_items_for_intent(overflow_items, source_text or search_text)
+            if overflow_items:
+                vector_neighbors = overflow_items[:8]
+                self._register_catalog_items(vector_neighbors)
+
         jonli = build_jonli_katalog_natijasi(exact_items=items, vector_neighbors=vector_neighbors)
         all_for_llm = list(jonli.get("vector_neighbors") or [])
         self._register_catalog_items(all_for_llm)
@@ -284,6 +311,14 @@ class BozorToolRunner:
             if max_p is not None and float(d.get("price") or 0) > float(max_p) * 1.5:
                 continue
             out.append(d)
+        if not out:
+            featured = await self._market.list_featured_products(limit=8)
+            for row in featured:
+                d = product_to_dict(row)
+                if max_p is not None and float(d.get("price") or 0) > float(max_p) * 3.5:
+                    continue
+                d["budget_overflow"] = bool(max_p and float(d.get("price") or 0) > float(max_p) * 1.15)
+                out.append(d)
         return out
 
     async def _get_product_details(self, args: dict[str, Any]) -> dict[str, Any]:

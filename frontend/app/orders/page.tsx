@@ -4,73 +4,40 @@ import Link from "next/link";
 import { Phone } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { OrderFlowCard } from "@/components/profile/live-orders";
 import { BottomNav } from "@/components/BottomNav";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { getMyOrders, lookupOrdersByPhone } from "@/lib/api";
-import { readGuestPhone, saveGuestPhone } from "@/lib/guest-phone";
-import { buildMapFocusHref, parseBlockLetterFromSector } from "@/lib/map-stores";
+import {
+  getMyOrders,
+  lookupOrdersByPhone,
+  sendOrderLookupOtp,
+  verifyOrderLookupOtp,
+} from "@/lib/api";
+import {
+  filterOrdersByScope,
+  sortOrdersNewestFirst,
+  type OrderListScope,
+} from "@/lib/order-filters";
+import {
+  readGuestLookupToken,
+  readGuestPhone,
+  saveGuestLookupToken,
+  saveGuestPhone,
+} from "@/lib/guest-phone";
 import { ApiError } from "@/lib/http-client";
-import { orderStatusLabel } from "@/lib/order-status";
-import { parseShopLocation } from "@/lib/shop-location";
 import {
   applyPhoneMaskInput,
   formatUzbekPhoneParenDisplay,
   normalizeUzbekPhoneE164,
   UZ_PHONE_E164_REGEX,
 } from "@/utils/phone-mask";
-import { formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUserStore } from "@/stores/user-store";
 import type { Order } from "@/types";
-
-function OrderCard({ order }: { order: Order }) {
-  const pin = parseShopLocation({
-    floor: order.shop.floor || order.shop.block_sector || "",
-    ipadrom: order.shop.ipadrom || "",
-    block_sector: order.shop.block_sector,
-    section: order.shop.section,
-  });
-  const blockFromApi = parseBlockLetterFromSector(order.shop.block_sector);
-  const mapHref = buildMapFocusHref({
-    merchantId: order.shop.id,
-    shopSlug: order.shop.slug,
-    block: blockFromApi ?? pin.block,
-    stall: pin.stall,
-    focus: true,
-    source: "order",
-    orderId: order.id,
-  });
-
-  return (
-    <div className="rounded-2xl border border-border-subtle bg-surface p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm text-text-400">#{order.id.slice(0, 8)}</p>
-          <h2 className="mt-1 text-lg font-semibold text-text-100">{order.product.name}</h2>
-          <p className="mt-1 text-sm text-text-300">{order.shop.name}</p>
-        </div>
-        <span className="rounded-full bg-gold-500/10 px-3 py-1 text-xs font-medium text-gold-400">
-          {orderStatusLabel(order.status)}
-        </span>
-      </div>
-      <div className="mt-4 flex items-center justify-between text-sm text-text-300">
-        <span>{order.quantity} dona</span>
-        <span className="price-mono font-semibold text-text-100">{formatPrice(order.total_price)}</span>
-      </div>
-      <div className="mt-4">
-        <Link
-          href={mapHref}
-          className="inline-flex w-full items-center justify-center rounded-xl border border-electric-500/30 bg-electric-500/10 py-2.5 text-xs font-bold text-electric-600 transition hover:bg-electric-500/15"
-        >
-          Do&apos;konga borish (xarita)
-        </Link>
-      </div>
-    </div>
-  );
-}
 
 export default function OrdersPage() {
   const { push } = useToast();
@@ -80,6 +47,7 @@ export default function OrdersPage() {
   const profile = useUserStore((state) => state.profile);
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [scope, setScope] = useState<OrderListScope>("active");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [guestPhone, setGuestPhone] = useState(() => {
@@ -87,6 +55,8 @@ export default function OrdersPage() {
     return saved ? formatUzbekPhoneParenDisplay(saved) : "+998 ";
   });
   const [guestLoading, setGuestLoading] = useState(false);
+  const [otpStep, setOtpStep] = useState<"phone" | "code">("phone");
+  const [otpCode, setOtpCode] = useState("");
 
   useEffect(() => {
     if (!authHydrated || !userHydrated) return;
@@ -94,23 +64,30 @@ export default function OrdersPage() {
     if (isLoggedIn) {
       void (async () => {
         try {
-          const mine = await getMyOrders();
-          let items = mine.items ?? [];
+          const mine = await getMyOrders("all");
+          let items = sortOrdersNewestFirst(mine.items ?? []);
           const saved = readGuestPhone();
           if (saved && UZ_PHONE_E164_REGEX.test(saved)) {
-            try {
-              const guest = await lookupOrdersByPhone(saved);
-              const byId = new Map<string, Order>();
-              for (const o of items) byId.set(o.id, o);
-              for (const o of guest.items ?? []) byId.set(o.id, o);
-              items = Array.from(byId.values());
-            } catch {
-              // ignore guest fallback errors for logged-in flow
+            const token = readGuestLookupToken(saved);
+            if (token) {
+              try {
+                const guest = await lookupOrdersByPhone(saved, token);
+                const byId = new Map<string, Order>();
+                for (const o of items) byId.set(o.id, o);
+                for (const o of guest.items ?? []) byId.set(o.id, o);
+                items = Array.from(byId.values());
+              } catch {
+                // ignore guest fallback errors for logged-in flow
+              }
             }
           }
           setOrders(items);
           if (!items.length) {
-            setError("Buyurtma topilmadi. Profil telefoni va checkout telefoni bir xil ekanini tekshiring.");
+            setError(
+              profile?.phone
+                ? "Buyurtma topilmadi. Checkout telefoni profil telefoni bilan bir xil ekanini tekshiring."
+                : "Profilga telefon qo'shing — buyurtmalar shu raqam bilan bog'lanadi.",
+            );
           } else {
             setError(null);
           }
@@ -124,16 +101,18 @@ export default function OrdersPage() {
     }
 
     const saved = readGuestPhone();
-    if (saved && UZ_PHONE_E164_REGEX.test(saved)) {
+    const savedToken = saved ? readGuestLookupToken(saved) : null;
+    if (saved && UZ_PHONE_E164_REGEX.test(saved) && savedToken) {
       setGuestLoading(true);
-      void lookupOrdersByPhone(saved)
+      void lookupOrdersByPhone(saved, savedToken)
         .then((response) => {
           setOrders(response.items);
           setError(response.items.length ? null : "Bu telefon uchun buyurtma topilmadi.");
         })
-        .catch((err) => {
+        .catch(() => {
           setOrders([]);
-          setError(err instanceof ApiError ? err.message : "Buyurtmalarni yuklab bo'lmadi.");
+          setError("Sessiya tugagan. SMS kod bilan qayta tasdiqlang.");
+          setOtpStep("phone");
         })
         .finally(() => {
           setGuestLoading(false);
@@ -144,9 +123,18 @@ export default function OrdersPage() {
 
     setLoading(false);
     setError(null);
-  }, [authHydrated, userHydrated, isLoggedIn]);
+  }, [authHydrated, userHydrated, isLoggedIn, profile?.phone]);
 
-  const lookupGuest = async () => {
+  const scopedOrders = filterOrdersByScope(orders, scope);
+
+  const scopeTabs: { key: OrderListScope; label: string }[] = [
+    { key: "active", label: "Faol" },
+    { key: "completed", label: "Yakunlangan" },
+    { key: "cancelled", label: "Bekor" },
+    { key: "all", label: "Barchasi" },
+  ];
+
+  const sendOtp = async () => {
     const phoneE164 = normalizeUzbekPhoneE164(guestPhone);
     if (!UZ_PHONE_E164_REGEX.test(phoneE164)) {
       push("Telefon raqamini to'g'ri kiriting", "error");
@@ -156,7 +144,38 @@ export default function OrdersPage() {
     setError(null);
     try {
       saveGuestPhone(phoneE164);
-      const response = await lookupOrdersByPhone(phoneE164);
+      const result = await sendOrderLookupOtp(phoneE164);
+      if (result.dev_otp) {
+        push(`Dev OTP: ${result.dev_otp}`, "info");
+      } else {
+        push("SMS kod yuborildi", "success");
+      }
+      setOtpStep("code");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "SMS yuborilmadi";
+      setError(message);
+      push(message, "error");
+    } finally {
+      setGuestLoading(false);
+    }
+  };
+
+  const confirmOtpAndLookup = async () => {
+    const phoneE164 = normalizeUzbekPhoneE164(guestPhone);
+    if (!UZ_PHONE_E164_REGEX.test(phoneE164)) {
+      push("Telefon raqamini to'g'ri kiriting", "error");
+      return;
+    }
+    if (!otpCode.trim()) {
+      push("SMS kodini kiriting", "error");
+      return;
+    }
+    setGuestLoading(true);
+    setError(null);
+    try {
+      const verified = await verifyOrderLookupOtp(phoneE164, otpCode.trim());
+      saveGuestLookupToken(phoneE164, verified.verification_token);
+      const response = await lookupOrdersByPhone(phoneE164, verified.verification_token);
       setOrders(response.items);
       if (!response.items.length) {
         setError("Bu telefon uchun buyurtma topilmadi.");
@@ -173,38 +192,97 @@ export default function OrdersPage() {
 
   const showGuestForm = !isLoggedIn && authHydrated && userHydrated;
   const listLoading = loading || guestLoading;
+  const guestPhoneE164 = normalizeUzbekPhoneE164(guestPhone);
+  const guestVerificationToken =
+    !isLoggedIn && UZ_PHONE_E164_REGEX.test(guestPhoneE164)
+      ? readGuestLookupToken(guestPhoneE164) ?? undefined
+      : undefined;
 
   return (
     <main className="page-shell min-h-dvh bg-canvas md:pb-6">
       <Navigation />
       <div className="page-content-top mx-auto max-w-3xl px-4 pb-8 sm:px-5">
-        <h1 className="mb-2 text-3xl font-bold text-text-100">Buyurtmalarim</h1>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-electric-500">Jonli kuzatuv</p>
+        <h1 className="mb-2 text-3xl font-bold tracking-tight text-text-100">Buyurtmalarim</h1>
         <p className="mb-6 text-sm text-text-400">
           {isLoggedIn
-            ? "Profil telefon raqamingiz bo'yicha barcha bronlar."
+            ? "Profil telefon raqamingiz va hisob bo'yicha barcha bronlar."
             : "Telefon raqamingiz bilan bronlarni ko'ring yoki tizimga kiring."}
         </p>
+
+        {isLoggedIn && orders.length > 0 ? (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {scopeTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setScope(tab.key)}
+                className={cn(
+                  "rounded-full px-4 py-2 text-xs font-semibold transition",
+                  scope === tab.key
+                    ? "bg-electric-500 text-white shadow-sm"
+                    : "border border-border-subtle bg-surface text-text-400 hover:text-text-200",
+                )}
+              >
+                {tab.label}
+                <span className="ml-1.5 opacity-70">
+                  ({filterOrdersByScope(orders, tab.key).length})
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {showGuestForm ? (
           <div className="mb-6 rounded-2xl border border-border-subtle bg-surface p-4">
             <p className="mb-3 text-sm text-text-300">
               Mehmon sifatida bron qilgan bo&apos;lsangiz, checkoutda kiritgan telefonni qidiring.
             </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="flex-1">
-                <Input
-                  label="Telefon"
-                  type="tel"
-                  value={guestPhone}
-                  onChange={(e) => setGuestPhone(applyPhoneMaskInput(e.target.value))}
-                  leftIcon={<Phone className="h-4 w-4 text-electric-500" />}
-                  placeholder="+998 (90) 123-45-67"
-                />
+            {otpStep === "phone" ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Input
+                    label="Telefon"
+                    type="tel"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(applyPhoneMaskInput(e.target.value))}
+                    leftIcon={<Phone className="h-4 w-4 text-electric-500" />}
+                    placeholder="+998 (90) 123-45-67"
+                  />
+                </div>
+                <Button variant="brand" isLoading={guestLoading} onClick={() => void sendOtp()}>
+                  SMS kod olish
+                </Button>
               </div>
-              <Button variant="brand" isLoading={guestLoading} onClick={() => void lookupGuest()}>
-                Qidirish
-              </Button>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Input
+                    label="SMS tasdiqlash kodi"
+                    type="text"
+                    inputMode="numeric"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="6 xonali kod"
+                  />
+                </div>
+                <Button variant="brand" isLoading={guestLoading} onClick={() => void confirmOtpAndLookup()}>
+                  Tasdiqlash
+                </Button>
+              </div>
+            )}
+            {otpStep === "code" ? (
+              <button
+                type="button"
+                className="text-xs text-electric-500 hover:underline"
+                onClick={() => {
+                  setOtpStep("phone");
+                  setOtpCode("");
+                }}
+              >
+                Boshqa telefon raqamini kiritish
+              </button>
+            ) : null}
             <p className="mt-3 text-center text-xs text-text-400">
               Yoki{" "}
               <Link href="/auth" className="font-semibold text-electric-500 hover:underline">
@@ -234,11 +312,21 @@ export default function OrdersPage() {
               </Button>
             )}
           </div>
-        ) : orders.length ? (
+        ) : scopedOrders.length ? (
           <div className="space-y-4">
-            {orders.map((order) => (
-              <OrderCard key={order.id} order={order} />
+            {scopedOrders.map((order, index) => (
+              <OrderFlowCard
+                key={order.id}
+                order={order}
+                index={index}
+                guestPhone={guestVerificationToken ? guestPhoneE164 : undefined}
+                guestVerificationToken={guestVerificationToken}
+              />
             ))}
+          </div>
+        ) : orders.length ? (
+          <div className="rounded-2xl border border-border-subtle bg-surface p-8 text-center text-text-300">
+            Bu bo&apos;limda buyurtmalar yo&apos;q.
           </div>
         ) : (
           <div className="rounded-2xl border border-border-subtle bg-surface p-8 text-center text-text-300">

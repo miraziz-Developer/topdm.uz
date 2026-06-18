@@ -72,24 +72,41 @@ export async function geocodeWithYandexBrowser(query: string): Promise<ResolvedA
   }
 }
 
+function collectGeocodeHits(res: GeocodeCollection | null, fallback: string, max = 10): ResolvedAddress[] {
+  if (!res) return [];
+  const out: ResolvedAddress[] = [];
+  const len = Math.min(res.geoObjects.getLength(), max);
+  for (let i = 0; i < len; i++) {
+    const obj = res.geoObjects.get(i);
+    if (!obj) continue;
+    const hit = parseGeocodeResult(obj, fallback);
+    if (hit) out.push(hit);
+  }
+  return out;
+}
+
 export async function suggestWithYandexBrowser(query: string): Promise<ResolvedAddress[]> {
   const apiKey = resolveYandexMapsApiKey();
   if (!apiKey) return [];
 
   try {
     const ymaps = await loadYandexMaps(apiKey);
-    const text = withTashkentContext(query);
-    const res = await runYmapsGeocode(ymaps, text, 6);
-    if (!res) return [];
-    const out: ResolvedAddress[] = [];
-    const len = Math.min(res.geoObjects.getLength(), 6);
-    for (let i = 0; i < len; i++) {
-      const obj = res.geoObjects.get(i);
-      if (!obj) continue;
-      const hit = parseGeocodeResult(obj, text);
-      if (hit) out.push(hit);
+    const raw = query.trim();
+    const variants = raw ? [raw, withTashkentContext(raw)] : [];
+    const merged: ResolvedAddress[] = [];
+    const seen = new Set<string>();
+
+    for (const text of variants) {
+      const res = await runYmapsGeocode(ymaps, text, 10);
+      for (const hit of collectGeocodeHits(res, text, 10)) {
+        const key = `${hit.lat.toFixed(4)}|${hit.lng.toFixed(4)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(hit);
+      }
+      if (merged.length >= 4) break;
     }
-    return out;
+    return merged;
   } catch {
     return [];
   }

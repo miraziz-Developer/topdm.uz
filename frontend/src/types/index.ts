@@ -24,6 +24,7 @@ export interface StoryDockRing {
 export interface ShopSummary {
   id: string;
   name: string;
+  shop_type?: "chakana" | "optom" | "hybrid";
   slug?: string;
   logo_url?: string | null;
   ipadrom: string;
@@ -78,9 +79,17 @@ export interface Product {
   match_mode?: string;
   sale_type?: SaleType;
   min_order_quantity?: number;
+  pricing_unit?: "piece" | "pack";
+  units_per_pack?: number | null;
+  pack_composition?: Array<{ size: string; qty: number }>;
+  pack_label?: string | null;
+  price_is_pack?: boolean;
   images: string[];
   category?: string;
+  category_id?: string;
+  category_name?: string;
   root_category?: string;
+  root_category_name?: string;
   sub_category?: string;
   market_zone?: string;
   block_sector?: string;
@@ -134,6 +143,7 @@ export interface DetectedOutfitItem {
   search_query: string;
   bbox: { x: number; y: number; w: number; h: number };
   thumbnail_url: string;
+  refine_crop_url?: string;
   products: Product[];
   total: number;
   is_fallback?: boolean;
@@ -157,6 +167,7 @@ export interface PhotoSearchResponse {
   };
   query_label: string;
   detected_items?: DetectedOutfitItem[];
+  primary_detection_id?: string | null;
   mode?: string;
   is_fallback?: boolean;
   assistant_text?: string;

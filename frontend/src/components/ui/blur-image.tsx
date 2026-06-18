@@ -3,7 +3,7 @@
 import Image, { type ImageProps } from "next/image";
 import { useState } from "react";
 
-import { isLocalDevMedia, PLACEHOLDER_IMAGE, resolveMediaUrl } from "@/lib/media";
+import { PLACEHOLDER_IMAGE, resolveMediaUrl, shouldUnoptimizeProductImage } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 type BlurImageProps = Omit<ImageProps, "src"> & {
@@ -15,7 +15,7 @@ export function BlurImage({ className, wrapperClassName, alt, onLoad, onError, s
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const resolved = failed ? PLACEHOLDER_IMAGE : resolveMediaUrl(typeof src === "string" ? src : null);
-  const useUnoptimized = unoptimized ?? (resolved.startsWith("data:") || isLocalDevMedia(resolved));
+  const useUnoptimized = unoptimized ?? shouldUnoptimizeProductImage(resolved);
 
   return (
     <div

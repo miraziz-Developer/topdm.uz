@@ -91,8 +91,8 @@ export function FloatingHeader() {
       className={cn(
         "safe-top fixed inset-x-0 top-0 z-50 h-14 transition-all duration-200 sm:h-16",
         scrolled
-          ? "border-b border-border-subtle bg-white/95 shadow-sm backdrop-blur-xl"
-          : "bg-white/85 backdrop-blur-md",
+          ? "border-b border-white/60 bg-white/92 shadow-[0_8px_32px_-12px_rgba(3,3,8,0.12)] backdrop-blur-2xl backdrop-saturate-150"
+          : "bg-white/80 backdrop-blur-xl backdrop-saturate-150",
       )}
     >
       {/* Single-row flex — never wraps */}

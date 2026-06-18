@@ -2,6 +2,8 @@ import hashlib
 import json
 from dataclasses import asdict
 
+from loguru import logger
+
 from app.application.stylist.schemas import IntentSchema, OutfitResponse
 from app.application.interfaces.ai_clients import ClaudeGateway, EmbeddingGateway, GeminiGateway
 from app.core.config import get_settings
@@ -100,7 +102,10 @@ class StylistUseCase:
 
         filters: dict = {}
         if query.image_url:
-            filters = await self.gemini.extract_attributes(query.image_url)
+            try:
+                filters = await self.gemini.extract_attributes(query.image_url)
+            except Exception as exc:
+                logger.warning("stylist_vision_skipped image_url={} err={}", query.image_url, exc)
         if query.text and query.text.strip():
             filters["text"] = query.text.strip()
 

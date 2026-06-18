@@ -10,6 +10,7 @@ import { PremiumImageGallery } from "@/components/market/PremiumImageGallery";
 import { PremiumPriceCard } from "@/components/market/PremiumPriceCard";
 import { marketEyebrow, marketPanel } from "@/components/market/market-ui";
 import { fetchChinaProduct, formatUzs, type ChinaProduct } from "@/lib/premium-market";
+import { isChinaMarketEnabled } from "@/lib/runtime-flags";
 import { useToast } from "@/components/ui/toast";
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
 
 export function ChinaProductDetailPage({ itemId }: Props) {
   const { push } = useToast();
+  const chinaEnabled = isChinaMarketEnabled();
   const [item, setItem] = useState<ChinaProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,9 +120,21 @@ export function ChinaProductDetailPage({ itemId }: Props) {
               </p>
 
               <PremiumActionButtons
-                disabled={!color && item.colors.length > 0}
-                onBuy={() => push("Buyurtma tez orada", "success")}
-                onCart={() => push("Savatga qo'shildi", "success")}
+                disabled={!chinaEnabled || (!color && item.colors.length > 0)}
+                onBuy={() => {
+                  if (!chinaEnabled) {
+                    push("Xitoy bozori hozircha yoqilmagan", "info");
+                    return;
+                  }
+                  push("Import buyurtma tez orada — hozir Taobao manbasiga o'ting", "info");
+                }}
+                onCart={() => {
+                  if (!chinaEnabled) {
+                    push("Xitoy bozori hozircha yoqilmagan", "info");
+                    return;
+                  }
+                  push("Mahalliy savat faqat do'kon mahsulotlari uchun", "error");
+                }}
               />
 
               {item.source_url ? (

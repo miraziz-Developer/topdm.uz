@@ -84,7 +84,7 @@ export function BandQilishModal({ product, isOpen, onClose }: BandQilishModalPro
             </div>
             <h3 className="text-lg font-semibold text-text-100">Band qilindi!</h3>
             <p className="mt-2 text-sm text-text-400">
-              Do'kon siz bilan tez orada bog'lanadi
+              So&apos;rovingiz do&apos;konga yuborildi — tez orada qo&apos;ng&apos;iroq qilishadi
             </p>
           </motion.div>
         ) : (

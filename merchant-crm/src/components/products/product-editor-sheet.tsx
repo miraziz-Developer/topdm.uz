@@ -6,10 +6,12 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ProductVariantsEditor } from "@/components/products/product-variants-editor";
+import { WholesalePackEditor } from "@/components/products/wholesale-pack-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   createMerchantProduct,
+  getMerchantMe,
   getMerchantProduct,
   type MerchantProduct,
   updateMerchantProduct,
@@ -24,6 +26,13 @@ import {
   type VariantCatalog,
 } from "@/lib/product-variants";
 import { customerSalePriceUzs, formatUzs } from "@/lib/product-pricing";
+import {
+  defaultWholesaleForShop,
+  parseWholesaleFromProduct,
+  validateWholesaleFields,
+  wholesaleToCreateForm,
+  type WholesaleProductFields,
+} from "@/lib/wholesale-pack";
 import { cn } from "@/lib/utils";
 
 type Mode = "create" | "edit";
@@ -72,6 +81,15 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
   const [catalog, setCatalog] = useState<VariantCatalog>(emptyVariantCatalog);
   const [busy, setBusy] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [shopType, setShopType] = useState<string | null>(null);
+  const [wholesale, setWholesale] = useState<WholesaleProductFields>(() => defaultWholesaleForShop(null));
+
+  useEffect(() => {
+    if (!open) return;
+    void getMerchantMe()
+      .then((res) => setShopType(res.shop.shop_type ?? "chakana"))
+      .catch(() => setShopType("chakana"));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,6 +108,15 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
             ? parseVariantCatalogFromProduct(item.variant_catalog)
             : parseVariantCatalogFromAttributes(item.attributes);
           setCatalog(parsed);
+          setWholesale(
+            parseWholesaleFromProduct({
+              sale_type: (item as { sale_type?: string }).sale_type,
+              pricing_unit: (item as { pricing_unit?: string }).pricing_unit,
+              min_order_quantity: (item as { min_order_quantity?: number }).min_order_quantity,
+              units_per_pack: (item as { units_per_pack?: number | null }).units_per_pack,
+              attributes: item.attributes as Record<string, unknown> | undefined,
+            }),
+          );
           setCoverFile(null);
           setCoverPreview(null);
         })
@@ -111,10 +138,11 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
       setFeatured(false);
       setAvailable(true);
       setCatalog(emptyVariantCatalog());
+      setWholesale(defaultWholesaleForShop(shopType));
       setCoverFile(null);
       setCoverPreview(null);
     }
-  }, [open, mode, product]);
+  }, [open, mode, product, shopType]);
 
   useEffect(() => {
     if (!coverFile) return;
@@ -137,6 +165,11 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
     }
     if (!priceNum || priceNum < 1) {
       toast.error("Narxni kiriting");
+      return;
+    }
+    const wholesaleError = validateWholesaleFields(wholesale);
+    if (wholesaleError) {
+      toast.error(wholesaleError);
       return;
     }
 
@@ -172,6 +205,7 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
           stock_count: useSkuStock ? skuTotal : Number(stock) || 5,
           is_featured: featured,
           variantCatalog: variantPayload,
+          wholesale: wholesaleToCreateForm(wholesale),
         });
         toast.success("Mahsulot qo'shildi");
       } else if (product) {
@@ -245,6 +279,11 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
                   <span className="text-text-400">(+15% platforma ustamasi)</span>
                 </p>
               ) : null}
+
+              {shopType && shopType.toLowerCase() !== "chakana" ? (
+                <WholesalePackEditor shopType={shopType} value={wholesale} onChange={setWholesale} />
+              ) : null}
+
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-text-300">Tavsif</label>
                 <textarea

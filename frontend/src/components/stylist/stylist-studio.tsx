@@ -16,7 +16,7 @@ const SCENARIOS = [
   { emoji: "💒", title: "To'y / tadbir", hint: "Sarpo yoki kechki libos, premium segment" },
   { emoji: "🏃", title: "Sport & kundalik", hint: "Qulay krossovka + sport majmua" },
   { emoji: "👶", title: "Bolalar look", hint: "Maktab formasi yoki 6–12 yosh kostyum" },
-  { emoji: "📦", title: "Optom savdo", hint: "10+ dona, eng yaxshi guruh narxi" },
+  { emoji: "📦", title: "Optom savdo", hint: "10+ dona, eng yaxshi optom narx" },
   { emoji: "🌡️", title: "Mavsumiy", hint: "Bahoriy yengil kurtka + shim kombinatsiya" },
 ];
 

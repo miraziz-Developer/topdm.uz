@@ -15,8 +15,11 @@ function parseApiErrorMessage(err: unknown): string {
   if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
     return "Serverga ulanib bo'lmadi. Backend (port 8000) ishlayotganini tekshiring.";
   }
-  if (msg.includes("502") || msg.includes("Image search failed")) {
-    return "AI tahlil vaqtincha ishlamadi. Birozdan keyin qayta urinib ko'ring.";
+  if (msg.includes("502") || msg.includes("Image search failed") || msg.includes("503")) {
+    return "AI tahlil vaqtincha ishlamadi. 10 soniyadan keyin qayta urinib ko'ring.";
+  }
+  if (msg.includes("504") || msg.includes("timeout") || msg.includes("aborted")) {
+    return "Qidiruv juda uzoq davom etdi. Biroz kutib, qayta urinib ko'ring.";
   }
   if (msg.includes("413") || msg.includes("8MB")) {
     return "Rasm juda katta. Boshqa rasm yuboring (8MB dan kichik).";
@@ -43,12 +46,16 @@ export function usePhotoSearch() {
           previewUrl: preview,
         });
         notifyPhotoSearchUpdated();
-        const hasResults =
-          Boolean(response.detected_items?.length) ||
+        const hasProducts =
+          Boolean(response.items?.length) ||
           Boolean(response.detected_items?.some((d) => d.products?.length));
-        if (!hasResults) {
+        const hasChips = Boolean(response.detected_items?.length);
+        if (!hasProducts && !hasChips) {
           setError("Rasm tahlil qilindi — mos mahsulot topilmadi. Boshqa rasm sinab ko'ring.");
+        } else if (!hasProducts && hasChips) {
+          setError("Kiyim qismlari ajratildi — katalogda hozircha mos mahsulot yo'q. Chip tanlab ko'ring.");
         }
+
         return response;
       } catch (err) {
         const message = parseApiErrorMessage(err);

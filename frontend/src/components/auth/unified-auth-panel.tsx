@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OtpInput } from "@/components/ui/otp-input";
 import { useToast } from "@/components/ui/toast";
-import { authTelegram, sendEmailOtp, verifyEmailOtp } from "@/lib/api";
+import { authTelegram, sendEmailOtp, sendTelegramOtp, verifyEmailOtp, verifyTelegramOtp } from "@/lib/api";
 import { ApiError } from "@/lib/http-client";
 import { authMetaFromTokenResponse, establishSession, setClientSession } from "@/lib/auth";
 import type { AuthTokenResponse } from "@/lib/api";
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
 
-type AuthMode = "primary" | "email" | "otp";
+type AuthMode = "primary" | "email" | "otp" | "tg_user" | "tg_otp";
 
 type UnifiedAuthPanelProps = {
   onSuccess?: () => void;
@@ -37,6 +37,7 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
 
   const [mode, setMode] = useState<AuthMode>("primary");
   const [email, setEmail] = useState("");
+  const [tgUsername, setTgUsername] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -55,13 +56,61 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
     [onSuccess, push, redirectTo, refreshProfile, router],
   );
 
-  const handleTelegramWidget = async (payload: TelegramAuthPayload) => {
+  const handleTelegramWidget = useCallback(
+    async (payload: TelegramAuthPayload) => {
+      setLoading(true);
+      try {
+        const res = await authTelegram(payload as unknown as Record<string, unknown>);
+        await finishLogin(res);
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : "Telegram orqali kirish muvaffaqiyatsiz";
+        push(message, "error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [finishLogin, push],
+  );
+
+  const normalizedTgUsername = tgUsername.trim().replace(/^@+/, "").toLowerCase();
+
+  const sendTelegramCode = async () => {
+    if (!normalizedTgUsername || normalizedTgUsername.length < 5) {
+      push("Telegram username kiriting (masalan: username)", "error");
+      return;
+    }
     setLoading(true);
     try {
-      const res = await authTelegram(payload as unknown as Record<string, unknown>);
+      const res = await sendTelegramOtp(normalizedTgUsername);
+      if (process.env.NODE_ENV === "development" && res.dev_otp) {
+        push(`Kod yuborildi (dev: ${res.dev_otp})`, "success");
+      } else {
+        push(`Kod ${botHandle} botiga yuborildi`, "success");
+      }
+      setMode("tg_otp");
+      setOtp("");
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Kod yuborib bo'lmadi. Avval botda /start bosing.";
+      push(message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyTelegramCode = async () => {
+    if (otp.length < 4) {
+      push("4 xonali kodni kiriting", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await verifyTelegramOtp({ telegram_username: normalizedTgUsername, otp });
       await finishLogin(res);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Telegram orqali kirish muvaffaqiyatsiz";
+      const message = err instanceof ApiError ? err.message : "Kod noto'g'ri yoki muddati tugagan";
       push(message, "error");
     } finally {
       setLoading(false);
@@ -146,6 +195,10 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
                 {loading ? (
                   <p className="text-center text-xs text-ink-500">Telegram tasdiqlanmoqda…</p>
                 ) : null}
+                <p className="text-center text-[11px] leading-relaxed text-ink-400">
+                  Tugma chiqmasa: BotFather → <span className="font-medium">/setdomain</span> →{" "}
+                  <span className="font-medium">bozorliii.online</span>
+                </p>
               </div>
 
               <div className="relative flex items-center gap-3 py-1">
@@ -153,6 +206,11 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
                 <span className="text-xs font-medium text-ink-400">yoki</span>
                 <div className="h-px flex-1 bg-border-subtle" />
               </div>
+
+              <Button type="button" variant="secondary" className="w-full" onClick={() => setMode("tg_user")}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Bot orqali kod (username)
+              </Button>
 
               <Button type="button" variant="secondary" className="w-full" onClick={() => setMode("email")}>
                 <Mail className="mr-2 h-4 w-4" />
@@ -190,6 +248,65 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
                 Telegram orqali kirish
               </button>
             </form>
+          ) : null}
+
+          {mode === "tg_user" ? (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void sendTelegramCode();
+              }}
+            >
+              <p className="text-center text-xs text-ink-500">
+                Avval {botHandle} da <span className="font-semibold">/start</span> bosing, keyin username kiriting.
+              </p>
+              <Input
+                label="Telegram username"
+                placeholder="username"
+                value={tgUsername}
+                onChange={(e) => setTgUsername(e.target.value)}
+                autoComplete="username"
+                disabled={loading}
+              />
+              <Button type="submit" className="w-full" isLoading={loading} leftIcon={<Send className="h-4 w-4" />}>
+                Kod yuborish
+              </Button>
+              <button
+                type="button"
+                onClick={() => setMode("primary")}
+                className="w-full text-center text-sm text-ink-500 hover:text-electric-600"
+              >
+                Telegram tugmasiga qaytish
+              </button>
+            </form>
+          ) : null}
+
+          {mode === "tg_otp" ? (
+            <div className="space-y-5">
+              <p className="text-center text-sm text-ink-600">
+                <span className="font-semibold text-ink-900">@{normalizedTgUsername}</span> uchun botdan 4 xonali kod
+              </p>
+              <OtpInput value={otp} onChange={setOtp} disabled={loading} />
+              <Button
+                className="w-full"
+                onClick={() => void verifyTelegramCode()}
+                isLoading={loading}
+                disabled={otp.length < 4}
+              >
+                Tasdiqlash
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("tg_user");
+                  setOtp("");
+                }}
+                className="w-full text-center text-sm text-ink-500 hover:text-electric-600"
+              >
+                Username o&apos;zgartirish
+              </button>
+            </div>
           ) : null}
 
           {mode === "otp" ? (

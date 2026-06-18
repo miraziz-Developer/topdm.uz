@@ -1,8 +1,6 @@
-import { getGroupPrice, GROUP_DISCOUNT_RATE } from "@/lib/pricing";
-import { productPriceUzs } from "@/lib/product-price";
 import type { Product } from "@/types";
 
-/** Faqat haqiqiy promo (attributes) yoki featured trend — har kartada -27% emas. */
+/** Faqat haqiqiy promo (attributes) — guruh chegirmasi ko'rsatilmaydi. */
 export function productDiscountPercent(product: Product): number | null {
   const attrs = product.attributes ?? {};
   const promo = attrs.promo_percent ?? attrs.discount_percent;
@@ -11,11 +9,7 @@ export function productDiscountPercent(product: Product): number | null {
     const n = Number.parseInt(promo, 10);
     if (n > 0 && n < 90) return n;
   }
-  if (!product.is_featured) return null;
-  const base = productPriceUzs(product);
-  const group = getGroupPrice(base);
-  if (base <= 0 || group >= base) return null;
-  return Math.round(GROUP_DISCOUNT_RATE * 100);
+  return null;
 }
 
 export function formatSoldCount(n: number): string {

@@ -5,15 +5,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-lg text-sm font-semibold transition-all duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:pointer-events-none active:scale-[0.98]",
+  "inline-flex items-center justify-center rounded-xl text-sm font-semibold tracking-tight transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric-500/45 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:pointer-events-none active:scale-[0.98]",
   {
     variants: {
       variant: {
         primary:
-          "bg-gradient-gold text-canvas shadow-gold hover:scale-[1.02] hover:shadow-hover hover:brightness-105 relative overflow-hidden",
+          "bg-gradient-electric text-white shadow-[0_4px_18px_rgba(0,102,255,0.38)] hover:brightness-105 hover:shadow-[0_8px_28px_rgba(0,102,255,0.45)] relative overflow-hidden border-0",
         secondary:
-          "bg-surface text-text-100 border border-border-default hover:border-gold-500/50 hover:bg-elevated active:bg-elevated",
-        ghost: "bg-transparent text-text-300 hover:text-text-100 hover:bg-elevated active:bg-elevated",
+          "bg-surface/90 text-text-100 border border-border-subtle backdrop-blur-sm hover:border-electric-500/30 hover:bg-electric-500/[0.04] active:bg-elevated",
+        ghost: "bg-transparent text-text-300 hover:text-text-100 hover:bg-elevated/80 active:bg-elevated",
         danger: "bg-red text-white hover:opacity-90 active:opacity-80 shadow-sm",
       },
       size: {

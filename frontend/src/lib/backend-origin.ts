@@ -8,5 +8,9 @@ export function publicBackendOrigin(): string {
     return api.replace(/\/api\/v1\/?$/, "");
   }
 
+  if (typeof window !== "undefined" && window.location?.host) {
+    return `${window.location.protocol}//${window.location.host}`;
+  }
+
   return "http://127.0.0.1:8000";
 }

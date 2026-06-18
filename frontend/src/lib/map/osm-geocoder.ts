@@ -8,10 +8,39 @@ export type OsmGeocodeHit = {
   subtitle: string;
 };
 
+function withApostropheVariants(q: string): string[] {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const variants = new Set<string>([trimmed]);
+  if (/y[oо]ngiyol/i.test(trimmed)) {
+    variants.add(trimmed.replace(/y[oо]ngiyol/gi, "Yangiyo'l"));
+    variants.add(trimmed.replace(/y[oо]ngiyol/gi, "Yangiyul"));
+  }
+  if (/chilonzor|chilonzor/i.test(trimmed)) {
+    variants.add(trimmed.replace(/chilonzor/gi, "Chilonzor"));
+  }
+  if (/chorbog|chorbog/i.test(trimmed)) {
+    variants.add(trimmed.replace(/chorbog/gi, "Chorbog'"));
+  }
+  return [...variants];
+}
+
 function normalizeQuery(q: string): string {
   const trimmed = q.trim();
   if (/toshkent|tashkent|узбекистан|o'zbekiston/i.test(trimmed)) return trimmed;
   return `${trimmed}, Toshkent, Uzbekistan`;
+}
+
+function dedupeHits(rows: OsmGeocodeHit[]): OsmGeocodeHit[] {
+  const seen = new Set<string>();
+  const out: OsmGeocodeHit[] = [];
+  for (const row of rows) {
+    const key = `${row.lat.toFixed(4)}|${row.lng.toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
 }
 
 async function nominatimSearch(query: string, limit: number): Promise<OsmGeocodeHit[]> {
@@ -54,27 +83,46 @@ async function nominatimSearch(query: string, limit: number): Promise<OsmGeocode
   }
 }
 
-export async function searchOsmPlaces(text: string, limit = 8): Promise<OsmGeocodeHit[]> {
+export async function searchOsmPlaces(text: string, limit = 10): Promise<OsmGeocodeHit[]> {
   const q = text.trim();
   if (q.length < 2) return [];
 
-  const primary = await nominatimSearch(normalizeQuery(q), limit);
-  if (primary.length) return primary;
+  const queries = new Set<string>();
+  for (const variant of withApostropheVariants(q)) {
+    queries.add(normalizeQuery(variant));
+    queries.add(`${variant}, Toshkent`);
+    queries.add(`${variant}, Tashkent, Uzbekistan`);
+  }
 
-  if (/metro|метро|chilonzor|chilonzor/i.test(q)) {
+  const collected: OsmGeocodeHit[] = [];
+  for (const query of queries) {
+    const batch = await nominatimSearch(query, limit);
+    collected.push(...batch);
+    if (collected.length >= limit) break;
+  }
+
+  if (collected.length) {
+    return dedupeHits(collected).slice(0, limit);
+  }
+
+  if (/metro|метро/i.test(q)) {
     const core = q.replace(/metro|метро/gi, "").trim() || q;
     const variants = [
       `Chilonzor metro station, Tashkent, Uzbekistan`,
       `метро ${core}, Ташкент`,
       `metro station ${core}, Tashkent`,
+      `${core} metro, Toshkent`,
     ];
     for (const variant of variants) {
       const metro = await nominatimSearch(variant, limit);
-      if (metro.length) return metro;
+      collected.push(...metro);
+      if (collected.length >= 2) break;
     }
+    if (collected.length) return dedupeHits(collected).slice(0, limit);
   }
 
-  return nominatimSearch(`${q}, Toshkent`, limit);
+  const broad = await nominatimSearch(q, limit);
+  return dedupeHits(broad).slice(0, limit);
 }
 
 export async function resolveOsmPlace(query: string): Promise<OsmGeocodeHit | null> {

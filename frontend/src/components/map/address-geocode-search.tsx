@@ -64,7 +64,7 @@ export function AddressGeocodeSearch({
     if (selectedLabel && value === selectedLabel) return;
     debounceRef.current = setTimeout(() => {
       void loadSuggestions(value);
-    }, 320);
+    }, 260);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -156,7 +156,7 @@ export function AddressGeocodeSearch({
       </div>
 
       {open && suggestions.length > 0 ? (
-        <ul className="absolute left-0 right-0 z-[200] mt-1 max-h-52 overflow-y-auto rounded-lg border border-neutral-200/80 bg-white py-1 shadow-xl">
+        <ul className="absolute left-0 right-0 z-[200] mt-1 max-h-72 overflow-y-auto rounded-lg border border-neutral-200/80 bg-white py-1 shadow-xl">
           {suggestions.map((item) => (
             <li key={item.id}>
               <button

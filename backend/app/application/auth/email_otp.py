@@ -27,7 +27,7 @@ async def issue_and_send_email_otp(
         )
 
     normalized = normalize_email(email)
-    otp = f"{random.randint(1000, 9999)}"
+    otp = f"{random.randint(100000, 999999)}"
 
     try:
         if background_tasks is not None:

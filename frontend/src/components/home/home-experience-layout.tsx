@@ -40,9 +40,9 @@ const FIXED_ORDER: SectionKey[] = [
   "visual_search",
   "toolbar",
   "categories",
+  "banners",
   "recommended",
   "products",
-  "banners",
   "spotlight",
 ];
 

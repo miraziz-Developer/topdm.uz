@@ -1,7 +1,7 @@
 import type { PremiumTariffCode } from "@/types/premium-banner";
 
 export type BannerLifecycleStatus = "pending_payment" | "active" | "expired" | "cancelled" | "rejected";
-export type BannerPaymentMethod = "coin" | "click" | "payme";
+export type BannerPaymentMethod = "coin" | "click";
 
 export type CrmTariff = {
   code: PremiumTariffCode;

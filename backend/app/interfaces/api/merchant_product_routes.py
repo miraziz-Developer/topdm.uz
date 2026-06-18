@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.merchant.catalog_product_service import CatalogProductError, MerchantCatalogProductService
-from app.application.merchant.schemas import MerchantProductUpdateRequest, ProductVariantCatalogInput
+from app.application.merchant.schemas import (
+    MerchantProductUpdateRequest,
+    ProductVariantCatalogInput,
+    WholesalePackInput,
+)
 from app.application.marketplace.use_cases import MarketplaceUseCases
 from app.infrastructure.auth.deps import AuthUser, require_merchant
 from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop
@@ -28,16 +32,23 @@ async def _shop_or_404(db: AsyncSession, user: AuthUser):
     return shop
 
 
+from app.core.upload_validation import validate_image_bytes
+
+
 async def _read_image(file: UploadFile) -> tuple[bytes, str]:
     raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Rasm bo'sh")
-    if len(raw) > _MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=400, detail="Rasm 8 MB dan kichik bo'lishi kerak")
-    content_type = (file.content_type or "image/jpeg").lower()
-    if content_type and not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Faqat rasm fayli")
+    content_type = validate_image_bytes(raw, max_bytes=_MAX_IMAGE_BYTES)
     return raw, content_type
+
+
+def _parse_wholesale_json(raw: str | None) -> WholesalePackInput | None:
+    if not raw or not raw.strip():
+        return None
+    try:
+        data = json.loads(raw)
+        return WholesalePackInput.model_validate(data)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="wholesale_json noto'g'ri") from exc
 
 
 def _parse_variant_json(raw: str | None) -> ProductVariantCatalogInput | None:
@@ -106,6 +117,11 @@ async def merchant_create_product(
     stock_count: int = Form(default=5, ge=0, le=99999),
     is_featured: bool = Form(default=False),
     variant_json: str | None = Form(default=None),
+    wholesale_json: str | None = Form(default=None),
+    sale_type: str | None = Form(default=None),
+    pricing_unit: str | None = Form(default=None),
+    min_order_quantity: int = Form(default=1, ge=1, le=999),
+    units_per_pack: int | None = Form(default=None),
     image_meta: str | None = Form(default=None),
     user: AuthUser = Depends(require_merchant),
     db: AsyncSession = Depends(get_db_session),
@@ -137,6 +153,11 @@ async def merchant_create_product(
             content_type=first_ct,
             variant_catalog=_parse_variant_json(variant_json),
             extra_image_bytes=extra or None,
+            sale_type=sale_type,
+            pricing_unit=pricing_unit,
+            min_order_quantity=min_order_quantity,
+            units_per_pack=units_per_pack,
+            wholesale_pack=_parse_wholesale_json(wholesale_json),
         )
         return {"item": item}
     except CatalogProductError as exc:

@@ -1,3 +1,3 @@
-from app.application.delivery.yandex_quote import YandexDeliveryQuoteEngine
+from app.application.delivery.bts_quote import BtsDeliveryQuoteEngine
 
-__all__ = ["YandexDeliveryQuoteEngine"]
+__all__ = ["BtsDeliveryQuoteEngine"]

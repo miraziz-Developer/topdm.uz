@@ -15,7 +15,7 @@ import { isUuidLike } from "@/lib/media";
 import { extractSelectableOptions, type ProductSelectionOptions } from "@/lib/product-options";
 import { productDiscountPercent, formatSoldCount } from "@/lib/deal-pricing";
 import { isLowStock } from "@/lib/product-stock";
-import { getGroupPrice } from "@/lib/pricing";
+import { isOptomProduct, optomCardHint, priceUnitSuffix } from "@/lib/wholesale";
 import { productPriceUzs } from "@/lib/product-price";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart-store";
@@ -67,12 +67,12 @@ export function DiscoveryProductCard({
   const displayName =
     product.name?.trim() && !isUuidLike(product.name) ? product.name : t("home.pin.productFallback");
   const basePriceUzs = productPriceUzs(product);
-  const groupPriceUzs = getGroupPrice(basePriceUzs);
-  const isOptom = bulkMode || product.sale_type === "Optom";
+  const isOptom = bulkMode || isOptomProduct(product);
   const minQty = product.min_order_quantity ?? 1;
   const aspectClass = uniformAspect ? "aspect-[3/4]" : isOptom ? "aspect-[4/3]" : pinAspectForIndex(index, product.id);
-  const showGroupPrice = !isOptom && groupPriceUzs < basePriceUzs;
-  const displayPriceUzs = isOptom ? basePriceUzs : showGroupPrice ? groupPriceUzs : basePriceUzs;
+  const displayPriceUzs = basePriceUzs;
+  const optomHint = optomCardHint(product, formatPrice);
+  const unitSuffix = priceUnitSuffix(product);
   const reviewCount = product.review_summary?.review_count ?? 0;
   const avgRating = product.review_summary?.average_rating ?? 0;
   const discountPct = productDiscountPercent(product);
@@ -97,7 +97,7 @@ export function DiscoveryProductCard({
     }
     const thumb = product.images?.[0];
     launch({ image: thumb ?? "", x: rect.left, y: rect.top });
-    addItem(product, 1, "group");
+    addItem(product, 1, "single");
   };
 
   const buyNow = (event: React.MouseEvent) => {
@@ -113,7 +113,7 @@ export function DiscoveryProductCard({
     }
     const thumb = product.images?.[0];
     launch({ image: thumb ?? "", x: rect.left, y: rect.top });
-    addItem(product, 1, "group");
+    addItem(product, 1, "single");
     router.push("/checkout");
   };
 
@@ -122,7 +122,7 @@ export function DiscoveryProductCard({
     if (pendingPoint) {
       launch({ image: thumb ?? "", x: pendingPoint.x, y: pendingPoint.y });
     }
-    addItem(product, 1, "group", selectedOptions);
+    addItem(product, 1, "single", selectedOptions);
     setOptionOpen(false);
     setPendingPoint(null);
     if (pendingAction === "checkout") {
@@ -144,8 +144,8 @@ export function DiscoveryProductCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.03, 0.28), duration: 0.4, ease: "easeOut" }}
       className={cn(
-        "pin-card group cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]",
-        isOptom && "rounded-2xl border-2 border-electric-500/25 bg-electric-500/5 p-2 shadow-[0_0_20px_rgba(0,102,255,0.12)]",
+        "pin-card premium-card-glow group cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.015] hover:shadow-hover active:scale-[0.985] ring-1 ring-black/[0.04]",
+        isOptom && "rounded-2xl border-2 border-electric-500/25 bg-electric-500/5 p-2 shadow-[0_0_24px_rgba(0,102,255,0.14)]",
       )}
       onClick={open}
       role="link"
@@ -160,6 +160,11 @@ export function DiscoveryProductCard({
           aspectClass={aspectClass}
         />
 
+        {typeof product.visual_match_pct === "number" && product.visual_match_pct >= 50 ? (
+          <span className="absolute right-2.5 top-2.5 z-10 rounded-full bg-electric-500/95 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+            {product.visual_match_pct}%
+          </span>
+        ) : null}
         {isChina ? (
           <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-electric-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
             Xitoy
@@ -171,10 +176,6 @@ export function DiscoveryProductCard({
         ) : discountPct != null && discountPct > 0 ? (
           <span className="absolute left-2.5 top-2.5 z-10 rounded-md bg-neon-500 px-2 py-0.5 text-[10px] font-black text-white shadow-sm">
             -{discountPct}%
-          </span>
-        ) : showGroupPrice ? (
-          <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-neon-500/95 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-            {t("home.pin.groupPrice")}
           </span>
         ) : null}
         {isLowStock(product) ? (
@@ -245,14 +246,13 @@ export function DiscoveryProductCard({
             <span className="text-[11px] font-medium text-gray-500">({reviewCount})</span>
           </div>
         ) : null}
-        <div className="mt-1.5 flex items-baseline gap-1.5">
-          <p className="price-mono text-sm font-extrabold text-electric-500">
-            {formatPrice(displayPriceUzs)}
-          </p>
-          {showGroupPrice ? (
-            <p className="price-mono text-[11px] text-gray-400 line-through">{formatPrice(basePriceUzs)}</p>
-          ) : null}
+        <div className="mt-1.5 flex items-baseline gap-1">
+          <p className="price-mono text-sm font-extrabold text-electric-500">{formatPrice(displayPriceUzs)}</p>
+          {unitSuffix ? <span className="text-[10px] font-medium text-gray-500">{unitSuffix}</span> : null}
         </div>
+        {optomHint ? (
+          <p className="mt-0.5 line-clamp-2 text-[10px] font-semibold leading-snug text-electric-600">{optomHint}</p>
+        ) : null}
         {soldLabel || reviewCount > 0 ? (
           <p className="mt-1 text-[11px] font-semibold text-emerald-700">
             {soldLabel ? `${soldLabel} sotilgan` : null}

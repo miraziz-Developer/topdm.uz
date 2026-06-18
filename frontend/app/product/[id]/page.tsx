@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { ArrowLeft, ChevronRight } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -27,53 +26,18 @@ import { SizeRecommender } from "@/components/ui/size-recommender";
 import { useToast } from "@/components/ui/toast";
 import { useTracking } from "@/hooks/useTracking";
 import { getProduct, getSimilarProducts } from "@/lib/api";
-import { extractSelectableOptions, sizesForColor } from "@/lib/product-options";
+import { productImage } from "@/lib/media";
+import {
+  extractSelectableOptions,
+  galleryImagesForSelection,
+  imagesForColor,
+  isSelectionInStock,
+  sizesForColor,
+} from "@/lib/product-options";
+import { ProductImage } from "@/components/ui/product-image";
 import { saveLastShop } from "@/lib/personalization/client-hints";
 import { cn, getRefToken } from "@/lib/utils";
 import type { Product } from "@/types";
-
-function normalizeColor(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0);
-}
-
-function collectColorImageMap(product: Product): Record<string, string[]> {
-  const attrs = (product.attributes ?? {}) as Record<string, unknown>;
-  const map: Record<string, string[]> = {};
-
-  const addImages = (color: string, images: string[]) => {
-    const key = normalizeColor(color);
-    if (!key || images.length === 0) return;
-    const current = map[key] ?? [];
-    map[key] = Array.from(new Set([...current, ...images]));
-  };
-
-  const directMap = attrs.color_images;
-  if (directMap && typeof directMap === "object" && !Array.isArray(directMap)) {
-    for (const [color, urls] of Object.entries(directMap as Record<string, unknown>)) {
-      addImages(color, asStringArray(urls));
-    }
-  }
-
-  const variants = Array.isArray(attrs.variants) ? attrs.variants : [];
-  for (const row of variants) {
-    if (!row || typeof row !== "object") continue;
-    const variant = row as Record<string, unknown>;
-    const color = String(variant.color ?? "").trim();
-    const images = asStringArray(variant.images);
-    const single = String(variant.image ?? "").trim();
-    if (single) images.push(single);
-    addImages(color, images);
-  }
-
-  return map;
-}
 
 export default function ProductPage() {
   const params = useParams<{ id: string }>();
@@ -126,17 +90,33 @@ export default function ProductPage() {
   useEffect(() => {
     if (!product) return;
     const options = extractSelectableOptions(product);
-    const firstColor = options.colors[0] ?? "";
+    const firstColor =
+      options.colors.find((color) =>
+        sizesForColor(product, color).some((size) =>
+          isSelectionInStock(product, { color, size }),
+        ),
+      ) ??
+      options.colors[0] ??
+      "";
     const sizes = sizesForColor(product, firstColor);
+    const firstSize =
+      sizes.find((size) => isSelectionInStock(product, { color: firstColor, size })) ??
+      sizes[0] ??
+      options.sizes[0] ??
+      "";
     setSelectedColor(firstColor);
-    setSelectedSize(sizes[0] ?? options.sizes[0] ?? "");
+    setSelectedSize(firstSize);
     setSelectedImage(0);
   }, [product]);
 
-  const colorImageMap = product ? collectColorImageMap(product) : {};
-  const colorImages = selectedColor ? colorImageMap[normalizeColor(selectedColor)] ?? [] : [];
-  const galleryImages = colorImages.length ? colorImages : product?.images ?? [];
-  const imageUrl = galleryImages[selectedImage] || galleryImages[0] || "/placeholder.png";
+  const galleryImages =
+    product && selectedColor
+      ? galleryImagesForSelection(product, { color: selectedColor })
+      : product?.images ?? [];
+  const heroImage = productImage(galleryImages, selectedImage);
+  const selectionInStock = product
+    ? isSelectionInStock(product, { size: selectedSize || undefined, color: selectedColor || undefined })
+    : true;
   const options = product ? extractSelectableOptions(product) : { sizes: [], colors: [] };
   const sizesForSelectedColor = product ? sizesForColor(product, selectedColor) : options.sizes;
 
@@ -145,7 +125,15 @@ export default function ProductPage() {
     if (!product || !selectedColor) return;
     const allowed = sizesForColor(product, selectedColor);
     if (!allowed.length) return;
-    setSelectedSize((prev) => (prev && allowed.includes(prev) ? prev : allowed[0] ?? ""));
+    const inStock =
+      allowed.find((size) =>
+        isSelectionInStock(product, { color: selectedColor, size }),
+      ) ?? allowed[0] ?? "";
+    setSelectedSize((prev) =>
+      prev && allowed.includes(prev) && isSelectionInStock(product, { color: selectedColor, size: prev })
+        ? prev
+        : inStock,
+    );
   }, [selectedColor, product]);
 
   const copyProductId = async () => {
@@ -191,12 +179,12 @@ export default function ProductPage() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 sm:space-y-8">
             <motion.div className="grid gap-8 lg:grid-cols-2 lg:items-start lg:gap-10 xl:gap-14">
               <div className="space-y-4">
-                <ImageMagnifier src={imageUrl} alt={product.name} />
+                <ImageMagnifier images={galleryImages} index={selectedImage} alt={product.name} />
                 {galleryImages.length > 1 ? (
                   <div className="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {galleryImages.map((img, index) => (
                       <button
-                        key={index}
+                        key={`${img}-${index}`}
                         type="button"
                         onClick={() => setSelectedImage(index)}
                         className={cn(
@@ -204,7 +192,14 @@ export default function ProductPage() {
                           selectedImage === index ? productThumbActive : "opacity-80 hover:opacity-100",
                         )}
                       >
-                        <Image src={img} alt="" fill className="object-cover" sizes="72px" />
+                        <ProductImage
+                          images={[img, ...galleryImages.filter((_, i) => i !== index)]}
+                          index={0}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="72px"
+                        />
                       </button>
                     ))}
                   </div>
@@ -215,24 +210,46 @@ export default function ProductPage() {
                       <div>
                         <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-400">Rang</p>
                         <div className="flex flex-wrap gap-2">
-                          {options.colors.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() => {
-                                setSelectedColor(color);
-                                setSelectedImage(0);
-                              }}
-                              className={cn(
-                                "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
-                                selectedColor === color
-                                  ? "border-ink-900 bg-ink-900 text-white shadow-sm"
-                                  : "border-black/[0.08] bg-white text-ink-700 hover:border-ink-300",
-                              )}
-                            >
-                              {color}
-                            </button>
-                          ))}
+                          {options.colors.map((color) => {
+                            const thumbImages = product ? imagesForColor(product, color) : [];
+                            const colorSizes = product ? sizesForColor(product, color) : [];
+                            const colorAvailable = product
+                              ? colorSizes.some((size) =>
+                                  isSelectionInStock(product, { color, size }),
+                                )
+                              : true;
+                            return (
+                              <button
+                                key={color}
+                                type="button"
+                                disabled={!colorAvailable}
+                                onClick={() => {
+                                  setSelectedColor(color);
+                                  setSelectedImage(0);
+                                }}
+                                className={cn(
+                                  "flex items-center gap-2 rounded-full border px-2 py-1.5 text-xs font-medium transition-all",
+                                  selectedColor === color
+                                    ? "border-ink-900 bg-ink-900 text-white shadow-sm"
+                                    : "border-black/[0.08] bg-white text-ink-700 hover:border-ink-300",
+                                  !colorAvailable && "cursor-not-allowed opacity-40",
+                                )}
+                              >
+                                {thumbImages.length ? (
+                                  <span className="relative h-7 w-7 overflow-hidden rounded-full ring-1 ring-black/10">
+                                    <ProductImage
+                                      images={thumbImages}
+                                      alt=""
+                                      fill
+                                      className="object-cover"
+                                      sizes="28px"
+                                    />
+                                  </span>
+                                ) : null}
+                                {color}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : null}
@@ -240,28 +257,38 @@ export default function ProductPage() {
                       <div>
                         <p className="mb-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-400">Razmer</p>
                         <div className="flex flex-wrap gap-2">
-                          {sizesForSelectedColor.map((size) => (
-                            <button
-                              key={size}
-                              type="button"
-                              onClick={() => setSelectedSize(size)}
-                              className={cn(
-                                "min-w-[2.75rem] rounded-xl border px-3 py-2 text-sm font-medium transition-all",
-                                selectedSize === size
-                                  ? "border-ink-900 bg-ink-900 text-white shadow-sm"
-                                  : "border-black/[0.08] bg-white text-ink-700 hover:border-ink-300",
-                              )}
-                            >
-                              {size}
-                            </button>
-                          ))}
+                          {sizesForSelectedColor.map((size) => {
+                            const sizeAvailable = product
+                              ? isSelectionInStock(product, {
+                                  color: selectedColor || undefined,
+                                  size,
+                                })
+                              : true;
+                            return (
+                              <button
+                                key={size}
+                                type="button"
+                                disabled={!sizeAvailable}
+                                onClick={() => setSelectedSize(size)}
+                                className={cn(
+                                  "min-w-[2.75rem] rounded-xl border px-3 py-2 text-sm font-medium transition-all",
+                                  selectedSize === size
+                                    ? "border-ink-900 bg-ink-900 text-white shadow-sm"
+                                    : "border-black/[0.08] bg-white text-ink-700 hover:border-ink-300",
+                                  !sizeAvailable && "cursor-not-allowed opacity-40 line-through",
+                                )}
+                              >
+                                {size}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : null}
                   </div>
                 ) : (
                   <p className="rounded-2xl border border-black/[0.05] bg-white/50 px-4 py-3 text-center text-xs text-ink-500">
-                    Rang va razmer variantlari tez orada qo&apos;shiladi
+                    Variantlar ko&apos;rsatilmagan — aniq razmer/rang uchun &quot;Band qilish&quot; tugmasidan foydalaning
                   </p>
                 )}
               </div>
@@ -277,13 +304,18 @@ export default function ProductPage() {
                   color: selectedColor || undefined,
                 }}
                 forceInlineSelection={Boolean(options.sizes.length || options.colors.length)}
-                onRequireSelection={() => push("Avval rang/razmer tanlang", "error")}
+                onRequireSelection={() =>
+                  push(
+                    !selectionInStock ? "Tanlangan variant omborda yo'q" : "Avval rang/razmer tanlang",
+                    "error",
+                  )
+                }
               />
               </div>
             </motion.div>
 
             <div className={cn(productSectionDivider, "space-y-6")}>
-              <SizeRecommender />
+              <SizeRecommender sizes={options.sizes} category={product.category_name ?? product.category} />
               <ProductReviewsSection
                 productId={product.id}
                 productName={product.name}
@@ -295,7 +327,7 @@ export default function ProductPage() {
               <ContextualAiSidebar product={product} />
               <BundleOffer primary={product} related={similar} />
               <AiStylistAdvice product={product} related={similar} />
-              <VisualSimilarityRail sourceImage={imageUrl} items={similar} />
+              <VisualSimilarityRail sourceImage={heroImage} items={similar} />
             </div>
           </motion.div>
         ) : (

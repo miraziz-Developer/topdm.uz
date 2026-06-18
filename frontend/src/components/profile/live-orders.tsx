@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { MapPin, Package } from "lucide-react";
 import Link from "next/link";
 
+import { PickupQrCard } from "@/components/orders/pickup-qr-card";
 import { Button } from "@/components/ui/button";
 import {
   ORDER_STATUS_LABELS,
@@ -19,9 +20,18 @@ import type { Order } from "@/types";
 type LiveOrdersProps = {
   orders: Order[];
   loading: boolean;
+  variant?: "buyer" | "merchant";
+  hasPhone?: boolean;
+  onAddPhone?: () => void;
 };
 
-export function LiveOrders({ orders, loading }: LiveOrdersProps) {
+export function LiveOrders({
+  orders,
+  loading,
+  variant = "buyer",
+  hasPhone = true,
+  onAddPhone,
+}: LiveOrdersProps) {
   if (loading) {
     return (
       <>
@@ -32,11 +42,45 @@ export function LiveOrders({ orders, loading }: LiveOrdersProps) {
   }
 
   if (orders.length === 0) {
+    if (!hasPhone) {
+      return (
+        <div className="rounded-2xl border border-dashed border-amber-500/25 bg-amber-500/[0.05] px-6 py-10 text-center">
+          <Package className="mx-auto h-10 w-10 text-amber-600/60" aria-hidden />
+          <p className="mt-3 text-sm font-medium text-ink-700">Telefon raqam bog&apos;lanmagan</p>
+          <p className="mt-1 text-xs text-ink-500">
+            Buyurtmalaringiz checkout telefoni bilan profil telefoni bir xil bo&apos;lishi kerak.
+          </p>
+          {onAddPhone ? (
+            <Button size="sm" variant="brand" className="mt-5" onClick={onAddPhone}>
+              Telefon qo&apos;shish
+            </Button>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (variant === "merchant") {
+      return (
+        <div className="rounded-2xl border border-dashed border-electric-500/20 bg-electric-500/[0.04] px-6 py-10 text-center">
+          <Package className="mx-auto h-10 w-10 text-electric-500/50" aria-hidden />
+          <p className="mt-3 text-sm font-medium text-ink-700">Siz xaridor sifatida buyurtma qilmagansiz</p>
+          <p className="mt-1 text-xs text-ink-500">
+            Do&apos;koningizga kelgan buyurtmalarni CRM → Savdo bo&apos;limida ko&apos;rasiz.
+          </p>
+          <Link href="/orders" className="mt-5 inline-block">
+            <Button size="sm" variant="secondary">
+              Barcha xaridlar
+            </Button>
+          </Link>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-2xl border border-dashed border-electric-500/20 bg-electric-500/[0.04] px-6 py-12 text-center">
         <Package className="mx-auto h-10 w-10 text-electric-500/50" aria-hidden />
-        <p className="mt-3 text-sm font-medium text-ink-700">Hozircha jonli buyurtma yo&apos;q</p>
-        <p className="mt-1 text-xs text-ink-500">Katalogdan mahsulot tanlang va tezkor zaxira qiling.</p>
+        <p className="mt-3 text-sm font-medium text-ink-700">Faol buyurtma yo&apos;q</p>
+        <p className="mt-1 text-xs text-ink-500">Yakunlangan buyurtmalar «Barchasi» bo&apos;limida.</p>
         <Link href="/search" className="mt-5 inline-block">
           <Button size="sm" variant="brand">
             Katalogga o&apos;tish
@@ -55,7 +99,17 @@ export function LiveOrders({ orders, loading }: LiveOrdersProps) {
   );
 }
 
-function OrderFlowCard({ order, index }: { order: Order; index: number }) {
+export function OrderFlowCard({
+  order,
+  index,
+  guestPhone,
+  guestVerificationToken,
+}: {
+  order: Order;
+  index: number;
+  guestPhone?: string;
+  guestVerificationToken?: string;
+}) {
   const trackerSteps = order.tracker_steps;
   const hasBackendTracker = Boolean(trackerSteps?.length);
   const { pct, activeIndex } = hasBackendTracker
@@ -141,6 +195,13 @@ function OrderFlowCard({ order, index }: { order: Order; index: number }) {
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.08 * index }}
             />
           </div>
+          <PickupQrCard
+            orderId={order.id}
+            fulfillmentType={order.fulfillment_type}
+            status={order.status}
+            guestPhone={guestPhone}
+            guestVerificationToken={guestVerificationToken}
+          />
         </>
       )}
     </motion.div>

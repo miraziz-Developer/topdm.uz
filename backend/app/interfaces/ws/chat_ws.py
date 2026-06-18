@@ -41,24 +41,46 @@ async def _resolve_ws_identity(
         if not thread:
             raise ChatServiceError("not_found", "Thread not found")
 
-    if role == "merchant":
-        if not token:
-            raise ChatServiceError("auth_required", "Merchant token required")
-        try:
-            payload = decode_access_token(token)
-        except JWTError as exc:
-            raise ChatServiceError("auth_invalid", "Invalid token") from exc
-        if str(payload.get("role") or "") != "merchant":
-            raise ChatServiceError("auth_invalid", "Merchant role required")
-        shop_id_raw = payload.get("shop_id")
-        if not shop_id_raw or UUID(str(shop_id_raw)) != thread.shop_id:
-            raise ChatServiceError("auth_invalid", "Token shop mismatch")
-        return "merchant", f"merchant:{shop_id_raw}", UUID(str(shop_id_raw))
+        if role == "merchant":
+            if not token:
+                raise ChatServiceError("auth_required", "Merchant token required")
+            try:
+                payload = decode_access_token(token)
+            except JWTError as exc:
+                raise ChatServiceError("auth_invalid", "Invalid token") from exc
+            if str(payload.get("role") or "") != "merchant":
+                raise ChatServiceError("auth_invalid", "Merchant role required")
+            shop_id_raw = payload.get("shop_id")
+            if not shop_id_raw:
+                raise ChatServiceError("auth_invalid", "Shop not in token")
+            from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop
+            from app.infrastructure.auth.types import AuthUser
+            from app.infrastructure.auth.user_repo import UserAuthRepository
 
-    key = (session_id or "").strip()
-    if len(key) < 4:
-        raise ChatServiceError("auth_required", "session_id query param required for customers")
-    return "customer", f"customer:{key}", None
+            auth_repo = UserAuthRepository(session)
+            user_row = await auth_repo.get_by_id(UUID(str(payload.get("sub"))))
+            if not user_row:
+                raise ChatServiceError("auth_invalid", "User not found")
+            auth_user = AuthUser(
+                id=user_row.id,
+                email=user_row.email,
+                telegram_id=user_row.telegram_id,
+                phone=user_row.phone,
+                display_name=user_row.display_name,
+                role="merchant",
+                shop_id=UUID(str(shop_id_raw)),
+            )
+            shop = await resolve_merchant_shop(session, auth_user)
+            if not shop or shop.id != thread.shop_id:
+                raise ChatServiceError("auth_invalid", "Token shop mismatch")
+            return "merchant", f"merchant:{shop.id}", shop.id
+
+        key = (session_id or "").strip()
+        if len(key) < 8:
+            raise ChatServiceError("auth_required", "session_id (min 8 chars) required for customers")
+        if key != thread.customer_key:
+            raise ChatServiceError("auth_invalid", "session_id does not match thread owner")
+        return "customer", f"customer:{key}", None
 
 
 async def _safe_send_json(websocket: WebSocket, payload: dict) -> bool:

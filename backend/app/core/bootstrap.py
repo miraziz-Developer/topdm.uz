@@ -48,14 +48,23 @@ def validate_settings(settings: Settings) -> None:
     if settings.allow_dev_mocks:
         errors.append("ALLOW_DEV_MOCKS must be false in production")
 
-    if settings.tdb_p2p_provider_mock or settings.tdb_bts_api_mock:
-        errors.append("TDB_*_MOCK flags must be false in production")
+    if settings.tdb_bts_api_mock or settings.bts_api_mock:
+        errors.append("BTS mock flags must be false in production")
+
+    has_bts_creds = bool(
+        (settings.bts_api_token or settings.tdb_bts_api_token or "").strip()
+    ) or (
+        (settings.bts_api_login or "").strip() and (settings.bts_api_password or "").strip()
+    )
+    if has_bts_creds and not (settings.bts_webhook_secret or "").strip():
+        errors.append("BTS_WEBHOOK_SECRET required when BTS API credentials are configured")
 
     if settings.enable_online_checkout and not settings.payment_sandbox_mode:
         has_click = bool(settings.click_service_id and settings.click_secret_key)
-        has_payme = bool(settings.payme_merchant_id and settings.payme_secret_key)
-        if not has_click and not has_payme:
-            errors.append("CLICK_* and/or PAYME_* credentials required when ENABLE_ONLINE_CHECKOUT=true")
+        if not has_click:
+            errors.append(
+                "CLICK_* credentials required when ENABLE_ONLINE_CHECKOUT=true"
+            )
 
     backend = (settings.media_storage_backend or "local").strip().lower()
     if backend == "s3":

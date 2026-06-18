@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/http-client";
+import { getSessionId } from "@/lib/utils";
 import type {
   AuthMeResponse,
   Order,
@@ -95,7 +96,7 @@ export async function transcribeVoiceSearch(audio: Blob): Promise<{ text: string
 export type VisualSearchRefinePayload = {
   label_uz: string;
   search_query: string;
-  selected_category: string;
+  selected_category?: string | null;
   color?: string | null;
   material?: string | null;
   intent_text?: string | null;
@@ -157,6 +158,7 @@ export type ProductReview = {
   body: string | null;
   photo_urls: string[];
   is_verified_purchase: boolean;
+  status?: string;
   created_at: string | null;
 };
 
@@ -304,7 +306,7 @@ export async function createCrmBanner(payload: {
 
 export async function verifyCrmBannerPayment(payload: {
   banner_id: string;
-  payment_method: "coin" | "click" | "payme";
+  payment_method: "coin" | "click";
   external_reference?: string;
 }) {
   return postJson<{ status: string; banner: import("@/types/crm-banner").CrmBannerCampaign }>(
@@ -332,7 +334,7 @@ export async function getCoinPackages() {
 export async function generatePaymentInvoice(payload: {
   shop_id?: string;
   coin_package_id: string;
-  provider: "click" | "payme" | "manual";
+  provider: "click" | "manual";
 }) {
   return postJson<{
     transaction_id: string;
@@ -521,23 +523,36 @@ export type DeliveryReservationResponse = {
   carrier_class: "express" | "cargo";
   fulfillment_type: "delivery";
   delivery_eta_minutes?: number | null;
+  checkout_id?: string | null;
+  online_checkout_url?: string | null;
 };
 
 export type CheckoutPaymentOptions = {
   in_store: Array<"cash" | "terminal">;
   online: {
     click: boolean;
-    payme: boolean;
     bridge: boolean;
+    sandbox_mode?: boolean;
   };
 };
+
+export async function completeSandboxCheckout(params: {
+  checkout_id: string;
+  provider: "click";
+}): Promise<{ status: string }> {
+  const search = new URLSearchParams({
+    checkout_id: params.checkout_id,
+    provider: params.provider,
+  });
+  return postJson(`/payments/sandbox/complete-checkout?${search.toString()}`, {});
+}
 
 export async function getCheckoutPaymentOptions(): Promise<CheckoutPaymentOptions> {
   return getJson<CheckoutPaymentOptions>("/platform/checkout-payment-options", false);
 }
 
 export async function fetchPaymentRedirect(params: {
-  provider: "click" | "payme";
+  provider: "click";
   amount: number;
   checkout_id?: string;
   order_id?: string;
@@ -553,18 +568,19 @@ export async function fetchPaymentRedirect(params: {
 
 export async function reservePickupOrders(
   payload: {
-    items: Array<{ product_id: string; quantity: number }>;
+    items: Array<{ product_id: string; quantity: number; color?: string; size?: string }>;
     user_phone: string;
     user_email?: string;
     pickup_date: string;
     pickup_time: string;
-    payment_method: "cash" | "terminal" | "click" | "payme";
+    payment_method: "cash" | "terminal" | "click";
     note?: string;
     ref_token?: string;
+    verification_token?: string;
   },
   options?: { silent?: boolean },
 ): Promise<PickupReservationResponse> {
-  return postJson<PickupReservationResponse>("/orders/reserve", payload, false, {
+  return postJson<PickupReservationResponse>("/orders/reserve", payload, true, {
     silent: options?.silent,
   });
 }
@@ -584,7 +600,7 @@ export async function reserveDeliveryOrders(payload: {
   items: Array<{ product_id: string; quantity: number }>;
   user_phone: string;
   user_email?: string;
-  payment_method: "cash" | "terminal" | "click" | "payme";
+  payment_method: "cash" | "terminal" | "click";
   note?: string;
   ref_token?: string;
   destination_address: string;
@@ -595,19 +611,42 @@ export async function reserveDeliveryOrders(payload: {
   delivery_cost_uzs: number;
   delivery_eta_minutes?: number;
   offer_payload?: string;
+  verification_token?: string;
 }): Promise<DeliveryReservationResponse> {
-  return postJson<DeliveryReservationResponse>("/orders/reserve-delivery", payload, false);
+  return postJson<DeliveryReservationResponse>("/orders/reserve-delivery", payload, true);
 }
 
-export async function getMyOrders(): Promise<{ items: Order[] }> {
-  return getJson<{ items: Order[] }>("/orders/me", true);
+export async function getMyOrders(scope: "active" | "completed" | "cancelled" | "all" = "all"): Promise<{ items: Order[] }> {
+  const query = scope === "all" ? "" : `?scope=${encodeURIComponent(scope)}`;
+  return getJson<{ items: Order[] }>(`/orders/me${query}`, true);
 }
 
-/** Mehmon buyurtmalar — login shart emas, telefon bo'yicha. */
-export async function lookupOrdersByPhone(user_phone: string): Promise<{ items: Order[] }> {
+/** Mehmon buyurtma qidiruv — SMS OTP yuborish. */
+export async function sendOrderLookupOtp(user_phone: string): Promise<{
+  status: string;
+  phone: string;
+  delivery: string;
+  dev_otp?: string;
+}> {
+  return postJson("/orders/lookup/send-otp", { user_phone }, false, { silent: true });
+}
+
+/** OTP tasdiqlash — verification_token qaytaradi. */
+export async function verifyOrderLookupOtp(
+  user_phone: string,
+  otp: string,
+): Promise<{ status: string; phone: string; verification_token: string }> {
+  return postJson("/orders/lookup/verify-otp", { user_phone, otp }, false, { silent: true });
+}
+
+/** Mehmon buyurtmalar — telefon + verification_token. */
+export async function lookupOrdersByPhone(
+  user_phone: string,
+  verification_token?: string,
+): Promise<{ items: Order[] }> {
   return postJson<{ items: Order[] }>(
     "/orders/lookup",
-    { user_phone },
+    { user_phone, verification_token },
     false,
     { silent: true },
   );
@@ -615,6 +654,38 @@ export async function lookupOrdersByPhone(user_phone: string): Promise<{ items: 
 
 export async function getMyOrder(orderId: string): Promise<Order> {
   return getJson<Order>(`/orders/${orderId}`, true);
+}
+
+export async function getOrderPickupQr(orderId: string): Promise<{
+  order_id: string;
+  qr_token: string;
+  qr_image_url: string;
+  expires_at: number;
+  status: string;
+  product_name: string;
+  quantity: number;
+  total_price: number;
+  hint: string;
+}> {
+  return getJson(`/orders/${orderId}/pickup-qr`, true);
+}
+
+export async function getGuestOrderPickupQr(
+  orderId: string,
+  user_phone: string,
+  verification_token: string,
+): Promise<{
+  order_id: string;
+  qr_token: string;
+  qr_image_url: string;
+  expires_at: number;
+  status: string;
+  product_name: string;
+  quantity: number;
+  total_price: number;
+  hint: string;
+}> {
+  return postJson(`/orders/${orderId}/pickup-qr`, { user_phone, verification_token }, false, { silent: true });
 }
 
 export async function trackEvent(payload: {
@@ -655,15 +726,18 @@ export async function createLead(
   return postJson("/leads", body, false, { silent: options?.silent });
 }
 
-export async function stylistLookbook(payload: {
-  user_id: string;
-  text?: string;
-  image_url?: string;
-  min_price?: number;
-  max_price?: number;
-  block?: string;
-}): Promise<StylistResponse> {
-  return postJson<StylistResponse>("/stylist/lookbook", payload);
+export async function stylistLookbook(
+  payload: {
+    user_id: string;
+    text?: string;
+    image_url?: string;
+    min_price?: number;
+    max_price?: number;
+    block?: string;
+  },
+  options?: { silent?: boolean },
+): Promise<StylistResponse> {
+  return postJson<StylistResponse>("/stylist/lookbook", payload, false, options);
 }
 
 export type ChatAgentProductSnapshot = {
@@ -825,15 +899,17 @@ export async function createChatThread(payload: {
   customer_key: string;
   customer_display_name?: string;
 }): Promise<{ thread: ChatThreadItem }> {
-  return postJson("/chat/threads", payload);
+  const sid = encodeURIComponent(getSessionId());
+  return postJson(`/chat/threads?session_id=${sid}`, payload);
 }
 
 export async function getChatMessages(threadId: string): Promise<{ items: ChatMessageItem[] }> {
-  return getJson(`/chat/threads/${threadId}/messages`, false);
+  const sid = encodeURIComponent(getSessionId());
+  return getJson(`/chat/threads/${threadId}/messages?session_id=${sid}`, false);
 }
 
 export async function getShopDashboard(shopId: string): Promise<unknown> {
-  return getJson(`/dashboard/shop/${shopId}`);
+  return getJson(`/dashboard/shop/${shopId}`, true);
 }
 
 export type IndoorMarketMapResponse = {

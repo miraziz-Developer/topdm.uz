@@ -722,6 +722,31 @@ class UniversalGroqStylist:
             result["assistant_text"] = (
                 "Sizning so'rovingiz bo'yicha mos mahsulotlar topildi — kartalarni ko'ring."
             )
+        if not result.get("selected_product_ids") and safe_catalog:
+            budget_raw = meta.get("budget") or meta.get("_budget_uzs")
+            try:
+                budget_uzs = int(float(budget_raw)) if budget_raw is not None else 0
+            except (TypeError, ValueError):
+                budget_uzs = 0
+            ordered = sorted(
+                safe_catalog,
+                key=lambda row: float(row.get("price") or row.get("price_uzs") or 0),
+            )
+            fallback_ids: list[str] = []
+            for row in ordered:
+                pid = str(row.get("id") or "").strip()
+                if not pid:
+                    continue
+                price = float(row.get("price") or row.get("price_uzs") or 0)
+                if budget_uzs > 0 and price > budget_uzs * 3.5:
+                    continue
+                fallback_ids.append(pid)
+                if len(fallback_ids) >= 4:
+                    break
+            if fallback_ids:
+                result["selected_product_ids"] = fallback_ids
+                result["engine"] = result.get("engine") or "catalog_fallback"
+
         if not result.get("look_groups") and result.get("selected_product_ids"):
             ids = result["selected_product_ids"]
             roles = ("ustki", "pastki", "poyabzal", "aksessuar")

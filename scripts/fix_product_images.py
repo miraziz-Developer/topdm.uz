@@ -77,9 +77,9 @@ async def main(*, reembed: bool, only_placeholders: bool) -> None:
         print(f"   (sotuvchi rasmlari saqlab qolindi: {skipped_merchant})")
 
     if reembed and updated > 0:
-        print("\n🔄 Vizual indeks qayta yaratilmoqda (GOOGLE_API_KEY)…")
+        print("\n🔄 Vizual indeks qayta yaratilmoqda (CLIP)…")
         script = os.path.join(_scripts_dir, "reembed_products.py")
-        subprocess.run([sys.executable, script], check=True)
+        subprocess.run([sys.executable, script, "--visual-only"], check=True)
         print("✅ Indeks tayyor.")
 
 
@@ -91,10 +91,10 @@ if __name__ == "__main__":
         help="Rasmlardan keyin visual_embedding yangilash",
     )
     parser.add_argument(
-        "--seed-only",
+        "--all",
         action="store_true",
-        help="Faqat Unsplash/seed rasmlarini yangilash (sotuvchi yuklaganlarini tegmaydi)",
+        help="Barcha mahsulot rasmlarini yangilash (sotuvchi yuklaganlarini ham)",
     )
     args = parser.parse_args()
     get_settings()
-    asyncio.run(main(reembed=args.reembed, only_placeholders=args.seed_only))
+    asyncio.run(main(reembed=args.reembed, only_placeholders=not args.all))

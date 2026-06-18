@@ -40,7 +40,7 @@ class MerchantWorkspaceHub:
 
         now = datetime.now(timezone.utc)
         orders = await self._repo.list_shop_orders(shop_id, limit=50)
-        pending_orders = [o for o in orders if (o.status or "").lower() in {"pending", "new", "confirmed"}]
+        pending_orders = [o for o in orders if (o.status or "").lower() in {"pending", "new", "reserved", "confirmed", "preparing", "ready"}]
 
         leads = await self._repo.list_shop_leads(shop_id, limit=50)
         stale_leads = [l for l in leads if (l.status or "pending").lower() == "pending"]
@@ -92,12 +92,12 @@ class MerchantWorkspaceHub:
         if not shop.is_verified:
             tasks.append(
                 {
-                    "type": "system",
+                    "type": "catalog",
                     "priority": "medium",
                     "id": "verify",
-                    "title": "Saytda chiqish kutilmoqda",
-                    "subtitle": "Platforma tasdiqlagach mijozlar ko'radi",
-                    "href": "/dashboard",
+                    "title": "Saytda chiqish uchun mahsulot joylang",
+                    "subtitle": "Telegram botga rasm yuboring — birinchi mahsulotdan keyin katalogda ko'rinasiz",
+                    "href": "/dashboard/products?tab=catalog",
                 }
             )
         if last_upload_hint:

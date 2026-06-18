@@ -4,7 +4,7 @@ import logging
 import re
 from uuid import UUID
 
-from app.domain.interfaces.notifier_gateway import NotifierGateway
+from app.core.phone import normalize_uz_phone_e164
 from app.application.marketplace.order_tracking import enrich_order_for_live_tracker
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.interfaces.api.serializers import _ipadrom_name
@@ -74,10 +74,16 @@ class MarketplaceUseCases:
             ref_token=ref_token,
         )
         shop = await self._repo.get_shop(shop_id)
-        if shop and shop.telegram_chat_id:
-            await self._notifier.send_message(
-                int(shop.telegram_chat_id),
-                f"Yangi so'rov: {customer_name or 'Noma`lum'} | {customer_phone} | lead_id={lead.id}",
+        if shop:
+            from app.application.merchant.merchant_order_notify import notify_merchant_new_lead
+
+            note_text = (note or "").strip() or (customer_name or "Mijoz")
+            await notify_merchant_new_lead(
+                self._notifier,
+                shop=shop,
+                customer_phone=customer_phone,
+                message=note_text,
+                source="sayt",
             )
         return {"lead_id": str(lead.id), "status": "pending"}
 
@@ -162,17 +168,57 @@ class MarketplaceUseCases:
             "total_price": float(order.total_price),
         }
 
-    async def list_customer_orders(self, customer_phone: str) -> list[dict]:
-        orders = await self._repo.list_customer_orders(customer_phone)
+    async def list_customer_orders(
+        self,
+        *,
+        user_id: UUID | None = None,
+        customer_phone: str | None = None,
+        customer_email: str | None = None,
+        scope: str = "all",
+        limit: int = 50,
+    ) -> list[dict]:
+        phone = normalize_uz_phone_e164(customer_phone) if customer_phone else None
+        orders = await self._repo.list_orders_for_account(
+            user_id=user_id,
+            phone=phone,
+            email=customer_email,
+            scope=scope,
+            limit=limit,
+        )
         return [self._order_to_dict(order) for order in orders]
 
-    async def get_live_orders(self, customer_phone: str) -> list[dict]:
-        """Profile jonli buyurtmalar — tracker maydonlari bilan."""
-        orders = await self._repo.list_customer_orders(customer_phone)
-        return [enrich_order_for_live_tracker(self._order_to_dict(order)) for order in orders]
+    async def get_live_orders(
+        self,
+        *,
+        user_id: UUID | None = None,
+        customer_phone: str | None = None,
+        customer_email: str | None = None,
+        scope: str = "all",
+    ) -> list[dict]:
+        """Profile / lookup buyurtmalar — tracker maydonlari bilan."""
+        orders = await self.list_customer_orders(
+            user_id=user_id,
+            customer_phone=customer_phone,
+            customer_email=customer_email,
+            scope=scope,
+        )
+        return [enrich_order_for_live_tracker(order) for order in orders]
 
-    async def get_customer_order(self, customer_phone: str, order_id: UUID) -> dict:
-        order = await self._repo.get_order_for_customer(order_id, customer_phone)
+    async def get_customer_order(
+        self,
+        *,
+        user_id: UUID | None,
+        customer_phone: str | None,
+        customer_email: str | None,
+        order_id: UUID,
+    ) -> dict:
+        phone = normalize_uz_phone_e164(customer_phone) if customer_phone else None
+        order = await self._repo.get_order_for_account(
+            order_id,
+            user_id=user_id,
+            phone=phone,
+            email=customer_email,
+        )
         if not order:
             raise ValueError("Order not found")
         return self._order_to_dict(order)
@@ -193,26 +239,54 @@ class MarketplaceUseCases:
         return {"lead_id": str(lead.id), "status": lead.status}
 
     async def update_order_status(self, *, shop_id: UUID, order_id: UUID, status: str) -> dict:
+        from sqlalchemy import select
+
+        from app.infrastructure.db.models import OrderModel
+        from app.services.inventory import ACTIVE_RESERVED_STATUSES, release_order_reserved_stock
+
         allowed = {"pending", "reserved", "confirmed", "preparing", "ready", "completed", "cancelled"}
         if status not in allowed:
             raise ValueError(f"status must be one of: {', '.join(sorted(allowed))}")
+
+        existing = (
+            await self._repo._session.execute(
+                select(OrderModel).where(OrderModel.id == order_id, OrderModel.shop_id == shop_id)
+            )
+        ).scalar_one_or_none()
+        if not existing:
+            raise ValueError("Order not found")
+        prev_status = existing.status
+
+        if status == "cancelled" and prev_status in ACTIVE_RESERVED_STATUSES:
+            try:
+                await release_order_reserved_stock(self._repo._session, order_id=order_id)
+            except Exception:
+                logger.exception("order_stock_release_failed", extra={"order_id": str(order_id)})
+
         order = await self._repo.update_order_status(shop_id=shop_id, order_id=order_id, status=status)
         if not order:
             raise ValueError("Order not found")
-        if status == "completed":
+
+        if status == "completed" and prev_status != "completed":
             from app.application.finance.transaction_splitter import TransactionSplitterService
+            from app.application.merchant.growth_service import MerchantGrowthService
 
             splitter = TransactionSplitterService(self._repo._session)
             try:
                 await splitter.release_escrow_to_merchant(order_id)
             except Exception:
-                pass
+                logger.exception("escrow_release_failed", extra={"order_id": str(order_id)})
             from app.application.billing.merchant_debt_service import MerchantDebtService
 
             try:
                 await MerchantDebtService(self._repo._session).process_cash_pickup_completion(order_id)
             except Exception:
-                pass
+                logger.exception("cash_completion_debt_failed", extra={"order_id": str(order_id)})
+            try:
+                await MerchantGrowthService(self._repo._session).try_reward_referral(shop_id)
+            except Exception:
+                logger.debug("referral_reward_skipped", exc_info=True)
+
         return {"order_id": str(order.id), "status": order.status}
 
     @staticmethod

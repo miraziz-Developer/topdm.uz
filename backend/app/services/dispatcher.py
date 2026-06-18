@@ -6,7 +6,7 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
+from app.application.merchant.merchant_order_notify import notify_merchant_new_order, notify_first_order_pickup_tips
 from app.domain.interfaces.notifier_gateway import NotifierGateway
 from app.infrastructure.db.models import OrderModel, ProductModel, ShopModel
 from app.models.merchant_notification import MerchantCrmNotificationModel
@@ -74,20 +74,30 @@ class ReservationCrmDispatcher:
             )
             return False
 
-        message = (
-            f"✅ Bron tasdiqlandi\n"
-            f"{payload.product.name} ×{payload.order.quantity}\n"
-            f"📅 {payload.pickup_date.isoformat()} · {payload.pickup_window_label}\n"
-            f"📞 {payload.customer_phone}\n"
-            f"📍 {payload.store_location}"
-        )
         try:
-            await notify_merchant_telegram(
+            from sqlalchemy import func, select
+            from app.infrastructure.db.models import OrderModel
+
+            count_result = await self._db.execute(
+                select(func.count(OrderModel.id)).where(OrderModel.shop_id == payload.shop.id)
+            )
+            order_count = int(count_result.scalar() or 0)
+            if order_count <= 1:
+                await notify_first_order_pickup_tips(
+                    self._notifier,
+                    shop=payload.shop,
+                )
+
+            await notify_merchant_new_order(
                 self._notifier,
-                chat_id=int(chat_id),
-                text=message,
-                shop_id=payload.shop.id,
-                crm_next="/dashboard/sales",
+                shop=payload.shop,
+                order=payload.order,
+                product_name=payload.product.name,
+                fulfillment_label=f"Olib ketish · {payload.pickup_date.isoformat()} {payload.pickup_window_label}",
+                extra_lines=[
+                    f"📍 {payload.store_location}",
+                    f"💳 {payload.payment_method_label}",
+                ],
             )
             sent = True
             logger.info(

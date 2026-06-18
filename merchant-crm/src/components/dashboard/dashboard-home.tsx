@@ -80,7 +80,7 @@ export function DashboardHome() {
         bg: "bg-electric-500/10",
       },
       {
-        label: "Kutilayotgan chat",
+        label: "Javob kutilayotgan chat",
         value: today?.counts.chats_waiting ?? 0,
         href: "/dashboard/chat",
         icon: MessageCircle,
@@ -88,7 +88,7 @@ export function DashboardHome() {
         bg: "bg-violet-500/10",
       },
       {
-        label: "Ochiq lead",
+        label: "Ochiq murojaat",
         value: today?.counts.open_leads ?? 0,
         href: "/dashboard/sales?tab=leads",
         icon: UserRound,
@@ -112,7 +112,7 @@ export function DashboardHome() {
       {
         href: "/dashboard/sales?tab=orders",
         title: "Savdo",
-        desc: "Buyurtmalar va leadlar",
+        desc: "Buyurtmalar va murojaatlar",
         icon: ShoppingBag,
         meta: `${orderCount} buyurtma`,
       },
@@ -170,12 +170,12 @@ export function DashboardHome() {
   return (
     <div className="crm-page-enter space-y-6">
       {/* Hero */}
-      <section className="crm-surface-card overflow-hidden">
-        <div className="border-b border-border-subtle bg-gradient-to-br from-electric-500/[0.06] via-surface to-surface px-5 py-6 sm:px-8 sm:py-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <section className="crm-hero-card overflow-hidden">
+        <div className="premium-aurora relative border-b border-border-subtle/80 px-5 py-7 sm:px-8 sm:py-9">
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm capitalize text-text-400">{formatTodayUz()}</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-text-100 sm:text-3xl">
+              <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-text-100 sm:text-3xl">
                 {shopName ?? "Do'kon paneli"}
               </h1>
               <p className="mt-2 max-w-lg text-sm leading-relaxed text-text-400">
@@ -189,24 +189,18 @@ export function DashboardHome() {
                 )}
               </p>
               {!today?.shop_verified ? (
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-800">
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-800">
                   <Sparkles className="h-3.5 w-3.5" />
                   Do&apos;kon tasdiqlanishi kutilmoqda
                 </p>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link
-                href="/dashboard/products?tab=catalog"
-                className="inline-flex h-11 items-center gap-2 rounded-full bg-text-100 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
-              >
+              <Link href="/dashboard/products?tab=catalog" className="crm-btn-primary h-11 gap-2 px-5">
                 <Plus className="h-4 w-4" />
                 Mahsulot qo&apos;shish
               </Link>
-              <Link
-                href="/dashboard/sales?tab=orders"
-                className="inline-flex h-11 items-center gap-2 rounded-full border border-border-subtle bg-surface px-5 text-sm font-semibold text-text-100 transition hover:bg-canvas"
-              >
+              <Link href="/dashboard/sales?tab=orders" className="crm-btn-ghost h-11 gap-2 px-5">
                 Buyurtmalar
                 <ArrowRight className="h-4 w-4" />
               </Link>

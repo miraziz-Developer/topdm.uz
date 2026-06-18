@@ -24,7 +24,8 @@ import { ProfileAvatarUpload } from "@/components/profile/profile-avatar-upload"
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { getMyOrders, lookupOrdersByPhone, patchAuthMePhone } from "@/lib/api";
-import { readGuestPhone } from "@/lib/guest-phone";
+import { filterOrdersByScope, sortOrdersNewestFirst } from "@/lib/order-filters";
+import { readGuestLookupToken, readGuestPhone } from "@/lib/guest-phone";
 import { allowDevMocks } from "@/lib/runtime-flags";
 import { ApiError } from "@/lib/http-client";
 import { cn } from "@/lib/utils";
@@ -156,18 +157,23 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
     let cancelled = false;
     void (async () => {
       try {
-        const mine = await getMyOrders();
-        let items = mine.items ?? [];
+        const hasPhone = Boolean(profile.phone?.trim());
+        const mine = await getMyOrders("active");
+        let items = sortOrdersNewestFirst(mine.items ?? []);
         const savedPhone = readGuestPhone();
         if (savedPhone && UZ_PHONE_CANONICAL.test(savedPhone)) {
-          try {
-            const guest = await lookupOrdersByPhone(savedPhone);
-            const byId = new Map<string, Order>();
-            for (const o of items) byId.set(o.id, o);
-            for (const o of guest.items ?? []) byId.set(o.id, o);
-            items = Array.from(byId.values());
-          } catch {
-            // ignore fallback errors
+          const token = readGuestLookupToken(savedPhone);
+          if (token) {
+            try {
+              const guest = await lookupOrdersByPhone(savedPhone, token);
+              const guestActive = filterOrdersByScope(guest.items ?? [], "active");
+              const byId = new Map<string, Order>();
+              for (const o of items) byId.set(o.id, o);
+              for (const o of guestActive) byId.set(o.id, o);
+              items = sortOrdersNewestFirst(Array.from(byId.values()));
+            } catch {
+              // ignore fallback errors
+            }
           }
         }
         if (!cancelled) setOrders(items.slice(0, 3));
@@ -180,7 +186,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [profile.phone, profile.role]);
 
   const shortId = useMemo(() => {
     const raw = profile.id.replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -501,7 +507,13 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
             </div>
 
             <div className="mt-6 space-y-4">
-              <LiveOrders orders={orders} loading={ordersLoading} />
+              <LiveOrders
+                orders={orders}
+                loading={ordersLoading}
+                variant={profile.role === "merchant" ? "merchant" : "buyer"}
+                hasPhone={Boolean(profile.phone?.trim())}
+                onAddPhone={beginEditPhone}
+              />
             </div>
           </motion.section>
 

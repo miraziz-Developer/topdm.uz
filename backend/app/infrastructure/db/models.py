@@ -111,6 +111,7 @@ class ShopModel(Base):
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     location_accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)
     location_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    shop_type: Mapped[str] = mapped_column(String(16), nullable=False, default="chakana", index=True)
     market_zone: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     block_sector: Mapped[str | None] = mapped_column(String(120), nullable=True)
     stall_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -122,6 +123,11 @@ class ShopModel(Base):
     coins_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     debt_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     is_blocked: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False, server_default="false")
+    referral_code: Mapped[str | None] = mapped_column(String(16), nullable=True, unique=True, index=True)
+    referred_by_shop_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("shops.id"), nullable=True
+    )
+    referral_rewarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     products = relationship("ProductModel", back_populates="shop")
     ipadrom = relationship("IpadromModel", lazy="joined", foreign_keys=[ipadrom_id])
@@ -138,6 +144,8 @@ class ProductModel(Base):
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     sale_type: Mapped[str] = mapped_column(String(16), nullable=False, default="Chakana", index=True)
     min_order_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    pricing_unit: Mapped[str] = mapped_column(String(16), nullable=False, default="piece")
+    units_per_pack: Mapped[int | None] = mapped_column(Integer, nullable=True)
     price_negotiable: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False)
     images: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)
     attributes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
@@ -188,6 +196,12 @@ class OrderModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     customer_phone: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    customer_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     product_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False, index=True)
     shop_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("shops.id"), nullable=False, index=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -365,3 +379,19 @@ class MerchantAlertLogModel(Base):
     shop_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=False, index=True)
     alert_type: Mapped[str] = mapped_column(String(64), nullable=False)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ShopSupplierLinkModel(Base):
+    """Chakana do'kon ↔ optom/ta'minotchi bog'lanishi."""
+
+    __tablename__ = "shop_supplier_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    retail_shop_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    supplier_shop_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("shops.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active", server_default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -193,9 +193,12 @@ def build_strict_slot_filters(
     raw_color = det.get("color") or (vision or {}).get("color")
     canon_color = normalize_color_uz(str(raw_color) if raw_color else None)
 
+    loose_slot = bool(det.get("loose_slot")) or str(det.get("id") or "") == "whole"
+
     filters: dict[str, Any] = {
         "text": search_text or label_uz or category or "kiyim",
-        "strict_slot": True,
+        "strict_slot": False if photo_mode else not loose_slot,
+        "image_only_search": photo_mode,
         "color": canon_color,
         "color_terms": color_search_terms(canon_color),
         "material": det.get("material") or (vision or {}).get("material"),

@@ -5,17 +5,20 @@ from uuid import UUID
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.merchant.product_hashtags import hashtags_for_publish
+from app.application.merchant.product_variants import apply_warehouse_stock, build_attributes_from_catalog
 from app.application.merchant.schemas import (
     PendingProductItem,
     PublishPendingProductRequest,
     PublishPendingProductResult,
     RejectPendingProductRequest,
 )
+from app.application.merchant.telegram_variant_draft import draft_to_catalog_payload, get_variant_draft
 from app.core.config import get_settings
 from app.domain.interfaces.notifier_gateway import NotifierGateway
 from app.application.visual_search.image_fetch import fetch_image_bytes
 from app.application.visual_search.visual_search_engine import index_product_visual_embedding
-from app.infrastructure.ai_clients.embedding import EmbeddingClient
+from app.infrastructure.ai_clients.embedding import EmbeddingClient, _deterministic_embed
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.infrastructure.storage.telegram_media import TelegramMediaStore
 
@@ -57,6 +60,17 @@ class MerchantProductService:
         row = await self._repo.get_pending_product(pending_id, shop_id=shop_id)
         if not row:
             raise PublishPendingProductError("not_found", "Pending product not found")
+        if row.status == "published" and row.published_product_id:
+            product = await self._repo.get_product_by_id(row.published_product_id)
+            if product:
+                images = list(product.images or [])
+                return PublishPendingProductResult(
+                    pending_id=row.id,
+                    product_id=product.id,
+                    product_name=product.name,
+                    image_url=images[0] if images else None,
+                    status="published",
+                )
         if row.status not in {"pending", "approved"}:
             raise PublishPendingProductError("invalid_status", f"Cannot publish status={row.status}")
 
@@ -73,67 +87,136 @@ class MerchantProductService:
         if not (0 < price < 100_000_000):
             raise PublishPendingProductError("invalid_price", "Price must be between 1 and 100,000,000 UZS")
 
-        placeholder = f"{self._settings.site_url.rstrip('/')}/placeholder.svg"
-        try:
-            image_url = await self._media.resolve_permanent_url(
-                shop_id=shop_id,
-                telegram_file_id=row.telegram_file_id,
-                fallback_placeholder=placeholder,
+        draft = get_variant_draft(attrs)
+        warehouse_stock = max(0, int(draft.get("fallback_stock") or 0))
+        if warehouse_stock < 1:
+            raise PublishPendingProductError(
+                "stock_required",
+                "Omborda nechta borligini kiriting (kamida 1 dona)",
             )
-        except ValueError as exc:
-            raise PublishPendingProductError("image_failed", str(exc)) from exc
 
+        placeholder = f"{self._settings.site_url.rstrip('/')}/placeholder.svg"
+        catalog_payload = draft_to_catalog_payload(draft)
+        image_urls: list[str] = []
+
+        async def _resolve_file_id(file_id: str | None) -> str | None:
+            if not file_id:
+                return None
+            try:
+                return await self._media.resolve_permanent_url(
+                    shop_id=shop_id,
+                    telegram_file_id=file_id,
+                    fallback_placeholder=placeholder,
+                )
+            except ValueError:
+                return None
+
+        if catalog_payload["colors"]:
+            for color_row in catalog_payload["colors"]:
+                resolved: list[str] = []
+                for file_id in color_row.pop("telegram_file_ids", []) or []:
+                    url = await _resolve_file_id(str(file_id))
+                    if url:
+                        resolved.append(url)
+                color_row["image_urls"] = resolved
+                image_urls.extend(resolved)
+        else:
+            primary_url = await _resolve_file_id(row.telegram_file_id)
+            if not primary_url:
+                raise PublishPendingProductError("image_failed", "Rasmni saqlab bo'lmadi")
+            image_urls = [primary_url]
+            color_name = str(attrs.get("color") or "Asosiy").strip() or "Asosiy"
+            catalog_payload = {
+                "all_sizes": draft.get("all_sizes") or [],
+                "colors": [{"name": color_name, "sizes": draft.get("all_sizes") or [], "image_urls": [primary_url]}],
+                "sku_stock": {},
+                "fallback_stock": warehouse_stock,
+            }
+
+        if not image_urls:
+            raise PublishPendingProductError("image_failed", "Kamida bitta rasm kerak")
+
+        image_url = image_urls[0]
+
+        from app.application.merchant.category_resolver import enrich_attrs_with_category
+
+        attrs["product_name"] = name
+        attrs = await enrich_attrs_with_category(self._session, attrs)
+
+        tags = hashtags_for_publish(attrs)
         embed_text = " ".join(
             filter(
                 None,
                 [
                     name,
                     str(attrs.get("category") or ""),
+                    str(attrs.get("category_label") or ""),
                     str(attrs.get("color") or ""),
                     str(attrs.get("material") or ""),
                     " ".join(attrs.get("style_tags") or []),
+                    " ".join(f"#{t}" for t in tags),
                 ],
             )
         )
         try:
             vector = await self._embed.embed(embed_text)
         except Exception as exc:
-            logger.exception("embedding_failed", pending_id=str(pending_id))
-            raise PublishPendingProductError("embedding_failed", "Could not generate search embedding") from exc
+            logger.warning("embedding_failed_using_fallback", pending_id=str(pending_id), error=str(exc)[:180])
+            vector = _deterministic_embed(embed_text)
 
         if len(vector) != 1536:
             raise PublishPendingProductError("embedding_failed", "Embedding dimension must be 1536")
 
         visual_vector: list[float] | None = None
         img_bytes = await fetch_image_bytes(image_url)
+        variant_attrs, _total_stock = build_attributes_from_catalog(
+            catalog_payload,
+            existing={k: v for k, v in attrs.items() if k not in {"transcription", "variant_draft"}},
+        )
+        variant_attrs, stock_count = apply_warehouse_stock(variant_attrs, warehouse_stock)
         product_attrs = {
-            **{k: v for k, v in attrs.items() if k not in {"transcription"}},
+            **variant_attrs,
             "pending_id": str(row.id),
             "source": attrs.get("source") or "telegram",
+            "hashtags": tags,
         }
         if img_bytes:
+            if self._settings.publish_visual_embed_lightweight:
+                visual_vector, visual_meta = self._lightweight_visual_embed(img_bytes)
+                product_attrs.update(visual_meta)
+            else:
+                try:
+                    visual_vector, vsrc, phash = await index_product_visual_embedding(
+                        image_bytes=img_bytes,
+                        text_hint=embed_text,
+                    )
+                    product_attrs["visual_embed_source"] = vsrc
+                    if phash:
+                        product_attrs["phash"] = phash
+                except Exception:
+                    visual_vector = None
+
+        resolved_category_id = payload.category_id
+        if resolved_category_id is None and attrs.get("category_id"):
             try:
-                visual_vector, vsrc, phash = await index_product_visual_embedding(
-                    image_bytes=img_bytes,
-                    text_hint=embed_text,
-                )
-                product_attrs["visual_embed_source"] = vsrc
-                if phash:
-                    product_attrs["phash"] = phash
-            except Exception:
-                visual_vector = None
+                from uuid import UUID
+
+                resolved_category_id = UUID(str(attrs["category_id"]))
+            except (TypeError, ValueError):
+                resolved_category_id = None
 
         try:
             product = await self._repo.create_product(
                 shop_id=shop_id,
-                category_id=payload.category_id,
+                category_id=resolved_category_id,
                 name=name,
                 description=payload.description,
                 price=price,
-                images=[image_url],
+                images=image_urls,
                 attributes=product_attrs,
                 embedding=vector,
                 visual_embedding=visual_vector,
+                stock_count=stock_count,
             )
         except Exception as exc:
             logger.exception("product_create_failed", pending_id=str(pending_id))
@@ -145,6 +228,10 @@ class MerchantProductService:
             published_product_id=product.id,
         )
 
+        shop = await self._repo.get_shop(shop_id)
+        if shop and not shop.is_verified:
+            shop.is_verified = True
+
         await self._session.commit()
         await self._notify_published(shop_id=shop_id, product_name=name)
 
@@ -155,6 +242,24 @@ class MerchantProductService:
             image_url=image_url,
             status="published",
         )
+
+    async def update_warehouse_stock(
+        self,
+        product_id: UUID,
+        *,
+        shop_id: UUID,
+        stock: int,
+    ) -> tuple[str, int]:
+        product = await self._repo.get_shop_product(shop_id, product_id)
+        if not product:
+            raise PublishPendingProductError("not_found", "Mahsulot topilmadi")
+        stock = max(0, min(99_999, int(stock)))
+        attrs, total = apply_warehouse_stock(dict(product.attributes or {}), stock)
+        product.attributes = attrs
+        product.stock_count = total
+        product.is_available = total > 0
+        await self._session.commit()
+        return product.name, total
 
     async def reject_pending_product(
         self,
@@ -208,6 +313,21 @@ class MerchantProductService:
         merged = {**(row.vision_attributes or {}), **vision_patch}
         row = await self._repo.update_pending_product(row, vision_attributes=merged)
         return self._to_pending_item(row)
+
+    @staticmethod
+    def _lightweight_visual_embed(image_bytes: bytes) -> tuple[list[float] | None, dict]:
+        from app.application.visual_search.crop_preprocess import prepare_taobao_crop_bytes
+        from app.application.visual_search.visual_signature import image_phash_hex, image_visual_signature
+
+        try:
+            prepared = prepare_taobao_crop_bytes(image_bytes)
+            return image_visual_signature(prepared), {
+                "visual_embed_source": "signature",
+                "phash": image_phash_hex(prepared),
+            }
+        except Exception as exc:
+            logger.warning("lightweight_visual_embed_failed", error=str(exc)[:180])
+            return None, {}
 
     async def _notify_published(self, *, shop_id: UUID, product_name: str) -> None:
         if not self._notifier:

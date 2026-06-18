@@ -43,11 +43,29 @@ class ProductVariantColorInput(BaseModel):
     image_urls: list[str] = Field(default_factory=list)
 
 
+class PackCompositionRow(BaseModel):
+    size: str = Field(..., min_length=1, max_length=40)
+    qty: int = Field(..., ge=1, le=999)
+
+
+class WholesalePackInput(BaseModel):
+    units_per_pack: int = Field(..., ge=2, le=999)
+    composition: list[PackCompositionRow] = Field(default_factory=list)
+
+
 class ProductVariantCatalogInput(BaseModel):
     all_sizes: list[str] = Field(default_factory=list)
     colors: list[ProductVariantColorInput] = Field(default_factory=list)
     sku_stock: dict[str, int] = Field(default_factory=dict)
     fallback_stock: int | None = Field(default=None, ge=0, le=99999)
+
+
+class MerchantProductCreateFields(BaseModel):
+    sale_type: str = Field(default="Chakana", max_length=16)
+    pricing_unit: str = Field(default="piece", max_length=16)
+    min_order_quantity: int = Field(default=1, ge=1, le=999)
+    units_per_pack: int | None = Field(default=None, ge=2, le=999)
+    wholesale_pack: WholesalePackInput | None = None
 
 
 class MerchantProductUpdateRequest(BaseModel):
@@ -57,6 +75,11 @@ class MerchantProductUpdateRequest(BaseModel):
     stock_count: int | None = Field(default=None, ge=0, le=99999)
     is_available: bool | None = None
     is_featured: bool | None = None
+    sale_type: str | None = Field(default=None, max_length=16)
+    pricing_unit: str | None = Field(default=None, max_length=16)
+    min_order_quantity: int | None = Field(default=None, ge=1, le=999)
+    units_per_pack: int | None = Field(default=None, ge=2, le=999)
+    wholesale_pack: WholesalePackInput | None = None
     variant_catalog: ProductVariantCatalogInput | None = None
 
 

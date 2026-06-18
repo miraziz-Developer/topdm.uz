@@ -64,5 +64,29 @@ async def run_merchant_smart_alerts(session: AsyncSession, notifier: NotifierGat
         except Exception:
             logger.warning("smart_alert_leads_failed", extra={"shop_id": str(shop.id)})
 
+    for shop, low_rows in await repo.shops_with_low_stock(threshold=3):
+        alert_type = "low_stock"
+        if await repo.was_alert_sent_recently(shop.id, alert_type, hours=24):
+            continue
+        if not shop.telegram_chat_id:
+            continue
+        lines = "\n".join(f"• {name} — {stock} dona" for name, stock in low_rows[:6])
+        text = (
+            f"⚠️ Ombor tugab qolmoqda ({shop.name}):\n{lines}\n\n"
+            "Botda «Ombor yangilash» yoki CRM dan zaxira qo'shing."
+        )
+        try:
+            await notify_merchant_telegram(
+                notifier,
+                chat_id=int(shop.telegram_chat_id),
+                text=text,
+                shop_id=shop.id,
+                crm_next="/dashboard/products",
+            )
+            await repo.log_alert(shop.id, alert_type)
+            sent += 1
+        except Exception:
+            logger.warning("smart_alert_stock_failed", extra={"shop_id": str(shop.id)})
+
     await session.commit()
     return sent

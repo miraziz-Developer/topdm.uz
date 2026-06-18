@@ -97,39 +97,64 @@ class AIInspectorService:
                     resp = model.generate_content([system, pil])
                     return (resp.text or "").strip()
 
-                raw = await asyncio.to_thread(_run)
-            else:
-                attrs = await self._gemini.extract_attributes(image_bytes)
-                payload = {
-                    "allowed": str(attrs.get("category", "")).lower() not in {
-                        "",
-                        "unknown",
-                        "other",
-                        "electronics",
-                        "food",
-                    },
-                    "reason": "Rasm tahlil qilindi (fallback).",
-                    "flags": ["fallback_vision"],
-                    "is_clothing": True,
-                    "is_inappropriate": False,
-                    "detected_category": attrs.get("category"),
-                }
+                raw = await asyncio.wait_for(asyncio.to_thread(_run), timeout=20.0)
+                cleaned = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                payload = json.loads(cleaned)
                 return self._parse_moderation(payload)
 
-            cleaned = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            payload = json.loads(cleaned)
-            return self._parse_moderation(payload)
+            if self._settings.is_production:
+                groq_result = await self._moderate_with_groq(image_bytes)
+                if groq_result is not None:
+                    return groq_result
+                return ImageModerationResult(
+                    False,
+                    "Mahsulot rasmi AI tekshiruvidan o'tishi shart — GOOGLE_API_KEY yoki GROQ_API_KEY sozlang.",
+                    ["moderation_required"],
+                )
+            return ImageModerationResult(
+                allowed=True,
+                reason="AI tekshiruvi o'chirilgan — faqat dev muhit.",
+                flags=["moderation_skipped"],
+            )
         except Exception as exc:
             logger.warning("image_moderation_failed", error=str(exc))
-            attrs = await self._gemini.extract_attributes(image_bytes)
-            category = str(attrs.get("category") or "").lower()
-            blocked = category in {"", "unknown", "other", "electronics", "food", "vehicle", "furniture"}
+            if self._settings.is_production:
+                groq_result = await self._moderate_with_groq(image_bytes)
+                if groq_result is not None:
+                    return groq_result
+                return ImageModerationResult(
+                    False,
+                    "AI tekshiruvi ishlamadi — rasmni qayta yuklang yoki keyinroq urinib ko'ring.",
+                    ["moderation_failed"],
+                )
             return ImageModerationResult(
-                allowed=not blocked,
-                reason="Rasm kiyim sifatida aniqlanmadi." if blocked else "Rasm qabul qilindi.",
-                flags=["fallback_vision"] if blocked else [],
-                category=category or None,
+                allowed=True,
+                reason="AI tekshiruvi ishlamadi — faqat dev muhit.",
+                flags=["moderation_skipped"],
             )
+
+    async def _moderate_with_groq(self, image_bytes: bytes) -> ImageModerationResult | None:
+        if not self._settings.groq_api_key:
+            return None
+        prompt = (
+            "Bu mahsulot rasmi Bozorliii kiyim bozori uchun. JSON: "
+            '{"allowed":bool,"reason":"qisqa o\'zbekcha","flags":[],"is_clothing":bool,'
+            '"is_inappropriate":bool,"detected_category":"string"}. '
+            "Block: kiyim/emtak emas, nojo'ya kontent, xira/rasm."
+        )
+        try:
+            payload = await self._groq.chat_json(
+                system_prompt="Marketplace image moderator. JSON only.",
+                user_prompt=prompt,
+                vision=True,
+                image_bytes=image_bytes,
+                image_mime="image/jpeg",
+            )
+            if isinstance(payload, dict):
+                return self._parse_moderation(payload)
+        except Exception as exc:
+            logger.warning("groq_image_moderation_failed", error=str(exc))
+        return None
 
     def _parse_moderation(self, payload: dict[str, Any]) -> ImageModerationResult:
         allowed = bool(payload.get("allowed", True))

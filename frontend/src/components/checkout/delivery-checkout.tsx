@@ -4,6 +4,7 @@ import { Truck } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { CheckoutShell } from "@/components/checkout/checkout-shell";
+import { DeliveryAddressSection } from "@/components/checkout/delivery-address-section";
 import { PaymentMethodPicker, type CheckoutPaymentMethod } from "@/components/checkout/payment-method-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -20,9 +21,6 @@ import { useCartStore } from "@/stores/cart-store";
 import { useUserStore } from "@/stores/user-store";
 import { normalizeUzbekPhoneE164 } from "@/utils/phone-mask";
 
-const DEFAULT_LAT = 41.3111;
-const DEFAULT_LNG = 69.2797;
-
 function formatPrice(n: number): string {
   return `${n.toLocaleString("uz-UZ")} so'm`;
 }
@@ -35,10 +33,14 @@ export function DeliveryCheckout() {
 
   const [phone, setPhone] = useState(profile?.phone ?? "+998");
   const [email, setEmail] = useState(profile?.email ?? "");
-  const [address, setAddress] = useState("");
+  const [addressQuery, setAddressQuery] = useState("");
+  const [resolvedLabel, setResolvedLabel] = useState<string | null>(null);
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [city, setCity] = useState("Toshkent");
-  const [lat, setLat] = useState(DEFAULT_LAT);
-  const [lng, setLng] = useState(DEFAULT_LNG);
+  const [apartment, setApartment] = useState("");
+  const [entrance, setEntrance] = useState("");
+  const [floor, setFloor] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>("cash");
   const [note, setNote] = useState("");
   const [quote, setQuote] = useState<DeliveryQuoteResponse | null>(null);
@@ -47,9 +49,22 @@ export function DeliveryCheckout() {
   const [submitting, setSubmitting] = useState(false);
 
   const items = useMemo(
-    () => lines.map((line) => ({ product_id: line.product.id, quantity: line.quantity })),
+    () =>
+      lines.map((line) => ({
+        product_id: line.product.id,
+        quantity: line.quantity,
+        color: line.selectedOptions?.color,
+        size: line.selectedOptions?.size,
+      })),
     [lines],
   );
+
+  const destinationAddress = useMemo(() => {
+    const parts = [resolvedLabel || addressQuery.trim(), apartment.trim(), entrance.trim(), floor.trim()]
+      .filter(Boolean)
+      .join(", ");
+    return parts || addressQuery.trim();
+  }, [addressQuery, apartment, entrance, floor, resolvedLabel]);
 
   const selectedOption: DeliveryQuoteOption | null =
     quote?.options.find((o) => o.carrier_class === selectedCarrier) ?? null;
@@ -59,8 +74,12 @@ export function DeliveryCheckout() {
       push("Savatcha bo'sh", "error");
       return;
     }
-    if (!address.trim()) {
+    if (!destinationAddress.trim()) {
       push("Manzil kiriting", "error");
+      return;
+    }
+    if (lat == null || lng == null) {
+      push("Avval manzilni xaritadan yoki qidiruvdan tanlang", "error");
       return;
     }
     setLoadingQuote(true);
@@ -68,7 +87,7 @@ export function DeliveryCheckout() {
       const data = await quoteDeliveryOptions({
         items,
         user_phone: normalizeUzbekPhoneE164(phone),
-        destination_address: address.trim(),
+        destination_address: destinationAddress,
         destination_lat: lat,
         destination_lng: lng,
         destination_city: city.trim() || "Toshkent",
@@ -87,6 +106,10 @@ export function DeliveryCheckout() {
       push("Avval dostavka tarifini hisoblang", "error");
       return;
     }
+    if (lat == null || lng == null) {
+      push("Yetkazish manzilini tanlang", "error");
+      return;
+    }
     setSubmitting(true);
     try {
       await reserveDeliveryOrders({
@@ -96,7 +119,7 @@ export function DeliveryCheckout() {
         payment_method: paymentMethod,
         note: note.trim() || undefined,
         ref_token: getRefToken(),
-        destination_address: address.trim(),
+        destination_address: destinationAddress,
         destination_lat: lat,
         destination_lng: lng,
         destination_city: city.trim() || "Toshkent",
@@ -120,20 +143,47 @@ export function DeliveryCheckout() {
         <Card>
           <CardHeader>
             <h1 className="text-xl font-semibold text-ink-900">Delivery checkout</h1>
-            <p className="text-sm text-ink-500">Yandex bilan eshikkacha yetkazish</p>
+            <p className="text-sm text-ink-500">BTS Express bilan eshikkacha yetkazish</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998901234567" />
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (ixtiyoriy)" />
-            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Mijoz manzili" />
-            <div className="grid grid-cols-3 gap-3">
-              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Shahar" />
-              <Input value={String(lat)} onChange={(e) => setLat(Number(e.target.value))} placeholder="Lat" />
-              <Input value={String(lng)} onChange={(e) => setLng(Number(e.target.value))} placeholder="Lng" />
-            </div>
+            <DeliveryAddressSection
+              query={addressQuery}
+              onQueryChange={setAddressQuery}
+              resolvedLabel={resolvedLabel}
+              lat={lat}
+              lng={lng}
+              onResolved={(hit) => {
+                setResolvedLabel(hit.label);
+                setLat(hit.lat);
+                setLng(hit.lng);
+                setAddressQuery(hit.label);
+                setQuote(null);
+              }}
+              onClearResolved={() => {
+                setResolvedLabel(null);
+                setLat(null);
+                setLng(null);
+                setQuote(null);
+              }}
+              apartment={apartment}
+              onApartmentChange={setApartment}
+              entrance={entrance}
+              onEntranceChange={setEntrance}
+              floor={floor}
+              onFloorChange={setFloor}
+              city={city}
+              onCityChange={setCity}
+            />
             <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)" />
-            <Button variant="secondary" className="w-full" onClick={fetchQuote} disabled={loadingQuote}>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={fetchQuote}
+              disabled={loadingQuote || lat == null}
+            >
               {loadingQuote ? "Hisoblanmoqda..." : "Dostavka tarifini hisoblash"}
             </Button>
           </CardContent>
@@ -177,7 +227,7 @@ export function DeliveryCheckout() {
                       <span>{formatPrice(quote.product_subtotal_uzs)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Dostavka xizmati (Yandex)</span>
+                      <span>Dostavka xizmati (BTS)</span>
                       <span>{formatPrice(selectedOption?.delivery_cost_uzs ?? 0)}</span>
                     </div>
                     <div className="mt-2 flex justify-between border-t pt-2 text-base font-semibold text-ink-900">

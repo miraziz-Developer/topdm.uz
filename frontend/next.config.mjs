@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+
 const isProd = process.env.NODE_ENV === "production";
 
 const mapTilerKey =
@@ -31,9 +32,6 @@ const nextConfig = {
   transpilePackages: ["maplibre-gl"],
   env: {
     NEXT_PUBLIC_MAPTILER_KEY: mapTilerKey,
-  },
-  experimental: {
-    optimizePackageImports: ["lucide-react"],
   },
   images: {
     remotePatterns: [
@@ -68,7 +66,7 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(self)",
+            value: "camera=(self), microphone=(self), geolocation=(self)",
           },
         ],
       },

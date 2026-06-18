@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Grid3X3, List, SlidersHorizontal } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AIChat } from "@/components/AIChat";
 import { BottomNav } from "@/components/BottomNav";
@@ -23,9 +23,12 @@ import { isLookSearchQuery } from "@/lib/look-query";
 import { buildSearchQueryFromDeeplink, parseSearchUrlParams } from "@/lib/search-deeplink";
 import { PhotoDetectedRail } from "@/components/search/photo-detected-rail";
 import { useVisualCategorySearch } from "@/components/search/visual-search";
+import type { NormalizedBbox } from "@/lib/bbox-layout";
+import { cropImageFromBbox } from "@/lib/crop-image";
 import { detectedColorToFilterLabel } from "@/lib/visual-search-color";
 import {
   getDetectedItems,
+  pickDefaultDetectedId,
   patchDetectedBlockProducts,
   PHOTO_SEARCH_UPDATED_EVENT,
   productsForDetected,
@@ -72,6 +75,9 @@ function SearchPageContent() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [photoSearch, setPhotoSearch] = useState<PhotoSearchPayload | null>(null);
   const [selectedDetectedId, setSelectedDetectedId] = useState<string | null>(null);
+  const refiningBlockRef = useRef<string | null>(null);
+  const refinedBlocksRef = useRef<Set<string>>(new Set());
+  const lastPreviewRef = useRef<string | null>(null);
   const [filters, setFilters] = useState<SmartFilterState>({ colors: [], materials: [], blocks: [] });
   const currentBlock = useLocationStore((state) => state.currentBlock);
   const featured = useFeaturedProducts();
@@ -105,25 +111,42 @@ function SearchPageContent() {
   const photoProducts = productsForDetected(photoSearch, selectedDetectedId);
   const photoStylistText = useMemo(() => {
     if (!photoSearch) return "";
+    const outfitChips = detectedBlocks.length >= 2;
+    if (outfitChips || photoSearch.mode === "outfit_multi_fast") {
+      const block = selectedDetectedId
+        ? detectedBlocks.find((b) => b.id === selectedDetectedId)
+        : detectedBlocks[0];
+      if (block?.products?.length) {
+        const topPct = block.products[0]?.visual_match_pct;
+        return topPct
+          ? `${block.products.length} ta vizual mos rasm (eng yuqori ${topPct}%)`
+          : `${block.products.length} ta vizual mos rasm`;
+      }
+      return photoSearch.assistant_text?.trim() ?? "";
+    }
     const block = selectedDetectedId
       ? detectedBlocks.find((b) => b.id === selectedDetectedId)
       : detectedBlocks[0];
     if (block?.products?.length) {
-      const names = block.products
-        .slice(0, 3)
-        .map((p) => p.name)
-        .filter(Boolean)
-        .join(", ");
-      return names
-        ? `${block.label_uz}: ${block.products.length} ta mos variant — ${names}`
-        : `${block.label_uz}: ${block.products.length} ta variant`;
+      const topPct = block.products[0]?.visual_match_pct;
+      return topPct
+        ? `${block.products.length} ta vizual mos rasm (eng yuqori ${topPct}%)`
+        : `${block.products.length} ta vizual mos rasm`;
+    }
+    const flat = photoSearch.items ?? [];
+    const trustedFlat = flat.filter((p) => (p.visual_match_pct ?? 0) >= 35);
+    if (trustedFlat.length) {
+      const topPct = trustedFlat[0]?.visual_match_pct;
+      return topPct
+        ? `${trustedFlat.length} ta vizual mos rasm (eng yuqori ${topPct}%)`
+        : `${trustedFlat.length} ta vizual mos rasm`;
     }
     return photoSearch.assistant_text?.trim() ?? "";
   }, [photoSearch, selectedDetectedId, detectedBlocks]);
   const lookStylistText = lookSearch.data?.assistant_text?.trim() ?? "";
   const stylistNarrative = isPhotoMode ? photoStylistText : isLookMode ? lookStylistText : "";
   const resultItems = isPhotoMode
-    ? photoProducts.items
+    ? photoProducts.items.filter((p) => p.visual_match !== false)
     : isLookMode
       ? lookSearch.data?.items ?? []
       : hasQuery
@@ -132,7 +155,9 @@ function SearchPageContent() {
   const filteredItems = useMemo(
     () =>
       sortProducts(
-        applySmartFilters(resultItems, filters, currentBlock, { skipColorFilter: isPhotoMode }),
+        applySmartFilters(resultItems, filters, filters.nearbyBlockOnly ? currentBlock : null, {
+          skipColorFilter: isPhotoMode,
+        }),
         sortBy as "relevance" | "price_asc" | "price_desc" | "newest" | "popular",
       ),
     [currentBlock, filters, isPhotoMode, resultItems, sortBy],
@@ -179,7 +204,7 @@ function SearchPageContent() {
         const blocks = getDetectedItems(stored);
         setSelectedDetectedId((prev) => {
           if (prev && blocks.some((b) => b.id === prev)) return prev;
-          return blocks[0]?.id ?? null;
+          return pickDefaultDetectedId(stored);
         });
       }
     };
@@ -204,20 +229,120 @@ function SearchPageContent() {
     }
   }, [searchParams]);
 
+  const refineDetectedBlock = useCallback(
+    async (id: string, force = false) => {
+      if (!force && refinedBlocksRef.current.has(id)) return;
+      if (refiningBlockRef.current === id) return;
+
+      const stored = readStoredPhotoSearch();
+      const previewUrl = stored?.previewUrl ?? photoSearch?.previewUrl;
+      if (!previewUrl) return;
+      const block = getDetectedItems(stored ?? photoSearch).find((b) => b.id === id);
+      if (!block?.bbox) return;
+
+      refiningBlockRef.current = id;
+      try {
+        let cropBase64 = block.refine_crop_url ?? block.thumbnail_url ?? null;
+        if (previewUrl && block.bbox) {
+          try {
+            cropBase64 = await cropImageFromBbox(previewUrl, block.bbox, 720);
+          } catch {
+            // Server crop yoki thumbnail zaxirasi
+          }
+        }
+        if (!cropBase64) return;
+
+        const products = await handleCategorySearch(
+          { ...block, crop_base64: cropBase64 },
+          {
+            minPrice: filters.minPrice ?? null,
+            maxPrice: filters.maxPrice ?? null,
+          },
+        );
+        if (!products.length) return;
+
+        refinedBlocksRef.current.add(id);
+        setPhotoSearch((prev) => {
+          if (!prev) return prev;
+          const next = patchDetectedBlockProducts(prev, id, products);
+          storePhotoSearch(next);
+          return next;
+        });
+      } finally {
+        refiningBlockRef.current = null;
+      }
+    },
+    [filters.maxPrice, filters.minPrice, handleCategorySearch, photoSearch],
+  );
+
   const handleDetectedSelect = async (id: string) => {
     setSelectedDetectedId(id);
-    if (!photoSearch) return;
     const block = detectedBlocks.find((b) => b.id === id);
-    if (!block) return;
-    applyDetectedColorFilter(block);
-    const products = await handleCategorySearch(block, {
-      minPrice: filters.minPrice ?? null,
-      maxPrice: filters.maxPrice ?? null,
-    });
-    const next = patchDetectedBlockProducts(photoSearch, id, products);
-    setPhotoSearch(next);
-    storePhotoSearch(next);
+    if (block) applyDetectedColorFilter(block);
+    refinedBlocksRef.current.delete(id);
+    await refineDetectedBlock(id, true);
   };
+
+  const handleManualRegion = useCallback(
+    async (bbox: NormalizedBbox) => {
+      const previewUrl = photoSearch?.previewUrl ?? readStoredPhotoSearch()?.previewUrl;
+      if (!previewUrl) return;
+
+      const manualId = "manual";
+      try {
+        const cropBase64 = await cropImageFromBbox(previewUrl, bbox, 720);
+        const products = await handleCategorySearch(
+          {
+            label_uz: "visual",
+            search_query: "",
+            thumbnail_url: cropBase64,
+            refine_crop_url: cropBase64,
+            crop_base64: cropBase64,
+          },
+          {
+            minPrice: filters.minPrice ?? null,
+            maxPrice: filters.maxPrice ?? null,
+          },
+        );
+
+        setSelectedDetectedId(manualId);
+        setPhotoSearch((prev) => {
+          if (!prev) return prev;
+          const rest = (prev.detected_items ?? []).filter((b) => b.id !== manualId);
+          const manualBlock = {
+            id: manualId,
+            label_uz: "visual",
+            search_query: "",
+            bbox,
+            thumbnail_url: cropBase64,
+            refine_crop_url: cropBase64,
+            products,
+            total: products.length,
+          };
+          const next = { ...prev, detected_items: [...rest, manualBlock] };
+          storePhotoSearch(next);
+          return next;
+        });
+        refinedBlocksRef.current.add(manualId);
+      } catch {
+        // crop yoki API xatosi — jim o'tkazamiz
+      }
+    },
+    [filters.maxPrice, filters.minPrice, handleCategorySearch, photoSearch?.previewUrl],
+  );
+
+  useEffect(() => {
+    const preview = photoSearch?.previewUrl ?? null;
+    if (preview !== lastPreviewRef.current) {
+      lastPreviewRef.current = preview;
+      refinedBlocksRef.current.clear();
+    }
+  }, [photoSearch?.previewUrl]);
+
+  useEffect(() => {
+    if (!isPhotoMode || !photoSearch?.previewUrl || !selectedDetectedId || isPhotoLoading) return;
+    void refineDetectedBlock(selectedDetectedId);
+  }, [isPhotoMode, isPhotoLoading, photoSearch?.previewUrl, refineDetectedBlock, selectedDetectedId]);
 
   return (
     <main className="page-shell min-h-dvh bg-canvas md:pb-6">
@@ -228,9 +353,9 @@ function SearchPageContent() {
           <p className="mb-4 text-sm text-red">{photoSearchError || categoryRefineError}</p>
         ) : null}
 
-        {hasActiveResults ? (
+        {hasActiveResults && !isPhotoMode ? (
           <ZeroClickInsights items={filteredItems} />
-        ) : showTrendFallback ? (
+        ) : showTrendFallback && !isPhotoMode ? (
           <ZeroClickInsights items={[]} trendFallback={trendSuggestions} />
         ) : null}
 
@@ -251,6 +376,7 @@ function SearchPageContent() {
             items={detectedBlocks}
             selectedId={selectedDetectedId}
             onSelect={handleDetectedSelect}
+            onManualSelect={handleManualRegion}
           />
         ) : isPhotoMode && photoSearch ? (
           <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-border-subtle bg-surface p-4 md:flex-row md:items-center">
@@ -265,7 +391,7 @@ function SearchPageContent() {
             </div>
             <div className="space-y-2">
               <p className="text-sm text-text-400">Rasm bo'yicha qidiruv</p>
-              <p className="text-lg font-semibold text-text-100">{photoProducts.label || photoSearch.query_label}</p>
+              <p className="text-lg font-semibold text-text-100">Rasm bo&apos;yicha qidiruv</p>
             </div>
           </div>
         ) : isPhotoMode && photoSearch?.previewUrl && isPhotoLoading ? (
@@ -284,7 +410,7 @@ function SearchPageContent() {
             <p className="text-sm text-text-400">AI rasmni tahlil qilmoqda — chip va natijalar tayyorlanadi…</p>
           </motion.div>
         ) : null}
-        {hasActiveResults && (showFilters || appliedQuery || isPhotoMode) ? (
+        {hasActiveResults && !isPhotoMode && (showFilters || appliedQuery) ? (
           <div className="relative z-0 mb-6">
             <SmartFilters value={filters} onChange={setFilters} products={resultItems} />
           </div>
@@ -300,7 +426,7 @@ function SearchPageContent() {
                 ) : (
                   <>
                     <span className="font-semibold text-text-100">{filteredItems.length}</span> natija
-                    {photoProducts.label ? `: ${photoProducts.label}` : ": rasm bo'yicha"}
+                    : rasm bo&apos;yicha
                   </>
                 )}
               </p>
@@ -365,10 +491,10 @@ function SearchPageContent() {
         ) : photoSlotEmpty ? (
           <div className="rounded-3xl border border-border-subtle bg-surface p-8 text-center">
             <p className="text-lg font-semibold text-text-100">
-              &quot;{photoProducts.label}&quot; uchun mos mahsulot topilmadi
+              Tanlangan qism uchun vizual mos mahsulot topilmadi
             </p>
             <p className="mt-2 text-sm text-text-400">
-              Bazada hozircha kamar/belbog yo&apos;q bo&apos;lishi mumkin. Boshqa chip tanlang yoki matn bilan qidiring.
+              Boshqa qismni tanlang yoki butun rasmni sinab ko&apos;ring.
             </p>
           </div>
         ) : hasActiveResults ? (

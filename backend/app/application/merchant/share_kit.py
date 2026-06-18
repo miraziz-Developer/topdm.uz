@@ -30,6 +30,29 @@ def _hours_line(hours: dict[str, Any]) -> str:
     return line
 
 
+def build_product_share_message(
+    shop: ShopModel,
+    *,
+    settings: Settings,
+    product_name: str,
+    price_uzs: int,
+    hashtags: list[str] | None = None,
+) -> str:
+    site = settings.site_url.rstrip("/")
+    shop_url = f"{site}/shop/{shop.slug}"
+    tags = " ".join(f"#{t}" for t in (hashtags or [])[:6])
+    location = _location_line(shop)
+    loc_block = f"\n📍 {location}" if location else ""
+    return (
+        f"🛍 {product_name}\n"
+        f"💰 {int(price_uzs):,} so'm\n"
+        f"🏪 {shop.name}\n"
+        f"🔗 {shop_url}{loc_block}\n"
+        f"{tags}\n"
+        f"Bozorliii orqali ko'ring va bron qiling 👇"
+    ).replace(",", " ")
+
+
 def build_share_kit(
     shop: ShopModel,
     *,

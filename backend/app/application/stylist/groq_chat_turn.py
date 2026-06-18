@@ -149,4 +149,11 @@ async def execute_groq_chat_turn(
     }
     if composed.get("strict_error"):
         out["strict_error"] = composed.get("strict_error")
+
+    if not blocks and catalog and route not in ("chitchat",):
+        fallback_ids = [str(p.get("id")) for p in catalog[:4] if p.get("id")]
+        blocks = _build_blocks(catalog, fallback_ids)
+        if fallback_ids:
+            product_ids = fallback_ids
+
     return out

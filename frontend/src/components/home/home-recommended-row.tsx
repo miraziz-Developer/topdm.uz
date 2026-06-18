@@ -1,15 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { DealProductCard } from "@/components/home/deal-product-card";
-import { DOMAIN_CATEGORIES, filterProductsByCategory, type DomainCategoryId } from "@/lib/home-categories";
+import {
+  DOMAIN_CATEGORIES,
+  filterProductsByCategory,
+  type DomainCategoryId,
+} from "@/lib/home-categories";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
 type Props = {
   products: Product[];
   loading?: boolean;
+  category: DomainCategoryId;
+  onCategoryChange: (id: DomainCategoryId) => void;
 };
 
 const INTEREST_IDS: DomainCategoryId[] = [
@@ -21,15 +27,17 @@ const INTEREST_IDS: DomainCategoryId[] = [
   "aksesuarlar",
 ];
 
-export function HomeRecommendedRow({ products, loading }: Props) {
-  const [interest, setInterest] = useState<DomainCategoryId>("all");
-
+export function HomeRecommendedRow({ products, loading, category, onCategoryChange }: Props) {
   const filtered = useMemo(
-    () => filterProductsByCategory(products, interest).slice(0, 12),
-    [interest, products],
+    () => filterProductsByCategory(products, category).slice(0, 12),
+    [category, products],
   );
 
   const pills = DOMAIN_CATEGORIES.filter((c) => INTEREST_IDS.includes(c.id));
+
+  if (!loading && products.length === 0) {
+    return null;
+  }
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
@@ -41,10 +49,10 @@ export function HomeRecommendedRow({ products, loading }: Props) {
           <button
             key={cat.id}
             type="button"
-            onClick={() => setInterest(cat.id)}
+            onClick={() => onCategoryChange(cat.id)}
             className={cn(
               "shrink-0 rounded-full px-4 py-2 text-xs font-bold transition",
-              interest === cat.id
+              category === cat.id
                 ? "bg-ink-900 text-white shadow-md"
                 : "border border-border-subtle bg-white text-ink-600 hover:border-electric-500/40",
             )}
@@ -59,7 +67,13 @@ export function HomeRecommendedRow({ products, loading }: Props) {
           ? Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="skeleton h-[220px] w-[140px] shrink-0 rounded-2xl" />
             ))
-          : filtered.map((p) => <DealProductCard key={p.id} product={p} variant="lightning" />)}
+          : filtered.length > 0
+            ? filtered.map((p) => <DealProductCard key={p.id} product={p} variant="lightning" />)
+            : (
+                <p className="py-6 text-sm text-ink-500">
+                  Bu kategoriyada hozircha mahsulot yo&apos;q.
+                </p>
+              )}
       </div>
     </section>
   );

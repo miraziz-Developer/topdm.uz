@@ -1,42 +1,32 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.merchant.ai_inspector import AIInspectorService
 from app.application.merchant.voice_extraction import VoiceProductExtraction, extract_product_fields_from_transcription
 from app.infrastructure.ai_clients.whisper import WhisperClient
-from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(slots=True)
-class VoiceHandlerResult:
-    transcription: str
-    extraction: VoiceProductExtraction
-    pending_id: str
-    vision_attributes: dict[str, Any]
 
 
 class MerchantVoiceHandler:
     """Voice → Whisper → Groq structured JSON → pending product row."""
 
-    async def process(
+    async def transcribe_to_attributes(
         self,
         session: AsyncSession,
         *,
-        shop_id: UUID,
         audio_bytes: bytes,
-        telegram_user_id: int | None,
-        telegram_chat_id: int | None,
-        telegram_file_id: str | None,
         filename: str = "voice.ogg",
-    ) -> VoiceHandlerResult:
+    ) -> tuple[VoiceProductExtraction, dict[str, Any]]:
+        """Ovozni matnga va mahsulot maydonlariga aylantiradi (pending product yaratmaydi).
+
+        Ovozli xabarda rasm bo'lmaydi — shuning uchun bu yerda faqat tavsif
+        chiqariladi, mahsulot esa keyin yuborilgan rasm bilan yaratiladi.
+        """
         whisper = WhisperClient()
         transcription = await whisper.transcribe(audio_bytes, filename=filename)
         extraction = await extract_product_fields_from_transcription(transcription)
@@ -55,21 +45,7 @@ class MerchantVoiceHandler:
             "median_uzs": price_check.median_uzs,
             "ratio": price_check.ratio,
         }
-
-        repo = MarketplaceRepository(session)
-        row = await repo.create_merchant_pending_product(
-            shop_id=shop_id,
-            vision_attributes=vision_attrs,
-            telegram_user_id=telegram_user_id,
-            telegram_chat_id=telegram_chat_id,
-            telegram_file_id=telegram_file_id,
-        )
-        return VoiceHandlerResult(
-            transcription=transcription,
-            extraction=extraction,
-            pending_id=str(row.id),
-            vision_attributes=vision_attrs,
-        )
+        return extraction, vision_attrs
 
     @staticmethod
     def _to_vision_attributes(extraction: VoiceProductExtraction) -> dict[str, Any]:
@@ -87,8 +63,7 @@ class MerchantVoiceHandler:
         }
 
     @staticmethod
-    def format_telegram_reply(result: VoiceHandlerResult) -> str:
-        ex = result.extraction
+    def format_telegram_reply(ex: VoiceProductExtraction) -> str:
         parts = [f"Matn: {ex.transcription}"]
         if ex.price_uzs is not None:
             parts.append(f"Narx: {ex.price_uzs} so'm")
@@ -98,4 +73,4 @@ class MerchantVoiceHandler:
             parts.append(f"O'lcham: {ex.size}")
         if ex.color:
             parts.append(f"Rang: {ex.color}")
-        return "Ovoz qabul qilindi (pending).\n" + "\n".join(parts)
+        return "\n".join(parts)

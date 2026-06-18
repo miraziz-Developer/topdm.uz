@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.stories.constants import MAX_ACTIVE_STORIES_PER_SHOP
 from app.application.stories.errors import StoryLimitError
 from app.application.stories.service import StoryService, build_level_context
+from app.core.upload_validation import validate_image_bytes
 from app.infrastructure.auth.deps import AuthUser, require_merchant
 from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop
 from app.infrastructure.db.session import get_db_session
@@ -18,15 +19,22 @@ router = APIRouter(prefix="/merchants/stories", tags=["merchant-stories"])
 _MAX_BYTES = 8 * 1024 * 1024
 
 
+async def _merchant_shop(db: AsyncSession, user: AuthUser):
+    shop = await resolve_merchant_shop(db, user)
+    if not shop:
+        raise HTTPException(status_code=403, detail="Merchant shop not found")
+    user.shop_id = shop.id
+    return shop
+
+
 @router.get("")
 async def list_merchant_stories(
     user: AuthUser = Depends(require_merchant),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    if not user.shop_id:
-        raise HTTPException(status_code=403, detail="Merchant shop not found")
+    shop = await _merchant_shop(db, user)
     service = StoryService(db)
-    stories = await service.list_shop_stories(user.shop_id)
+    stories = await service.list_shop_stories(shop.id)
     return {"items": [story_to_dict(s) for s in stories]}
 
 
@@ -36,28 +44,18 @@ async def create_merchant_story(
     user: AuthUser = Depends(require_merchant),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    if not user.shop_id:
-        raise HTTPException(status_code=403, detail="Merchant shop not found")
-
-    shop = await resolve_merchant_shop(db, user)
-    if not shop:
-        raise HTTPException(status_code=404, detail="Shop not found")
+    shop = await _merchant_shop(db, user)
 
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Empty image file")
-    if len(raw) > _MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Image must be 8MB or smaller")
-
-    content_type = (file.content_type or "image/jpeg").lower()
-    if content_type and not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only image uploads are supported")
+    content_type = validate_image_bytes(raw, max_bytes=_MAX_BYTES, label="Story rasm")
 
     level_context = build_level_context(floor=shop.floor, section=shop.section)
     service = StoryService(db)
     try:
         story = await service.publish_story(
-            shop_id=user.shop_id,
+            shop_id=shop.id,
             image_bytes=raw,
             content_type=content_type,
             level_context=level_context,
@@ -72,7 +70,7 @@ async def create_merchant_story(
                 "limit": exc.limit,
             },
         ) from exc
-    active = await service.active_count_for_shop(user.shop_id)
+    active = await service.active_count_for_shop(shop.id)
     return {
         "item": story_to_dict(story),
         "active_count": active,
@@ -86,14 +84,13 @@ async def delete_merchant_story(
     user: AuthUser = Depends(require_merchant),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    if not user.shop_id:
-        raise HTTPException(status_code=403, detail="Merchant shop not found")
+    shop = await _merchant_shop(db, user)
 
     service = StoryService(db)
-    deleted = await service.delete_story(user.shop_id, story_id)
+    deleted = await service.delete_story(shop.id, story_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Story topilmadi")
-    active = await service.active_count_for_shop(user.shop_id)
+    active = await service.active_count_for_shop(shop.id)
     return {
         "story_id": str(story_id),
         "deleted": True,

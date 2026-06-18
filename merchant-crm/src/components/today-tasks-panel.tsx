@@ -16,7 +16,7 @@ const PRIORITY_DOT: Record<string, string> = {
 const TYPE_LABEL: Record<string, string> = {
   order: "Buyurtma",
   chat: "Chat",
-  lead: "Lead",
+  lead: "Murojaat",
   system: "Tizim",
   catalog: "Katalog",
 };
@@ -72,10 +72,10 @@ export function TodayTasksPanel({ initialData = null }: Props) {
             <strong className="text-text-100">{counts.pending_orders ?? 0}</strong> buyurtma
           </span>
           <span>
-            <strong className="text-text-100">{counts.chats_waiting ?? 0}</strong> chat
+            <strong className="text-text-100">{counts.chats_waiting ?? 0}</strong> suhbat
           </span>
           <span>
-            <strong className="text-text-100">{counts.open_leads ?? 0}</strong> lead
+            <strong className="text-text-100">{counts.open_leads ?? 0}</strong> murojaat
           </span>
         </div>
       </div>

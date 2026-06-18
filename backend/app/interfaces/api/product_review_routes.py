@@ -11,9 +11,9 @@ from app.infrastructure.auth.deps import get_optional_user
 from app.infrastructure.auth.types import AuthUser
 from app.infrastructure.db.session import get_db_session
 
-router = APIRouter(tags=["product-reviews"])
+from app.core.upload_validation import _REVIEW_PHOTO_MAX, _REVIEW_PHOTO_MAX_COUNT, validate_image_bytes
 
-_ALLOWED_IMAGE = frozenset({"image/jpeg", "image/png", "image/webp", "image/jpg"})
+router = APIRouter(tags=["product-reviews"])
 
 
 def _guest_label_from_phone(phone: str) -> str:
@@ -60,13 +60,15 @@ def _resolve_customer_phone(user: AuthUser | None, customer_phone: str | None) -
 
 
 async def _read_images(files: list[UploadFile]) -> list[tuple[bytes, str]]:
+    if len(files) > _REVIEW_PHOTO_MAX_COUNT:
+        raise HTTPException(status_code=400, detail=f"Eng ko'pi {_REVIEW_PHOTO_MAX_COUNT} ta rasm")
     items: list[tuple[bytes, str]] = []
     for file in files:
-        if not file.content_type or file.content_type not in _ALLOWED_IMAGE:
-            continue
         data = await file.read()
-        if data:
-            items.append((data, file.content_type))
+        if not data:
+            continue
+        mime = validate_image_bytes(data, max_bytes=_REVIEW_PHOTO_MAX, label="Sharh rasmi")
+        items.append((data, mime))
     return items
 
 

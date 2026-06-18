@@ -6,8 +6,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
-        mono: ["ui-monospace", "monospace"],
+        sans: ["var(--font-outfit)", "Outfit", "system-ui", "sans-serif"],
+        mono: ["var(--font-dm-mono)", "DM Mono", "ui-monospace", "monospace"],
       },
       colors: {
         canvas: "#f2f4f8",

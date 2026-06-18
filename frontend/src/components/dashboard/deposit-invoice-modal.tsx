@@ -12,7 +12,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   packages: Package[];
-  onCheckout: (packageId: string, provider: "click" | "payme") => void;
+  onCheckout: (packageId: string, provider: "click") => void;
   loading?: boolean;
 };
 
@@ -46,7 +46,7 @@ export function DepositInvoiceModal({ open, onClose, packages, onCheckout, loadi
             </button>
           ))}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-1 gap-2">
           <Button
             variant="secondary"
             leftIcon={<CreditCard className="h-4 w-4" />}
@@ -55,15 +55,6 @@ export function DepositInvoiceModal({ open, onClose, packages, onCheckout, loadi
             onClick={() => selected && onCheckout(selected, "click")}
           >
             Click
-          </Button>
-          <Button
-            variant="secondary"
-            leftIcon={<CreditCard className="h-4 w-4" />}
-            disabled={!selected}
-            isLoading={loading}
-            onClick={() => selected && onCheckout(selected, "payme")}
-          >
-            Payme
           </Button>
         </div>
       </div>

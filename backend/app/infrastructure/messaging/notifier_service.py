@@ -23,6 +23,7 @@ class TelegramNotifierGateway(NotifierGateway):
         *,
         shop_id: uuid.UUID,
         crm_next: str | None = None,
+        reply_markup: dict | None = None,
     ) -> None:
-        markup = crm_webapp_reply_markup(shop_id, next_path=crm_next)
+        markup = reply_markup or crm_webapp_reply_markup(shop_id, next_path=crm_next)
         await self._tg.send_message(chat_id, text, reply_markup=markup)

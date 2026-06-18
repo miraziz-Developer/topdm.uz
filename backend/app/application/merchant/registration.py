@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 import uuid
@@ -15,8 +16,12 @@ from app.infrastructure.db.models import MerchantCredentialModel, ShopModel
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.infrastructure.storage.telegram_media import TelegramMediaStore
 
+logger = logging.getLogger(__name__)
+
 MARKET_ZONE_OPTIONS = (
     "Ippodrom",
+    "Abu Sahiy",
+    "Kozgalovka",
     "Chorsu",
     "Oloy",
     "G'uncha",
@@ -24,12 +29,29 @@ MARKET_ZONE_OPTIONS = (
     "Boshqa",
 )
 
+SHOP_TYPE_OPTIONS = (
+    "Chakana do'kon",
+    "Optomchi (pachka)",
+    "Ikkalasi",
+)
+
+_SHOP_TYPE_MAP = {
+    "Chakana do'kon": "chakana",
+    "Optomchi (pachka)": "optom",
+    "Ikkalasi": "hybrid",
+}
+
+
+def parse_shop_type_label(label: str) -> str | None:
+    return _SHOP_TYPE_MAP.get((label or "").strip())
+
 _PHONE_RE = re.compile(r"^\+998\d{9}$")
 
 
 @dataclass(slots=True)
 class MerchantRegistrationDraft:
     name: str
+    shop_type: str
     market_zone: str
     block_sector: str
     stall_number: str
@@ -43,6 +65,7 @@ class MerchantRegistrationDraft:
     storefront_image_url: str | None
     telegram_chat_id: int
     telegram_user_id: int | None
+    referral_code: str | None = None
 
 
 @dataclass(slots=True)
@@ -107,6 +130,7 @@ class MerchantRegistrationService:
             name=draft.name.strip(),
             slug=slug,
             owner_phone=phone,
+            shop_type=draft.shop_type,
             market_zone=draft.market_zone,
             block_sector=draft.block_sector.strip(),
             stall_number=draft.stall_number.strip(),
@@ -139,7 +163,12 @@ class MerchantRegistrationService:
                 await self._session.commit()
                 await self._session.refresh(shop)
             except Exception:
-                pass
+                logger.warning(
+                    "storefront_upload_failed shop=%s file_id=%s",
+                    draft.name,
+                    draft.storefront_file_id,
+                    exc_info=True,
+                )
 
         login_code = await self._unique_login_code(draft.name)
         password_plain = generate_password()
@@ -149,6 +178,12 @@ class MerchantRegistrationService:
             password_hash=hash_password(password_plain),
         )
         self._session.add(cred)
+        from app.application.merchant.growth_service import MerchantGrowthService
+
+        growth = MerchantGrowthService(self._session)
+        await growth.ensure_referral_code(shop)
+        await growth.apply_referral_code(shop, draft.referral_code)
+
         await self._session.commit()
         await self._session.refresh(shop)
         return MerchantRegistrationResult(shop=shop, login_code=login_code, password_plain=password_plain)

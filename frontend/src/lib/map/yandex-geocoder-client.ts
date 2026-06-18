@@ -18,7 +18,8 @@ export type ResolvedAddress = {
   label: string;
 };
 
-const BROWSER_TIMEOUT_MS = 4500;
+const BROWSER_TIMEOUT_MS = 6000;
+const MIN_GOOD_RESULTS = 3;
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
@@ -27,25 +28,23 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   ]);
 }
 
-/** Server (OSM) birinchi — tez va ishonchli; keyin Yandex JS. */
-export async function fetchAddressSuggestions(text: string): Promise<AddressSuggestion[]> {
-  const q = text.trim();
-  if (q.length < 2) return [];
-
-  try {
-    const res = await fetch(`/api/map/geocode?mode=suggest&q=${encodeURIComponent(q)}`);
-    if (res.ok) {
-      const data = (await res.json()) as { results?: AddressSuggestion[] };
-      if (data.results?.length) return data.results;
-    }
-  } catch {
-    /* server unreachable */
+function dedupeSuggestions(rows: AddressSuggestion[]): AddressSuggestion[] {
+  const seen = new Set<string>();
+  const out: AddressSuggestion[] = [];
+  for (const row of rows) {
+    const key =
+      row.lat != null && row.lng != null
+        ? `${row.lat.toFixed(4)}|${row.lng.toFixed(4)}`
+        : row.query.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
   }
+  return out;
+}
 
-  const browser = await withTimeout(suggestWithYandexBrowser(q), BROWSER_TIMEOUT_MS);
-  if (!browser?.length) return [];
-
-  return browser.map((hit, i) => ({
+function browserHitsToSuggestions(hits: ResolvedAddress[]): AddressSuggestion[] {
+  return hits.map((hit, i) => ({
     id: `ymaps-${i}-${hit.lat}`,
     title: hit.label.split(",")[0]?.trim() || hit.label,
     subtitle: hit.label,
@@ -53,6 +52,32 @@ export async function fetchAddressSuggestions(text: string): Promise<AddressSugg
     lat: hit.lat,
     lng: hit.lng,
   }));
+}
+
+/** Server (OSM + Yandex HTTP) va brauzer Yandex JS natijalarini birlashtiradi. */
+export async function fetchAddressSuggestions(text: string): Promise<AddressSuggestion[]> {
+  const q = text.trim();
+  if (q.length < 2) return [];
+
+  let serverRows: AddressSuggestion[] = [];
+  try {
+    const res = await fetch(`/api/map/geocode?mode=suggest&q=${encodeURIComponent(q)}`);
+    if (res.ok) {
+      const data = (await res.json()) as { results?: AddressSuggestion[] };
+      serverRows = data.results ?? [];
+    }
+  } catch {
+    /* server unreachable */
+  }
+
+  let browserRows: AddressSuggestion[] = [];
+  if (serverRows.length < MIN_GOOD_RESULTS) {
+    const browser = await withTimeout(suggestWithYandexBrowser(q), BROWSER_TIMEOUT_MS);
+    browserRows = browser?.length ? browserHitsToSuggestions(browser) : [];
+  }
+
+  const merged = dedupeSuggestions([...serverRows, ...browserRows]);
+  return merged.slice(0, 10);
 }
 
 export async function resolveAddressQuery(query: string): Promise<ResolvedAddress | null> {

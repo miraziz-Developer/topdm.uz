@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.premium_banners.service import _banner_to_slide
+from app.core.config import get_settings
 from app.infrastructure.repositories.premium_banner_repo import PremiumBannerRepository
 from app.infrastructure.storage.object_store import ObjectMediaStore
 from app.models.premium_banner import SponsoredBannerModel
@@ -61,6 +62,7 @@ def _banner_crm_dict(banner: SponsoredBannerModel) -> dict[str, Any]:
 class CrmBannerService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._settings = get_settings()
         self._repo = PremiumBannerRepository(session)
         self._media = ObjectMediaStore()
 
@@ -200,10 +202,111 @@ class CrmBannerService:
                     raise ValueError("Insufficient Coin Balance") from exc
                 raise
         elif method in ("click", "payme"):
-            pass
+            raise ValueError("use_banner_online_checkout_endpoint")
         else:
             raise ValueError("invalid_payment_method")
 
+        return await self._activate_banner_payment(
+            banner=banner,
+            shop_id=shop_id,
+            tariff=tariff,
+            amount=amount,
+            method=method,
+            coin_amount=coin_amount,
+            external_reference=external_reference,
+        )
+
+    async def create_online_checkout(
+        self,
+        *,
+        shop_id: UUID,
+        banner_id: UUID,
+        provider: str,
+    ) -> dict[str, Any]:
+        if not self._settings.enable_online_checkout:
+            raise ValueError("online_checkout_disabled")
+
+        banner = await self._repo.get_banner(banner_id)
+        if not banner or banner.shop_id != shop_id:
+            raise ValueError("banner_not_found")
+        if banner.status != "pending_payment":
+            raise ValueError("invalid_status")
+
+        amount = int(banner.amount_uzs or 0)
+        if amount <= 0:
+            raise ValueError("invalid_amount")
+
+        prov = provider.strip().lower()
+        if prov not in ("click", "payme"):
+            raise ValueError("invalid_provider")
+
+        from app.infrastructure.repositories.order_payment_repo import OrderPaymentRepository
+
+        checkout = await OrderPaymentRepository(self._session).create_pending(
+            order_ids=[],
+            amount_uzs=amount,
+            provider=prov,
+            purpose="banner",
+            shop_id=shop_id,
+            meta={"banner_id": str(banner_id)},
+        )
+        await self._session.commit()
+
+        base = (
+            (self._settings.payment_checkout_base_url or self._settings.site_url or "https://bozorliii.uz")
+            .rstrip("/")
+        )
+        checkout_url = f"{base}/checkout/{prov}?checkout_id={checkout.id}&amount={amount}"
+        return {
+            "checkout_id": str(checkout.id),
+            "amount_uzs": amount,
+            "provider": prov,
+            "checkout_url": checkout_url,
+            "purpose": "banner",
+        }
+
+    async def activate_banner_after_online_payment(
+        self,
+        *,
+        shop_id: UUID,
+        banner_id: UUID,
+        payment_method: str,
+        external_reference: str | None,
+    ) -> dict[str, Any]:
+        banner = await self._repo.get_banner(banner_id)
+        if not banner or banner.shop_id != shop_id:
+            raise ValueError("banner_not_found")
+        if banner.status == "active":
+            return {"status": "active", "banner": _banner_crm_dict(banner)}
+        if banner.status != "pending_payment":
+            raise ValueError("invalid_status")
+
+        tariff = banner.tariff
+        if not tariff:
+            raise ValueError("tariff_missing")
+
+        amount = Decimal(str(banner.amount_uzs or tariff.price_uzs_monthly or 0))
+        return await self._activate_banner_payment(
+            banner=banner,
+            shop_id=shop_id,
+            tariff=tariff,
+            amount=amount,
+            method=payment_method.strip().lower(),
+            coin_amount=None,
+            external_reference=external_reference,
+        )
+
+    async def _activate_banner_payment(
+        self,
+        *,
+        banner: SponsoredBannerModel,
+        shop_id: UUID,
+        tariff,
+        amount: Decimal,
+        method: str,
+        coin_amount: int | None,
+        external_reference: str | None,
+    ) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
         package_days = int(banner.package_days or tariff.duration_days or 30)
         banner.status = "active"
@@ -225,6 +328,10 @@ class CrmBannerService:
         )
         await self._session.commit()
         await self._session.refresh(banner, attribute_names=["tariff", "shop"])
+
+        from app.infrastructure.cache.premium_carousel_cache import PremiumCarouselCache
+
+        await PremiumCarouselCache().bump_invalidation()
 
         return {
             "status": "active",

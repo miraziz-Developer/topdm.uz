@@ -13,14 +13,13 @@ import { HomeDealsRow } from "@/components/home/home-deals-row";
 import { HomeExperienceLayout } from "@/components/home/home-experience-layout";
 import { HomeRecommendedRow } from "@/components/home/home-recommended-row";
 import { HomeSaleHero } from "@/components/home/home-sale-hero";
-import { HomeTrustStrip } from "@/components/home/home-trust-strip";
+import { PremiumTrustAnchors } from "@/components/home/premium-trust-anchors";
 import { PremiumBannersCarousel } from "@/components/home/premium-banners-carousel";
 import { StoriesFeed } from "@/components/home/stories-feed";
 import { PersonalizedHomeBanner } from "@/components/home/personalized-home-banner";
 import { MerchantSpotlightRow } from "@/components/home/merchant-spotlight-row";
 import { SiteFooter } from "@/components/brand/site-footer";
 import { ReelsPreviewStrip } from "@/components/home/reels-preview-strip";
-import { StickyMiniCart } from "@/components/home/sticky-mini-cart";
 import { Navigation } from "@/components/Navigation";
 import { ChinaProductPage } from "@/components/market/ChinaProductPage";
 import { MasonryProductGrid } from "@/components/ui/masonry-product-grid";
@@ -37,6 +36,7 @@ import {
   type BazaarCatalogFilters,
 } from "@/lib/home-catalog-filters";
 import { useT } from "@/i18n/locale-provider";
+import type { HomeDealFeed } from "@/lib/home-deal-sections";
 import { filterProductsByCategory, type DomainCategoryId } from "@/lib/home-categories";
 import { isChinaMarketEnabled } from "@/lib/runtime-flags";
 import type { Product } from "@/types";
@@ -68,10 +68,13 @@ export default function HomePage() {
     return filterProductsClient(byCategory, bazaarFilters);
   }, [bazaarFilters, category, localFeed]);
 
-  const displayFeed =
-    filteredFeed.length > 0 || (category === "all" && bazaarFilters.marketZone === "all")
-      ? filteredFeed
-      : localFeed.slice(0, 12);
+  const displayFeed = useMemo(() => {
+    if (filteredFeed.length > 0) return filteredFeed;
+    if (category === "all" && bazaarFilters.marketZone === "all") {
+      return localFeed.slice(0, 12);
+    }
+    return [];
+  }, [filteredFeed, category, bazaarFilters.marketZone, localFeed]);
 
   const gridKey = `${filtersAnimationKey(bazaarFilters)}|${category}`;
 
@@ -115,43 +118,39 @@ export default function HomePage() {
     </section>
   );
 
-  const recommendedPool = useMemo(() => {
-    const merged = [
-      ...(dealFeed.data?.recommended ?? []),
-      ...(dealFeed.data?.lightning ?? []),
-      ...displayFeed,
-    ];
-    const seen = new Set<string>();
-    return merged.filter((p) => {
-      if (seen.has(p.id)) return false;
-      seen.add(p.id);
-      return true;
-    });
-  }, [dealFeed.data, displayFeed]);
+  const dealSections: HomeDealFeed = dealFeed.data ?? {
+    lightning: [],
+    clearance: [],
+    recommended: [],
+  };
+
+  const recommendedPool = useMemo(() => dealSections.recommended, [dealSections]);
 
   return (
     <main className="min-h-dvh overflow-x-clip bg-canvas pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] md:pb-0">
       <Navigation />
-      {!isChina ? <HomeTrustStrip /> : null}
-
       <div>
         <HomeExperienceLayout
           experience={experience}
           sections={{
-            trust: null,
+            trust: isChina ? null : (
+              <div className="mx-auto max-w-7xl px-4 pt-2 sm:px-6">
+                <PremiumTrustAnchors />
+              </div>
+            ),
             sale_hero: isChina ? null : <HomeSaleHero />,
             banner: <PersonalizedHomeBanner experience={experience} />,
             lightning: isChina ? null : (
               <HomeDealsRow
                 variant="lightning"
-                products={dealFeed.data?.lightning ?? []}
+                products={dealSections.lightning}
                 loading={dealFeed.isLoading}
               />
             ),
             clearance: isChina ? null : (
               <HomeDealsRow
                 variant="clearance"
-                products={dealFeed.data?.clearance ?? []}
+                products={dealSections.clearance}
                 loading={dealFeed.isLoading}
               />
             ),
@@ -160,7 +159,12 @@ export default function HomePage() {
             toolbar: filterBar,
             categories: categoryBar,
             recommended: isChina ? null : (
-              <HomeRecommendedRow products={recommendedPool} loading={dealFeed.isLoading || localLoading} />
+              <HomeRecommendedRow
+                products={recommendedPool}
+                loading={dealFeed.isLoading || localLoading}
+                category={category}
+                onCategoryChange={setCategory}
+              />
             ),
             banners: isChina ? null : <PremiumBannersCarousel />,
             stories: isChina ? null : <StoriesFeed />,
@@ -176,7 +180,6 @@ export default function HomePage() {
         />
       </div>
 
-      {!isChina ? <StickyMiniCart /> : null}
 
       <SiteFooter />
       <BandQilishModal product={selected} isOpen={Boolean(selected)} onClose={() => setSelected(null)} />

@@ -3,12 +3,20 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from loguru import logger
+from pydantic import ValidationError
+
 from app.application.delivery.delivery_checkout_service import DeliveryCheckoutService
+from app.services.inventory import InventoryError
 from app.application.delivery.delivery_dispatch_service import DeliveryDispatchService
-from app.infrastructure.auth.deps import require_merchant
+from app.application.delivery.bts_delivery import BtsDeliveryError
+from app.infrastructure.delivery.bts_client import BtsDeliveryAPIError
+from app.api.orders import assert_guest_phone_verified
+from app.core.phone import normalize_uz_phone_e164
+from app.infrastructure.auth.deps import get_optional_user, require_merchant
 from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop
 from app.infrastructure.auth.types import AuthUser
 from app.infrastructure.db.session import get_db_session
@@ -34,19 +42,29 @@ async def quote_delivery(
             destination_lng=payload.destination_lng,
             destination_city=payload.destination_city,
         )
-    except ValueError as exc:
+    except (ValueError, BtsDeliveryError) as exc:
         code = str(exc)
         status = 400
         if code == "product_not_found":
             status = 404
         raise HTTPException(status_code=status, detail=code) from exc
+    except BtsDeliveryAPIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValidationError as exc:
+        logger.warning("delivery_quote_validation_error: {}", exc)
+        raise HTTPException(status_code=400, detail="invalid_product_dimensions") from exc
 
 
 @router.post("/orders/reserve-delivery")
 async def reserve_delivery_order(
     payload: DeliveryReserveRequest,
+    user: AuthUser | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
+    # Mehmon (login'siz) bo'lsa telefon OTP bilan tasdiqlangan bo'lishi shart
+    if user is None:
+        phone = normalize_uz_phone_e164(payload.user_phone) or payload.user_phone.strip()
+        await assert_guest_phone_verified(phone, payload.verification_token)
     service = DeliveryCheckoutService(db)
     try:
         return await service.reserve_delivery_order(
@@ -64,9 +82,18 @@ async def reserve_delivery_order(
             delivery_cost_uzs=payload.delivery_cost_uzs,
             delivery_eta_minutes=payload.delivery_eta_minutes,
             offer_payload=payload.offer_payload,
+            customer_user_id=user.id if user is not None else None,
         )
-    except ValueError as exc:
+    except InventoryError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        code = str(exc)
+        if code == "online_checkout_failed":
+            raise HTTPException(
+                status_code=503,
+                detail="Onlayn to'lov sessiyasi yaratilmadi. Naqd/terminal tanlang yoki qayta urinib ko'ring.",
+            ) from exc
+        raise HTTPException(status_code=400, detail=code) from exc
 
 
 @router.post("/merchant/orders/{order_id}/dispatch-courier")
@@ -119,6 +146,67 @@ async def merchant_sync_delivery_status(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/delivery/callback/bts")
+async def bts_delivery_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """BTS webhook — buyurtma status yangilanishi."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    secret = (settings.bts_webhook_secret or "").strip()
+    if not secret:
+        if settings.is_production:
+            raise HTTPException(status_code=503, detail="bts_webhook_not_configured")
+    else:
+        token = request.headers.get("x-bts-token") or request.headers.get("authorization", "")
+        if token.lower().startswith("bearer "):
+            token = token.split(" ", 1)[1]
+        if token != secret:
+            raise HTTPException(status_code=403, detail="invalid_webhook_token")
+
+    try:
+        if "application/json" in (request.headers.get("content-type") or "").lower():
+            payload = await request.json()
+        else:
+            form = await request.form()
+            payload = {k: form.get(k) for k in form.keys()}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="invalid_payload") from exc
+
+    order_id_raw = (
+        str(payload.get("orderId") or payload.get("order_id") or payload.get("clientId") or "")
+    ).strip()
+    if not order_id_raw:
+        return {"ok": False, "reason": "order_id_missing"}
+
+    from app.infrastructure.repositories.delivery_repo import DeliveryRepository
+    from app.application.delivery.bts_delivery import BtsDeliveryService
+
+    repo = DeliveryRepository(db)
+    try:
+        order_uuid = UUID(order_id_raw)
+    except ValueError:
+        return {"ok": False, "reason": "invalid_order_id"}
+
+    claim = await repo.get_claim_by_order_for_update(order_uuid)
+    if not claim:
+        return {"ok": False, "reason": "claim_not_found"}
+
+    status_name = str(payload.get("status") or payload.get("status_name") or "")
+    status_code = str(payload.get("status_code") or "")
+    mapped = BtsDeliveryService.map_bts_status_to_claim(status_code=status_code, status_name=status_name)
+    delivered = mapped == "delivered"
+    await repo.update_claim_status(claim, status=mapped, delivered=delivered)
+    if delivered:
+        from app.application.delivery.bundle_completion import complete_delivery_bundle
+
+        await complete_delivery_bundle(db, claim=claim)
+    await db.commit()
+    return {"ok": True, "status": mapped}
+
+
 @router.get("/merchant/finance/wallet")
 async def merchant_finance_wallet(
     user: AuthUser = Depends(require_merchant),
@@ -141,17 +229,32 @@ async def merchant_request_payout(
     if not shop:
         raise HTTPException(status_code=403, detail="Merchant shop not found")
 
-    wallet = await db.get(MerchantFinanceWalletModel, shop.id)
-    available = wallet.current_balance if wallet else Decimal("0")
+    from sqlalchemy import select
+
     amount = Decimal(str(body.amount_uzs)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="invalid_amount")
+
+    wallet_row = await db.execute(
+        select(MerchantFinanceWalletModel)
+        .where(MerchantFinanceWalletModel.shop_id == shop.id)
+        .with_for_update()
+    )
+    wallet = wallet_row.scalar_one_or_none()
+    available = wallet.current_balance if wallet else Decimal("0")
     if amount > available:
         raise HTTPException(status_code=400, detail="insufficient_balance")
+
+    if wallet:
+        wallet.current_balance = available - amount
+        wallet.frozen_balance = (wallet.frozen_balance or Decimal("0")) + amount
 
     repo = DeliveryRepository(db)
     row = await repo.create_payout_request(
         shop_id=shop.id,
         amount_uzs=amount,
         destination=body.destination,
+        card_number=body.card_number,
     )
     await db.commit()
     return {

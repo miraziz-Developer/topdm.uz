@@ -1,20 +1,34 @@
 "use client";
 
-import Image from "next/image";
 import { useRef, useState } from "react";
 
+import { ProductImage } from "@/components/ui/product-image";
+import { productImage } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 type ImageMagnifierProps = {
-  src: string;
+  /** Birinchi rasm yoki zanjor (ProductImage fallback). */
+  images?: string[] | null;
+  index?: number;
+  /** @deprecated images ishlating */
+  src?: string;
   alt: string;
   className?: string;
 };
 
-export function ImageMagnifier({ src, alt, className }: ImageMagnifierProps) {
+export function ImageMagnifier({ images, index = 0, src, alt, className }: ImageMagnifierProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const [position, setPosition] = useState({ x: 50, y: 50 });
+  const [displaySrc, setDisplaySrc] = useState<string | null>(null);
+
+  const candidates = images?.length
+    ? images
+    : src
+      ? [src]
+      : [];
+
+  const zoomSrc = displaySrc ?? productImage(candidates, index);
 
   const onMove = (event: React.MouseEvent<HTMLDivElement>) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -35,19 +49,28 @@ export function ImageMagnifier({ src, alt, className }: ImageMagnifierProps) {
       onMouseLeave={() => setActive(false)}
       onMouseMove={onMove}
     >
-      <Image src={src} alt={alt} fill priority className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+      <ProductImage
+        images={candidates}
+        index={index}
+        alt={alt}
+        fill
+        priority
+        className="object-cover"
+        sizes="(max-width: 768px) 100vw, 50vw"
+        onLoadingComplete={(img) => setDisplaySrc(img.currentSrc || img.src)}
+      />
       {active ? (
         <div
           className="pointer-events-none absolute h-28 w-28 rounded-full border-2 border-electric-500/70 shadow-hover"
           style={{ left: `calc(${position.x}% - 3.5rem)`, top: `calc(${position.y}% - 3.5rem)` }}
         />
       ) : null}
-      {active ? (
+      {active && zoomSrc ? (
         <div className="pointer-events-none absolute right-4 top-4 hidden h-40 w-40 overflow-hidden rounded-2xl border border-border-subtle bg-white shadow-modal md:block">
           <div
             className="h-full w-full bg-cover bg-no-repeat"
             style={{
-              backgroundImage: `url(${src})`,
+              backgroundImage: `url(${zoomSrc})`,
               backgroundPosition: `${position.x}% ${position.y}%`,
               backgroundSize: "220%",
             }}

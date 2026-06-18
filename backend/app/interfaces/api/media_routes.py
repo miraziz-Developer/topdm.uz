@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
+
+from app.core.config import get_settings
 
 router = APIRouter(prefix="/media", tags=["media"])
 
@@ -14,6 +16,28 @@ _UPLOAD_BANNERS = Path(__file__).resolve().parents[3] / "uploads" / "banners"
 _UPLOAD_REELS = Path(__file__).resolve().parents[3] / "uploads" / "reels"
 _UPLOAD_REVIEWS = Path(__file__).resolve().parents[3] / "uploads" / "reviews"
 _UPLOAD_SHOPS = Path(__file__).resolve().parents[3] / "uploads" / "shops"
+
+
+def _media_cors_header(request: Request | None = None) -> str | None:
+    settings = get_settings()
+    origins = settings.cors_origin_list
+    if request:
+        origin = (request.headers.get("origin") or "").strip()
+        if origin and origin in origins:
+            return origin
+    if origins:
+        return origins[0]
+    if not settings.is_production:
+        return "*"
+    return None
+
+
+def _video_extra_headers(request: Request | None = None) -> dict[str, str]:
+    headers: dict[str, str] = {"Accept-Ranges": "bytes"}
+    origin = _media_cors_header(request)
+    if origin:
+        headers["Access-Control-Allow-Origin"] = origin
+    return headers
 
 
 def _image_response(root: Path, shop_id: UUID, filename: str) -> FileResponse:
@@ -45,7 +69,7 @@ async def get_banner_image(shop_id: UUID, filename: str) -> FileResponse:
     return _image_response(_UPLOAD_BANNERS, shop_id, filename)
 
 
-def _video_response(root: Path, shop_id: UUID, filename: str) -> FileResponse:
+def _video_response(root: Path, shop_id: UUID, filename: str, request: Request | None = None) -> FileResponse:
     if ".." in filename or "/" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     path = root / str(shop_id) / filename
@@ -61,13 +85,13 @@ def _video_response(root: Path, shop_id: UUID, filename: str) -> FileResponse:
     return FileResponse(
         path,
         media_type=media,
-        headers={"Accept-Ranges": "bytes", "Access-Control-Allow-Origin": "*"},
+        headers=_video_extra_headers(request),
     )
 
 
 @router.get("/reels/{shop_id}/{filename}")
-async def get_reel_video(shop_id: UUID, filename: str) -> FileResponse:
-    return _video_response(_UPLOAD_REELS, shop_id, filename)
+async def get_reel_video(shop_id: UUID, filename: str, request: Request) -> FileResponse:
+    return _video_response(_UPLOAD_REELS, shop_id, filename, request)
 
 
 @router.get("/shops/{shop_id}/{kind}/{filename}")

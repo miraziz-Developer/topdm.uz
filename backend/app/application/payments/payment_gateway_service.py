@@ -10,7 +10,7 @@ from app.core.config import Settings, get_settings
 
 
 class PaymentGatewayService:
-    """Unified Click/Payme facade for order checkout and merchant debt recovery."""
+    """Click facade for order checkout and merchant debt recovery."""
 
     def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
         self._session = session
@@ -24,8 +24,7 @@ class PaymentGatewayService:
             return
         if self._settings.is_production:
             has_click = bool(self._settings.click_service_id and self._settings.click_secret_key)
-            has_payme = bool(self._settings.payme_merchant_id and self._settings.payme_secret_key)
-            if not has_click and not has_payme:
+            if not has_click:
                 raise ValueError("payment_credentials_missing")
 
     async def create_order_checkout(
@@ -53,9 +52,6 @@ class PaymentGatewayService:
 
     async def process_click_webhook(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._orders.process_click_callback(payload)
-
-    async def process_payme_webhook(self, body: dict[str, Any]) -> dict[str, Any]:
-        return await self._orders.handle_payme_rpc(body)
 
     def build_redirect_url(self, checkout_id: UUID, provider: str) -> str:
         base = self._settings.payment_checkout_base_url.rstrip("/")

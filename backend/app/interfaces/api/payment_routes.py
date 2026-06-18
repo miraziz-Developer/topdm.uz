@@ -8,11 +8,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.payments.click_verify import build_click_sign_string, is_click_sign_time_fresh
+from app.application.payments.click_shop_api import (
+    CLICK_BAD_REQUEST,
+    CLICK_SIGN_FAILED,
+    click_response,
+    is_sign_time_acceptable,
+    read_click_request_payload,
+    stable_prepare_id,
+)
+from app.application.payments.click_verify import build_click_sign_string
 from app.application.payments.gateway_security import assert_payment_callback_ip
 from app.application.payments.order_payment_service import OrderPaymentService
 from app.application.payments.payment_gateway_service import PaymentGatewayService
-from app.application.payments.payme_merchant_api import assert_payme_basic_auth, assert_payme_request_fresh
 from app.application.payments.service import PaymentService
 from app.core.config import get_settings
 from app.interfaces.api.admin_routes import require_admin_key
@@ -37,7 +44,7 @@ async def _merchant_shop_id(
 class GenerateInvoiceBody(BaseModel):
     shop_id: UUID | None = None
     coin_package_id: UUID
-    provider: str = Field(..., pattern="^(click|payme|manual)$")
+    provider: str = Field(..., pattern="^(click|manual)$")
 
 
 class SandboxClickBody(BaseModel):
@@ -46,12 +53,6 @@ class SandboxClickBody(BaseModel):
     click_trans_id: str = Field(default="sandbox-click-tx")
     action: int = Field(default=1)
     error: int = Field(default=0)
-
-
-class SandboxPaymeBody(BaseModel):
-    checkout_or_order_id: UUID
-    amount_uzs: int = Field(..., ge=1_000)
-    payme_trans_id: str = Field(default="sandbox-payme-tx")
 
 
 @router.get("/coin-packages")
@@ -83,68 +84,127 @@ async def generate_invoice(
         raise HTTPException(status_code=status, detail=code) from exc
 
 
+async def _handle_click_shop_request(
+    request: Request,
+    db: AsyncSession,
+    *,
+    forced_action: int | None = None,
+) -> dict:
+    """Click SHOP API — form-urlencoded, JSON yoki query; Prepare (0) / Complete (1)."""
+    assert_payment_callback_ip(request)
+    payload = await read_click_request_payload(request)
+    if not payload:
+        return click_response(
+            click_trans_id="",
+            merchant_trans_id="",
+            error=CLICK_BAD_REQUEST,
+            error_note="Empty request",
+        )
+    if forced_action is not None:
+        payload["action"] = forced_action
+    if not is_sign_time_acceptable(payload):
+        return click_response(
+            click_trans_id=str(payload.get("click_trans_id") or ""),
+            merchant_trans_id=str(payload.get("merchant_trans_id") or ""),
+            error=CLICK_SIGN_FAILED,
+            error_note="SIGN TIME EXPIRED",
+        )
+
+    gateway = PaymentGatewayService(db)
+    try:
+        return await gateway.process_click_webhook(payload)
+    except Exception:
+        await db.rollback()
+        return click_response(
+            click_trans_id=str(payload.get("click_trans_id") or ""),
+            merchant_trans_id=str(payload.get("merchant_trans_id") or ""),
+            error=CLICK_BAD_REQUEST,
+            error_note="internal_error",
+        )
+
+
 @router.post("/callback/click")
 @router.post("/click/webhook")
 async def click_payment_callback(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Click.uz webhook: IP whitelist + MD5 signature + idempotent settlement."""
-    assert_payment_callback_ip(request)
-    try:
-        payload = await request.json()
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="invalid_json") from exc
-    if not is_click_sign_time_fresh(payload):
-        raise HTTPException(status_code=408, detail="callback_request_expired")
-
-    gateway = PaymentGatewayService(db)
-    try:
-        return await gateway.process_click_webhook(payload)
-    except ValueError as exc:
-        code = str(exc)
-        if code == "invalid_signature":
-            raise HTTPException(status_code=403, detail=code) from exc
-        if code == "payment_not_successful":
-            return {
-                "error": -9,
-                "error_note": "Payment declined",
-                "click_trans_id": payload.get("click_trans_id"),
-                "merchant_trans_id": payload.get("merchant_trans_id"),
-            }
-        await db.rollback()
-        return {"error": -8, "error_note": code, "merchant_trans_id": payload.get("merchant_trans_id")}
-    except Exception:
-        await db.rollback()
-        return {"error": -8, "error_note": "internal_error"}
+    return await _handle_click_shop_request(request, db)
 
 
-@router.post("/callback/payme")
-@router.post("/payme/webhook")
-async def payme_payment_callback(
+@router.post("/click/prepare")
+async def click_prepare_callback(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Payme Merchant API (JSON-RPC 2.0) — buyurtma va qarz to'lovi."""
-    assert_payment_callback_ip(request)
-    assert_payme_basic_auth(request)
-    try:
-        body = await request.json()
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail="invalid_json") from exc
-    assert_payme_request_fresh(body)
+    """Click kabineti uchun alohida Prepare URL (action=0)."""
+    return await _handle_click_shop_request(request, db, forced_action=0)
 
-    gateway = PaymentGatewayService(db)
-    try:
-        return await gateway.process_payme_webhook(body)
-    except Exception:
-        await db.rollback()
-        req_id = body.get("id") if isinstance(body, dict) else None
-        return {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "error": {"code": -32400, "message": {"uz": "Ichki xato", "ru": "Внутренняя ошибка", "en": "Internal error"}},
+
+@router.post("/click/complete")
+async def click_complete_callback(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Click kabineti uchun alohida Complete URL (action=1)."""
+    return await _handle_click_shop_request(request, db, forced_action=1)
+
+
+@router.post("/sandbox/complete-checkout")
+async def sandbox_complete_checkout(
+    checkout_id: UUID,
+    provider: str = "click",
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Test to'lov — faqat PAYMENT_SANDBOX_MODE=true va admin kalit bilan."""
+    settings = get_settings()
+    if not settings.payment_sandbox_mode:
+        raise HTTPException(status_code=403, detail="payment_sandbox_mode_disabled")
+
+    from app.infrastructure.repositories.order_payment_repo import OrderPaymentRepository
+
+    repo = OrderPaymentRepository(db)
+    checkout = await repo.get_checkout(checkout_id)
+    if not checkout:
+        raise HTTPException(status_code=404, detail="checkout_not_found")
+    if str(checkout.status or "") != "pending":
+        raise HTTPException(status_code=400, detail="checkout_not_pending")
+
+    prov = provider.strip().lower()
+    amount = int(checkout.amount_uzs)
+    if prov == "click":
+        sign_time = str(int(time.time()))
+        click_trans_id = f"sandbox-customer-{int(time.time())}"
+        prepare_id = str(stable_prepare_id(checkout_id))
+        sign = hashlib.md5(
+            build_click_sign_string(
+                click_trans_id=click_trans_id,
+                service_id=settings.payment_sandbox_click_service_id,
+                secret_key=settings.payment_sandbox_click_secret_key,
+                merchant_trans_id=str(checkout_id),
+                amount=str(amount),
+                action="1",
+                sign_time=sign_time,
+                merchant_prepare_id=prepare_id,
+            ).encode("utf-8")
+        ).hexdigest()
+        payload = {
+            "click_trans_id": click_trans_id,
+            "merchant_trans_id": str(checkout_id),
+            "amount": str(amount),
+            "action": 1,
+            "error": 0,
+            "sign_time": sign_time,
+            "sign_string": sign,
+            "merchant_prepare_id": prepare_id,
         }
+        service = OrderPaymentService(db)
+        result = await service.process_click_callback(payload)
+        await db.commit()
+        return {"status": "ok", "provider": "click", "result": result}
+
+    raise HTTPException(status_code=400, detail="invalid_provider")
 
 
 @router.post("/sandbox/click/simulate")
@@ -159,6 +219,7 @@ async def sandbox_click_simulate(
 
     sign_time = str(int(time.time()))
     click_trans_id = body.click_trans_id or f"sandbox-click-{int(time.time())}"
+    prepare_id = str(stable_prepare_id(body.merchant_trans_id))
     sign = hashlib.md5(
         build_click_sign_string(
             click_trans_id=click_trans_id,
@@ -168,6 +229,7 @@ async def sandbox_click_simulate(
             amount=str(body.amount_uzs),
             action=str(body.action),
             sign_time=sign_time,
+            merchant_prepare_id=prepare_id if body.action == 1 else None,
         ).encode("utf-8")
     ).hexdigest()
     payload = {
@@ -179,34 +241,8 @@ async def sandbox_click_simulate(
         "sign_time": sign_time,
         "sign_string": sign,
     }
+    if body.action == 1:
+        payload["merchant_prepare_id"] = prepare_id
 
     service = OrderPaymentService(db)
     return await service.process_click_callback(payload)
-
-
-@router.post("/sandbox/payme/simulate")
-async def sandbox_payme_simulate(
-    body: SandboxPaymeBody,
-    _: None = Depends(require_admin_key),
-    db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    settings = get_settings()
-    if not settings.payment_sandbox_mode:
-        raise HTTPException(status_code=403, detail="payment_sandbox_mode_disabled")
-
-    req_time = int(time.time() * 1000)
-    rpc_body = {
-        "jsonrpc": "2.0",
-        "id": "sandbox-payme",
-        "method": "PerformTransaction",
-        "params": {
-            "id": body.payme_trans_id,
-            "time": req_time,
-            "amount": int(body.amount_uzs) * 100,
-            "account": {"checkout_id": str(body.checkout_or_order_id)},
-        },
-    }
-    assert_payme_request_fresh(rpc_body, settings=settings)
-
-    service = OrderPaymentService(db)
-    return await service.handle_payme_rpc(rpc_body)

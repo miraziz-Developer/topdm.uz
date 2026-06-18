@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,12 @@ from app.application.marketplace.use_cases import PHONE_PATTERN
 from app.core.config import get_settings
 from app.infrastructure.auth.deps import AuthUser, get_current_user
 from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop
+from app.infrastructure.auth.otp_rate_limit import (
+    clear_otp_verify_failures,
+    guard_otp_send,
+    guard_otp_verify,
+    record_otp_verify_failure,
+)
 from app.infrastructure.auth.telegram_verify import parse_webapp_user, verify_telegram_login
 from app.infrastructure.auth.user_repo import UserAuthRepository
 from app.infrastructure.messaging.resend_email import (
@@ -40,7 +46,7 @@ class EmailSendOtpRequest(BaseModel):
 
 class EmailVerifyOtpRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=255)
-    otp: str = Field(..., min_length=4, max_length=6)
+    otp: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
     phone: str | None = None
 
 
@@ -50,7 +56,7 @@ class TelegramUsernameSendOtpRequest(BaseModel):
 
 class TelegramUsernameVerifyOtpRequest(BaseModel):
     telegram_username: str = Field(..., min_length=1, max_length=64)
-    otp: str = Field(..., min_length=4, max_length=6)
+    otp: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
     phone: str | None = None
 
 
@@ -72,7 +78,7 @@ class LinkEmailSendRequest(BaseModel):
 
 class LinkEmailVerifyRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=255)
-    otp: str = Field(..., min_length=4, max_length=6)
+    otp: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
 class LinkTelegramRequest(BaseModel):
@@ -98,7 +104,7 @@ class TelegramWebappAuthRequest(BaseModel):
 
 class MerchantPasswordLoginRequest(BaseModel):
     login_code: str = Field(..., min_length=4, max_length=32)
-    password: str = Field(..., min_length=4, max_length=128)
+    password: str = Field(..., min_length=8, max_length=128)
 
 
 class MerchantShopOtpSendRequest(BaseModel):
@@ -107,7 +113,7 @@ class MerchantShopOtpSendRequest(BaseModel):
 
 class MerchantShopOtpVerifyRequest(BaseModel):
     login_code: str = Field(..., min_length=4, max_length=32)
-    otp: str = Field(..., min_length=4, max_length=6)
+    otp: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
 def _telegram_display_name(data: dict[str, Any]) -> str:
@@ -124,11 +130,13 @@ def _telegram_display_name(data: dict[str, Any]) -> str:
 @router.post("/email/send-otp")
 async def email_send_otp(
     payload: EmailSendOtpRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
 ) -> dict:
     email = normalize_email(payload.email)
     if not is_valid_email(email):
         raise HTTPException(status_code=400, detail="Email manzil noto'g'ri")
+    await guard_otp_send(request, scope="email", identity=email)
     return await issue_and_send_email_otp(email=email, background_tasks=background_tasks)
 
 
@@ -136,6 +144,7 @@ async def email_send_otp(
 @router.post("/email/verify-otp")
 async def email_verify_otp(
     payload: EmailVerifyOtpRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     email = normalize_email(payload.email)
@@ -146,10 +155,13 @@ async def email_verify_otp(
     if phone and not PHONE_PATTERN.match(phone):
         raise HTTPException(status_code=400, detail="Telefon +998XXXXXXXXX formatida bo'lsin")
 
+    await guard_otp_verify(request, scope="email", identity=email)
     try:
         await resend_email_gateway.verify_otp(email=email, otp=payload.otp)
     except ResendEmailError as exc:
+        await record_otp_verify_failure(scope="email", identity=email)
         raise HTTPException(status_code=400, detail=exc.message) from exc
+    await clear_otp_verify_failures(scope="email", identity=email)
 
     repo = UserAuthRepository(db)
     user = await repo.upsert_email_user(email=email, phone=phone)
@@ -162,16 +174,18 @@ async def email_verify_otp(
 
 
 @router.post("/send-otp")
-async def send_otp(payload: TelegramUsernameSendOtpRequest) -> dict:
+async def send_otp(payload: TelegramUsernameSendOtpRequest, request: Request) -> dict:
     username = normalize_telegram_username(payload.telegram_username)
     if not is_valid_telegram_username(username):
         raise HTTPException(status_code=400, detail="Telegram username noto'g'ri (@username)")
+    await guard_otp_send(request, scope="telegram", identity=username)
     return await issue_and_send_telegram_otp(telegram_username=username)
 
 
 @router.post("/verify-otp")
 async def verify_otp(
     payload: TelegramUsernameVerifyOtpRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     username = normalize_telegram_username(payload.telegram_username)
@@ -182,10 +196,13 @@ async def verify_otp(
     if phone and not PHONE_PATTERN.match(phone):
         raise HTTPException(status_code=400, detail="Telefon +998XXXXXXXXX formatida bo'lsin")
 
+    await guard_otp_verify(request, scope="telegram", identity=username)
     try:
         telegram_id = await telegram_otp_gateway.verify_otp(username=username, otp=payload.otp)
     except TelegramOtpError as exc:
+        await record_otp_verify_failure(scope="telegram", identity=username)
         raise HTTPException(status_code=400, detail=exc.message) from exc
+    await clear_otp_verify_failures(scope="telegram", identity=username)
 
     repo = UserAuthRepository(db)
     user = await repo.upsert_telegram_user(
@@ -243,9 +260,18 @@ async def telegram_webapp_auth(
         bound_chat = int(shop.telegram_chat_id) if shop.telegram_chat_id else None
         if bound_chat is not None and bound_chat != telegram_id:
             raise HTTPException(status_code=403, detail="Bu do'kon boshqa Telegram chatga bog'langan")
-        if bound_chat is None:
-            await mrepo.bind_shop_telegram_chat(shop.id, telegram_id)
-        shop_id = shop.id
+        owned_shop_id = await resolve_merchant_shop_id(db, user)
+        if owned_shop_id == shop.id:
+            shop_id = shop.id
+            if bound_chat is None:
+                await mrepo.bind_shop_telegram_chat(shop.id, telegram_id)
+        elif bound_chat == telegram_id:
+            shop_id = shop.id
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail="Bu do'kon sizga tegishli emas. Avval botda /register yoki /start shop_<UUID> bajaring.",
+            )
     else:
         bound = await mrepo.get_shop_by_telegram_chat_id(telegram_id)
         if bound:
@@ -266,14 +292,32 @@ async def telegram_webapp_auth(
 
 
 @router.post("/telegram")
-async def telegram_auth(payload: TelegramAuthRequest, db: AsyncSession = Depends(get_db_session)) -> dict:
+async def telegram_auth(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
     settings = get_settings()
     if not settings.telegram_bot_token:
         raise HTTPException(status_code=503, detail="Telegram login is not configured")
 
-    raw = payload.model_dump()
-    if not verify_telegram_login(raw, settings.telegram_bot_token):
-        raise HTTPException(status_code=401, detail="Invalid Telegram authentication data")
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    if not verify_telegram_login(body, settings.telegram_bot_token):
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Telegram tasdiqlash yaroqsiz. BotFather → /setdomain → bozorliii.online "
+                "yoki «Bot orqali kod» usulidan foydalaning."
+            ),
+        )
+
+    payload = TelegramAuthRequest.model_validate(body)
+    raw = body
 
     if payload.username:
         await telegram_otp_gateway.register_chat(telegram_id=int(payload.id), username=payload.username)
@@ -326,8 +370,11 @@ async def update_phone(
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     row.phone = phone
+    await db.flush()
+    mrepo = MarketplaceRepository(db)
+    linked = await mrepo.link_orders_to_user(user_id=user.id, phone=phone, email=row.email)
     await db.commit()
-    return {"status": "ok", "phone": phone}
+    return {"status": "ok", "phone": phone, "linked_orders": linked}
 
 
 @router.post("/link/email/send-otp")
@@ -433,22 +480,35 @@ async def merchant_password_login(
 @router.post("/merchant/send-otp")
 async def merchant_shop_send_otp(
     payload: MerchantShopOtpSendRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     from app.application.auth.merchant_login import send_merchant_shop_otp
 
-    return await send_merchant_shop_otp(db, login_code=payload.login_code.strip().upper())
+    login_code = payload.login_code.strip().upper()
+    await guard_otp_send(request, scope="merchant", identity=login_code)
+    return await send_merchant_shop_otp(db, login_code=login_code)
 
 
 @router.post("/merchant/verify-otp")
 async def merchant_shop_verify_otp(
     payload: MerchantShopOtpVerifyRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     from app.application.auth.merchant_login import verify_merchant_shop_otp
 
-    return await verify_merchant_shop_otp(
-        db,
-        login_code=payload.login_code.strip().upper(),
-        otp=payload.otp,
-    )
+    login_code = payload.login_code.strip().upper()
+    await guard_otp_verify(request, scope="merchant", identity=login_code)
+    try:
+        result = await verify_merchant_shop_otp(
+            db,
+            login_code=login_code,
+            otp=payload.otp,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 400:
+            await record_otp_verify_failure(scope="merchant", identity=login_code)
+        raise
+    await clear_otp_verify_failures(scope="merchant", identity=login_code)
+    return result

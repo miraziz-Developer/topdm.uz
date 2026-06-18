@@ -17,6 +17,7 @@ from app.application.billing.plans import (
     PRO_PLAN,
     SubscriptionPlan,
 )
+from app.core.config import get_settings
 from app.infrastructure.repositories.wallet_repo import WalletRepository
 
 
@@ -45,6 +46,7 @@ class SubscriptionService:
 
     def __init__(self, session: AsyncSession) -> None:
         self._db = session
+        self._settings = get_settings()
         self._wallet = WalletRepository(session)
 
     # ── Public API ──────────────────────────────────────────────

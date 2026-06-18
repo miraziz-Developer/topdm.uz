@@ -28,11 +28,15 @@ declare global {
 
 export function TelegramLoginButton({ botUsername, onAuth, className }: TelegramLoginButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const onAuthRef = useRef(onAuth);
+  onAuthRef.current = onAuth;
 
   useEffect(() => {
     if (!botUsername || !containerRef.current) return;
 
-    window.onTelegramAuth = (user) => onAuth(user);
+    window.onTelegramAuth = (user) => {
+      onAuthRef.current(user);
+    };
 
     const script = document.createElement("script");
     script.src = "https://telegram.org/js/telegram-widget.js?22";
@@ -43,18 +47,20 @@ export function TelegramLoginButton({ botUsername, onAuth, className }: Telegram
     script.setAttribute("data-onauth", "onTelegramAuth(user)");
     script.setAttribute("data-request-access", "write");
 
-    containerRef.current.innerHTML = "";
-    containerRef.current.appendChild(script);
+    const node = containerRef.current;
+    node.innerHTML = "";
+    node.appendChild(script);
 
     return () => {
       delete window.onTelegramAuth;
+      node.innerHTML = "";
     };
-  }, [botUsername, onAuth]);
+  }, [botUsername]);
 
   if (!botUsername) {
     return (
       <p className="rounded-2xl border border-border-subtle bg-elevated/80 p-4 text-center text-sm text-ink-500">
-        Telegram login: <code className="text-xs">TELEGRAM_BOT_USERNAME</code> sozlang
+        Telegram login: <code className="text-xs">NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code> sozlang
       </p>
     );
   }

@@ -455,6 +455,36 @@ if _scripts_dir not in sys.path:
 from catalog_images import pick_catalog_image as pick_product_image  # noqa: E402
 
 
+def infer_shop_type(shop: dict) -> str:
+    blob = f"{shop.get('name', '')} {shop.get('description', '')}".lower()
+    if "optom" in blob or "ulgurji" in blob:
+        return "optom"
+    if "chakana va optom" in blob or "ikkala" in blob:
+        return "hybrid"
+    return "chakana"
+
+
+def wholesale_pack_attrs(sale_type: str, min_qty: int) -> dict:
+    if sale_type != "Optom":
+        return {"pricing_unit": "piece"}
+    upp = max(2, int(min_qty))
+    comp = []
+    if upp == 12:
+        comp = [{"size": "S", "qty": 3}, {"size": "M", "qty": 4}, {"size": "L", "qty": 3}, {"size": "XL", "qty": 2}]
+    elif upp == 10:
+        comp = [{"size": "M", "qty": 5}, {"size": "L", "qty": 5}]
+    elif upp >= 5:
+        comp = [{"size": "M", "qty": upp}]
+    return {
+        "pricing_unit": "pack",
+        "wholesale_pack": {
+            "units_per_pack": upp,
+            "composition": comp,
+            "pack_label": f"{upp} dona/pachka",
+        },
+    }
+
+
 def make_product_embedding(name: str, desc: str, attrs: dict) -> list[float]:
     """Same deterministic vectors as EmbeddingClient when OPENAI_API_KEY is unset."""
     parts = [
@@ -537,6 +567,7 @@ async def seed() -> None:
             base_slug = slugify(data["name"])
             slug = base_slug if base_slug not in used_slugs else f"{base_slug}-{i + 1}"
             used_slugs.add(slug)
+            shop_type = data.get("shop_type") or infer_shop_type(data)
             shop = ShopModel(
                 owner_phone=data["owner_phone"],
                 owner_email=data["owner_email"],
@@ -546,6 +577,7 @@ async def seed() -> None:
                 section=data["section"],
                 slug=slug,
                 ipadrom_id=ipadrom_ids[data["ipadrom_index"]],
+                shop_type=shop_type,
                 market_zone=data["market_zone"],
                 block_sector=data["block_sector"],
                 location_comment=data["location_label"],
@@ -566,6 +598,11 @@ async def seed() -> None:
             shop_meta = SHOPS[shop_i]
             root_name = CATEGORY_TREE[root_i]["name"]
             sub_name = CATEGORY_TREE[root_i]["subs"][sub_i]
+            pack_meta = wholesale_pack_attrs(sale_type, min_qty)
+            pricing_unit = pack_meta.get("pricing_unit", "piece")
+            units_per_pack = None
+            if sale_type == "Optom":
+                units_per_pack = int(pack_meta["wholesale_pack"]["units_per_pack"])
             product = ProductModel(
                 shop_id=shop_ids[shop_i],
                 category_id=sub_ids[root_i][sub_i],
@@ -574,9 +611,12 @@ async def seed() -> None:
                 price=price,
                 sale_type=sale_type,
                 min_order_quantity=min_qty,
+                pricing_unit=pricing_unit,
+                units_per_pack=units_per_pack,
                 images=[pick_product_image(name, desc)],
                 attributes={
                     **extra,
+                    **pack_meta,
                     "root_category": root_name,
                     "sub_category": sub_name,
                     "category": sub_name,
@@ -586,6 +626,7 @@ async def seed() -> None:
                     "floor": shop_meta["floor"],
                     "shop_number": shop_meta["section"],
                     "sale_type": sale_type,
+                    "min_order_quantity": min_qty,
                 },
                 embedding=make_product_embedding(
                     name,

@@ -49,8 +49,13 @@ async function proxy(request: NextRequest, pathSegments: string[]): Promise<Next
   let upstream: Response;
   try {
     upstream = await fetch(targetUrl, init);
-  } catch {
-    return NextResponse.json({ detail: "Backend service unavailable" }, { status: 502 });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "fetch_failed";
+    console.error("[api-proxy] upstream unreachable", targetUrl, reason);
+    return NextResponse.json(
+      { detail: "Backend service unavailable", upstream: targetUrl, reason },
+      { status: 502 },
+    );
   }
 
   const responseHeaders = filterProxyResponseHeaders(upstream.headers);

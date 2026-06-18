@@ -45,8 +45,8 @@ export function resolveMediaUrl(url?: string | null): string {
   if (raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
   if (raw.startsWith("/")) {
     if (raw.startsWith("/api/")) {
-      if (!API_BASE.startsWith("http")) return raw;
-      return `${API_ORIGIN}${raw}`;
+      const absolute = API_BASE.startsWith("http") ? `${API_ORIGIN}${raw}` : raw;
+      return resolveApiMediaUrlForBrowser(absolute);
     }
     return raw;
   }
@@ -54,8 +54,10 @@ export function resolveMediaUrl(url?: string | null): string {
     try {
       const parsed = new URL(raw);
       if (parsed.pathname.startsWith("/api/v1/media/") && PROD_MEDIA_HOSTS.has(parsed.hostname)) {
-        if (!API_BASE.startsWith("http")) return parsed.pathname;
-        return `${API_ORIGIN}${parsed.pathname}`;
+        const absolute = API_BASE.startsWith("http")
+          ? `${API_ORIGIN}${parsed.pathname}`
+          : parsed.pathname;
+        return resolveApiMediaUrlForBrowser(absolute);
       }
     } catch {
       /* keep absolute url */
@@ -65,10 +67,24 @@ export function resolveMediaUrl(url?: string | null): string {
   return `${API_ORIGIN}/${raw.replace(/^\//, "")}`;
 }
 
+function isStorefrontHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "bozorliii.online" ||
+    hostname === "www.bozorliii.online" ||
+    hostname === "bozorliii.uz" ||
+    hostname === "www.bozorliii.uz"
+  );
+}
+
 function resolveApiMediaUrlForBrowser(resolved: string): string {
   if (!resolved.startsWith("/api/v1/media/")) return resolved;
   const apiOrigin = mediaApiOriginForBrowser();
   if (apiOrigin) return `${apiOrigin}${resolved}`;
+  if (typeof window !== "undefined" && isStorefrontHost(window.location.hostname)) {
+    return resolved;
+  }
   return resolved;
 }
 
@@ -107,8 +123,22 @@ export function productImage(images?: string[] | null, index = 0): string {
   if (!picked?.trim() || isUnreliableProductImage(picked)) {
     return PLACEHOLDER_CLOTHING;
   }
-  const url = resolveMediaUrl(picked);
+  const url = resolveApiMediaUrlForBrowser(resolveMediaUrl(picked));
   return url === PLACEHOLDER_IMAGE || url === "/placeholder.svg" ? PLACEHOLDER_CLOTHING : url;
+}
+
+/** Single product media path → browser-loadable absolute URL. */
+export function resolveProductImageUrl(url?: string | null): string {
+  return productImage(url ? [url] : null);
+}
+
+export function shouldUnoptimizeProductImage(url: string): boolean {
+  return (
+    url.startsWith("data:") ||
+    url.startsWith("/api/") ||
+    isLocalDevMedia(url) ||
+    url.includes("api.bozorliii.")
+  );
 }
 
 export function hasProductImage(images?: string[] | null): boolean {

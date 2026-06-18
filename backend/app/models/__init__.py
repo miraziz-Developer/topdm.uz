@@ -1,4 +1,10 @@
-from app.models.finance import MerchantFinanceWalletModel, PlatformTransactionModel, PlatformTransactionStatus
+from app.models.finance import (
+    MerchantFinanceWalletModel,
+    PlatformProfitSweepModel,
+    PlatformProfitSweepStatus,
+    PlatformTransactionModel,
+    PlatformTransactionStatus,
+)
 from app.models.delivery_claim import DeliveryClaimModel, MerchantPayoutRequestModel
 from app.models.order_checkout_payment import OrderCheckoutPaymentModel
 from app.models.payments import CoinPackageModel, PaymentTransactionModel
@@ -12,6 +18,8 @@ from app.models.story import StoryModel
 
 __all__ = [
     "MerchantFinanceWalletModel",
+    "PlatformProfitSweepModel",
+    "PlatformProfitSweepStatus",
     "PlatformTransactionModel",
     "PlatformTransactionStatus",
     "StoryModel",

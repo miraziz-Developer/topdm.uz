@@ -28,8 +28,8 @@ export function BottomNav() {
   }, []);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
-      <div className="pointer-events-auto mx-auto grid w-full max-w-lg grid-cols-5 rounded-2xl glass-panel-strong shadow-elevated ring-1 ring-black/[0.04]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+      <div className="pointer-events-auto mx-auto grid w-full max-w-lg grid-cols-5 premium-dock">
         {items.map((item) => {
           const isActive = pathname === item.href || (item.href === "/map" && pathname.startsWith("/map"));
           return (
@@ -38,14 +38,14 @@ export function BottomNav() {
               href={item.href}
               data-cart-anchor={item.href === "/checkout" ? true : undefined}
               className={cn(
-                "relative flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium transition-colors sm:min-h-[56px] sm:text-[11px]",
-                isActive ? "font-bold text-electric-500" : "text-ink-500 hover:text-ink-900",
+                "relative flex min-h-[54px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-[10px] font-semibold transition-all duration-300 sm:min-h-[58px] sm:text-[11px]",
+                isActive ? "premium-nav-active font-bold text-electric-500" : "text-ink-500 hover:text-ink-900",
               )}
             >
-              <span className="relative">
-                <item.icon className="h-5 w-5" />
+              <span className={cn("relative transition-transform duration-300", isActive && "scale-110")}>
+                <item.icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
                 {item.href === "/checkout" && totalItems > 0 ? (
-                  <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold-500 px-1 text-[9px] font-bold text-canvas">
+                  <span className="absolute -right-2.5 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-gradient-gold px-1 text-[9px] font-bold text-white shadow-gold ring-2 ring-white">
                     {totalItems}
                   </span>
                 ) : null}
@@ -54,8 +54,8 @@ export function BottomNav() {
               {isActive ? (
                 <motion.div
                   layoutId="bottomnav-indicator"
-                  className="absolute -top-px left-1/4 right-1/4 h-0.5 rounded-full bg-electric-500"
-                  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                  className="absolute bottom-1 left-1/2 h-1 w-5 -translate-x-1/2 rounded-full bg-gradient-electric shadow-[0_0_8px_rgba(0,102,255,0.5)]"
+                  transition={{ type: "spring", damping: 28, stiffness: 380 }}
                 />
               ) : null}
             </Link>

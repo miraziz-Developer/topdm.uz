@@ -11,6 +11,12 @@ import { buildMockShopStories } from "@/lib/mock-shop-demo";
 import { ApiError } from "@/lib/http-client";
 import { allowDemoFakeData } from "@/lib/runtime-flags";
 import { PLACEHOLDER_IMAGE, resolveMediaUrl } from "@/lib/media";
+import {
+  shopCardShell,
+  shopSectionSubtitle,
+  shopSectionTitle,
+  shopTypeChip,
+} from "@/components/shop/shop-premium-ui";
 import { cn } from "@/lib/utils";
 import type { LiveStory } from "@/types";
 
@@ -113,39 +119,36 @@ export function ShopStoriesStrip({
 
   return (
     <section
-      className={cn(
-        "overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-sm",
-        className,
-      )}
+      className={cn(shopCardShell, className)}
       aria-label={`${shopName} storylari`}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-border-subtle/80 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-electric-500/15 to-indigo-500/10 text-electric-600">
+      <div className="flex items-center justify-between gap-3 border-b border-black/[0.05] px-5 py-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#f0eeea] text-ink-700 ring-1 ring-black/[0.04]">
             <CirclePlay className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-bold text-text-100">Storylar</p>
-            <p className="text-xs text-text-400">
-              {stories.length} ta jonli — 24 soat ichida
+            <p className={shopSectionTitle}>Storylar</p>
+            <p className={shopSectionSubtitle}>
+              {stories.length} ta · 24 soat faol
             </p>
           </div>
         </div>
         <span className="inline-flex items-center gap-1.5">
           {isDemo ? (
-            <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+            <span className={cn(shopTypeChip, "bg-amber-50 text-amber-800 ring-amber-200/60")}>
               Demo
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1 rounded-full bg-electric-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-electric-600">
-            <Sparkles className="h-3 w-3" aria-hidden />
+          <span className={cn(shopTypeChip, "bg-[#eef4ff] text-[#1d4ed8] ring-[#bfdbfe]/60")}>
+            <Sparkles className="mr-1 inline h-3 w-3" aria-hidden />
             Live
           </span>
         </span>
       </div>
 
       <div
-        className="flex gap-3 overflow-x-auto px-4 py-4 scrollbar-hide snap-x snap-mandatory"
+        className="flex gap-4 overflow-x-auto px-4 py-5 scrollbar-hide snap-x snap-mandatory"
         role="list"
       >
         {stories.map((story, index) => (
@@ -193,39 +196,35 @@ function StoryThumb({
       type="button"
       role="listitem"
       onClick={onOpen}
-      className="group flex w-[92px] shrink-0 snap-start flex-col items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-500/50 focus-visible:ring-offset-2"
+      className="group flex w-[76px] shrink-0 snap-start flex-col items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-electric-500/50 focus-visible:ring-offset-2"
     >
       <div
         className={cn(
-          "relative aspect-[9/16] w-[88px] rounded-2xl p-[2.5px] shadow-md transition-transform duration-200 group-hover:scale-[1.04]",
+          "relative rounded-full p-[2.5px] shadow-md transition-transform duration-200 group-hover:scale-[1.05]",
           hot
             ? "bg-gradient-to-tr from-amber-400 via-rose-500 to-electric-500"
-            : "bg-gradient-to-br from-electric-500/60 via-indigo-600/50 to-ink-900/40",
+            : "bg-gradient-to-br from-electric-500 via-indigo-500 to-rose-400",
         )}
       >
-        <div className="relative h-full w-full overflow-hidden rounded-[14px] bg-ink-900">
+        <div className="relative h-[68px] w-[68px] overflow-hidden rounded-full bg-ink-900 ring-2 ring-surface">
           <Image
             src={src}
             alt={`${shopName} story ${index + 1}`}
             fill
             unoptimized
             className="object-cover"
-            sizes="88px"
+            sizes="68px"
             onError={() => setSrc(PLACEHOLDER_IMAGE)}
           />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
-          <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-            {age}
-          </span>
           {hot ? (
-            <span className="absolute left-1.5 top-1.5 rounded bg-rose-500 px-1 py-0.5 text-[8px] font-bold text-white">
-              HOT
+            <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white ring-2 ring-surface">
+              !
             </span>
           ) : null}
         </div>
       </div>
-      <span className="line-clamp-1 w-full text-center text-[10px] font-semibold text-text-400 group-hover:text-electric-600">
-        #{index + 1}
+      <span className="line-clamp-1 w-full text-center text-[11px] font-medium tracking-wide text-text-400 group-hover:text-ink-700">
+        {age}
       </span>
     </button>
   );

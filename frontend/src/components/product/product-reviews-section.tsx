@@ -197,15 +197,40 @@ export function ProductReviewsSection({ productId, productName, initialSummary }
         author_name: authorCtx.authorName,
         customer_phone: authorCtx.phone ?? undefined,
       }, photos);
-      setSummary(res.summary);
-      setReviews((prev) => [res.review, ...prev]);
+      const approved = !res.review.status || res.review.status === "approved";
+      if (approved) {
+        setReviews((prev) => {
+          const next = [res.review, ...prev.filter((r) => r.id !== res.review.id)];
+          return next;
+        });
+        setSummary((prev) => {
+          const base = prev ?? res.summary;
+          const count = Math.max(base.review_count + 1, 1);
+          const distribution = { ...base.distribution };
+          const key = String(res.review.rating);
+          distribution[key] = (distribution[key] ?? 0) + 1;
+          const weighted = Object.entries(distribution).reduce(
+            (sum, [star, n]) => sum + Number(star) * n,
+            0,
+          );
+          return {
+            average_rating: count > 0 ? Math.round((weighted / count) * 10) / 10 : 0,
+            review_count: count,
+            distribution,
+          };
+        });
+      }
       setRating(0);
       setBody("");
       setPhotos([]);
       previews.forEach((url) => URL.revokeObjectURL(url));
       setPreviews([]);
       setShowForm(false);
-      push("Rahmat! Sharhingiz qo'shildi", "success");
+      if (res.review.status === "pending_moderation") {
+        push("Rahmat! Rasmli sharh moderatsiyadan o'tgach ko'rinadi", "info");
+      } else {
+        push("Rahmat! Sharhingiz e'lon qilindi", "success");
+      }
     } catch {
       push("Sharh yuborilmadi. Qayta urinib ko'ring", "error");
     } finally {
@@ -217,7 +242,7 @@ export function ProductReviewsSection({ productId, productName, initialSummary }
   const avg = summary?.average_rating ?? 0;
   const distribution = summary?.distribution ?? { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
 
-  const emptyState = !loading && total === 0;
+  const emptyState = !loading && reviews.length === 0;
 
   const summaryBlock = useMemo(
     () => (

@@ -7,10 +7,10 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Date, cast, func, or_, select
+from sqlalchemy import Date, String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.slug import slugify
+from app.core.phone import normalize_uz_phone_e164, phone_digits_key
 from app.infrastructure.db.models import (
     CategoryModel,
     LeadModel,
@@ -24,6 +24,10 @@ from app.infrastructure.db.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+ORDER_SCOPE_ACTIVE = frozenset({"pending", "reserved", "confirmed", "preparing", "ready"})
+ORDER_SCOPE_COMPLETED = frozenset({"completed"})
+ORDER_SCOPE_CANCELLED = frozenset({"cancelled"})
 
 
 @dataclass(slots=True)
@@ -50,6 +54,18 @@ class MarketplaceRepository:
             ShopModel.is_blocked == False,
         )
 
+    @staticmethod
+    def _product_text_search_clause(query: str):
+        raw = (query or "").strip()
+        tag = raw.lstrip("#").casefold()
+        clauses = [
+            ProductModel.name.ilike(f"%{raw}%"),
+            ProductModel.description.ilike(f"%{raw}%"),
+        ]
+        if tag:
+            clauses.append(cast(ProductModel.attributes["hashtags"], String).ilike(f"%{tag}%"))
+        return or_(*clauses)
+
     async def create_product(
         self,
         *,
@@ -64,6 +80,11 @@ class MarketplaceRepository:
         visual_embedding: list[float] | None = None,
         floor: str | None = None,
         section: str | None = None,
+        stock_count: int | None = None,
+        sale_type: str = "Chakana",
+        min_order_quantity: int = 1,
+        pricing_unit: str = "piece",
+        units_per_pack: int | None = None,
     ) -> ProductModel:
         _ = floor, section
         model = ProductModel(
@@ -76,6 +97,11 @@ class MarketplaceRepository:
             attributes=attributes,
             embedding=embedding,
             visual_embedding=visual_embedding,
+            stock_count=stock_count if stock_count is not None else 5,
+            sale_type=sale_type,
+            min_order_quantity=max(1, int(min_order_quantity)),
+            pricing_unit=pricing_unit,
+            units_per_pack=units_per_pack,
         )
         self._db.add(model)
         await self._db.commit()
@@ -103,6 +129,7 @@ class MarketplaceRepository:
         name: str,
         slug: str,
         owner_phone: str,
+        shop_type: str = "chakana",
         market_zone: str | None = None,
         block_sector: str | None = None,
         stall_number: str | None = None,
@@ -119,10 +146,13 @@ class MarketplaceRepository:
         telegram_chat_id: int | None = None,
         is_verified: bool = False,
     ) -> ShopModel:
+        from app.application.merchant.wholesale_pack import normalize_shop_type
+
         shop = ShopModel(
             name=name,
             slug=slug,
             owner_phone=owner_phone,
+            shop_type=normalize_shop_type(shop_type),
             market_zone=market_zone,
             block_sector=block_sector,
             stall_number=stall_number,
@@ -169,6 +199,21 @@ class MarketplaceRepository:
         result = await self._db.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_child_categories(self, parent_id: UUID, *, limit: int = 40) -> list[CategoryModel]:
+        stmt = (
+            select(CategoryModel)
+            .where(CategoryModel.parent_id == parent_id)
+            .order_by(CategoryModel.sort_order.asc(), CategoryModel.name.asc())
+            .limit(limit)
+        )
+        result = await self._db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def category_has_children(self, category_id: UUID) -> bool:
+        stmt = select(CategoryModel.id).where(CategoryModel.parent_id == category_id).limit(1)
+        result = await self._db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def get_category_by_slug_or_name(self, hint: str) -> CategoryModel | None:
         raw = (hint or "").strip().lower()
         if not raw:
@@ -178,6 +223,55 @@ class MarketplaceRepository:
             if raw in {cat.name.lower(), (cat.name_ru or "").lower(), slugify(cat.name)}:
                 return cat
         return None
+
+    async def get_category_by_parent_and_child_name(
+        self,
+        parent_name: str,
+        child_name: str,
+    ) -> CategoryModel | None:
+        parent_norm = (parent_name or "").strip()
+        child_norm = (child_name or "").strip()
+        if not parent_norm or not child_norm:
+            return None
+        roots = await self.list_root_categories(limit=100)
+        parent = next((row for row in roots if row.name == parent_norm), None)
+        if parent is None:
+            return None
+        children = await self.list_child_categories(parent.id, limit=100)
+        return next((row for row in children if row.name == child_norm), None)
+
+    async def find_subcategory_by_hint(self, hint: str, *, audience: str = "erkak") -> CategoryModel | None:
+        raw = (hint or "").strip().casefold()
+        if not raw:
+            return None
+        result = await self._db.execute(select(CategoryModel).where(CategoryModel.parent_id.is_not(None)))
+        subs = list(result.scalars().all())
+        if not subs:
+            return None
+
+        roots = {row.id: row.name.casefold() for row in await self.list_root_categories(limit=100)}
+        audience_roots = {
+            "erkak": ("erkaklar kiyimi", "erkaklar poyabzali"),
+            "ayol": ("ayollar kiyimi", "ayollar poyabzali"),
+            "bolalar": ("bolalar kiyimi", "bolalar poyabzali"),
+        }
+        preferred_tokens = audience_roots.get(audience, audience_roots["erkak"])
+
+        def score(cat: CategoryModel) -> int:
+            name = cat.name.casefold()
+            parent_name = roots.get(cat.parent_id, "") if cat.parent_id else ""
+            points = 0
+            if raw in name or name in raw:
+                points += 10
+            if raw == slugify(cat.name):
+                points += 8
+            if any(token in parent_name for token in preferred_tokens):
+                points += 5
+            return points
+
+        ranked = sorted(subs, key=score, reverse=True)
+        best = ranked[0]
+        return best if score(best) > 0 else None
 
     async def list_shop_products(
         self,
@@ -264,6 +358,57 @@ class MarketplaceRepository:
         )
         return result.scalars().all()
 
+    async def list_products_in_categories(
+        self,
+        category_ids: list,
+        *,
+        limit: int = 16,
+        exclude_ids: set | None = None,
+    ) -> Sequence[ProductModel]:
+        """Foydalanuvchi qiziqish kategoriyalaridan tavsiya."""
+        from sqlalchemy.orm import selectinload
+
+        if not category_ids:
+            return []
+        exclude_ids = exclude_ids or set()
+        result = await self._db.execute(
+            select(ProductModel)
+            .options(selectinload(ProductModel.shop))
+            .where(
+                ProductModel.is_available == True,
+                self._public_shop_exists(),
+                ProductModel.category_id.in_(category_ids),
+            )
+            .order_by(
+                ProductModel.is_featured.desc(),
+                ProductModel.view_count.desc(),
+                ProductModel.id.desc(),
+            )
+            .limit(limit * 3)
+        )
+        rows = [p for p in result.scalars().all() if p.id not in exclude_ids]
+        return rows[:limit]
+
+    async def list_user_preferred_category_ids(self, user_id) -> list:
+        """Buyurtmalar bo'yicha eng ko'p xarid qilingan kategoriyalar."""
+        from uuid import UUID
+
+        if not isinstance(user_id, UUID):
+            return []
+        result = await self._db.execute(
+            select(ProductModel.category_id, func.count().label("cnt"))
+            .join(OrderModel, OrderModel.product_id == ProductModel.id)
+            .where(
+                OrderModel.customer_user_id == user_id,
+                ProductModel.category_id.isnot(None),
+                OrderModel.status.in_(ORDER_SCOPE_COMPLETED),
+            )
+            .group_by(ProductModel.category_id)
+            .order_by(func.count().desc())
+            .limit(5)
+        )
+        return [row[0] for row in result.all() if row[0]]
+
     async def list_clearance_deal_products(self, limit: int = 16) -> Sequence[ProductModel]:
         """Faol flash_sales; yetmasa kam zaxira / arzon fallback."""
         from sqlalchemy import and_
@@ -347,10 +492,12 @@ class MarketplaceRepository:
         pickup_time: str | None = None,
         fulfillment_type: str = "delivery",
         customer_email: str | None = None,
+        customer_user_id: UUID | None = None,
         status: str = "pending",
     ) -> OrderModel:
         order = OrderModel(
             customer_phone=customer_phone,
+            customer_user_id=customer_user_id,
             product_id=product_id,
             shop_id=shop_id,
             quantity=quantity,
@@ -369,29 +516,142 @@ class MarketplaceRepository:
         return order
 
     async def list_customer_orders(self, customer_phone: str, limit: int = 50) -> Sequence[OrderModel]:
+        """Legacy phone-only lookup — prefer list_orders_for_account."""
+        normalized = normalize_uz_phone_e164(customer_phone) or customer_phone.strip()
+        return await self.list_orders_for_account(
+            user_id=None,
+            phone=normalized,
+            email=None,
+            scope="all",
+            limit=limit,
+        )
+
+    async def list_orders_for_account(
+        self,
+        *,
+        user_id: UUID | None,
+        phone: str | None,
+        email: str | None,
+        scope: str = "all",
+        limit: int = 50,
+    ) -> Sequence[OrderModel]:
         from sqlalchemy.orm import selectinload
 
-        result = await self._db.execute(
+        conditions = []
+        if user_id is not None:
+            conditions.append(OrderModel.customer_user_id == user_id)
+
+        normalized_phone = normalize_uz_phone_e164(phone)
+        if normalized_phone:
+            digits = phone_digits_key(normalized_phone)
+            phone_match = or_(
+                OrderModel.customer_phone == normalized_phone,
+                func.regexp_replace(OrderModel.customer_phone, r"\D", "", "g") == digits,
+            )
+            conditions.append(phone_match)
+
+        clean_email = (email or "").strip().lower()
+        if clean_email:
+            conditions.append(func.lower(OrderModel.customer_email) == clean_email)
+
+        if not conditions:
+            return []
+
+        query = (
             select(OrderModel)
             .options(selectinload(OrderModel.product), selectinload(OrderModel.shop))
-            .where(OrderModel.customer_phone == customer_phone)
-            .order_by(OrderModel.created_at.desc())
-            .limit(limit)
+            .where(or_(*conditions))
         )
-        return result.scalars().all()
+
+        scope_key = (scope or "all").strip().lower()
+        if scope_key == "active":
+            query = query.where(OrderModel.status.in_(ORDER_SCOPE_ACTIVE))
+        elif scope_key == "completed":
+            query = query.where(OrderModel.status.in_(ORDER_SCOPE_COMPLETED))
+        elif scope_key == "cancelled":
+            query = query.where(OrderModel.status.in_(ORDER_SCOPE_CANCELLED))
+
+        query = query.order_by(OrderModel.created_at.desc()).limit(limit)
+        result = await self._db.execute(query)
+        rows = list(result.scalars().all())
+        if len(rows) <= 1:
+            return rows
+
+        seen: set[UUID] = set()
+        unique: list[OrderModel] = []
+        for row in rows:
+            if row.id in seen:
+                continue
+            seen.add(row.id)
+            unique.append(row)
+        return unique
+
+    async def link_orders_to_user(
+        self,
+        *,
+        user_id: UUID,
+        phone: str | None,
+        email: str | None = None,
+    ) -> int:
+        """Backfill customer_user_id for legacy phone/email rows."""
+        from sqlalchemy import update
+
+        normalized_phone = normalize_uz_phone_e164(phone)
+        conditions = [OrderModel.customer_user_id.is_(None)]
+        match_parts = []
+        if normalized_phone:
+            digits = phone_digits_key(normalized_phone)
+            match_parts.append(OrderModel.customer_phone == normalized_phone)
+            match_parts.append(
+                func.regexp_replace(OrderModel.customer_phone, r"\D", "", "g") == digits
+            )
+        clean_email = (email or "").strip().lower()
+        if clean_email:
+            match_parts.append(func.lower(OrderModel.customer_email) == clean_email)
+        if not match_parts:
+            return 0
+
+        values: dict[str, object] = {"customer_user_id": user_id}
+        if normalized_phone:
+            values["customer_phone"] = normalized_phone
+
+        result = await self._db.execute(
+            update(OrderModel)
+            .where(*conditions, or_(*match_parts))
+            .values(**values)
+        )
+        return int(result.rowcount or 0)
+
+    async def get_order_for_account(
+        self,
+        order_id: UUID,
+        *,
+        user_id: UUID | None,
+        phone: str | None,
+        email: str | None,
+    ) -> OrderModel | None:
+        orders = await self.list_orders_for_account(
+            user_id=user_id,
+            phone=phone,
+            email=email,
+            scope="all",
+            limit=200,
+        )
+        for order in orders:
+            if order.id == order_id:
+                return order
+        return None
 
     async def get_order_by_id(self, order_id: UUID) -> OrderModel | None:
         return await self._db.get(OrderModel, order_id)
 
     async def get_order_for_customer(self, order_id: UUID, customer_phone: str) -> OrderModel | None:
-        from sqlalchemy.orm import selectinload
-
-        result = await self._db.execute(
-            select(OrderModel)
-            .options(selectinload(OrderModel.product), selectinload(OrderModel.shop))
-            .where(OrderModel.id == order_id, OrderModel.customer_phone == customer_phone)
+        return await self.get_order_for_account(
+            order_id,
+            user_id=None,
+            phone=customer_phone,
+            email=None,
         )
-        return result.scalar_one_or_none()
 
     async def list_shop_orders(self, shop_id: UUID, limit: int = 50) -> Sequence[OrderModel]:
         from sqlalchemy.orm import selectinload
@@ -710,7 +970,7 @@ class MarketplaceRepository:
             )
         )
         if query:
-            stmt = stmt.where(or_(ProductModel.name.ilike(f"%{query}%"), ProductModel.description.ilike(f"%{query}%")))
+            stmt = stmt.where(self._product_text_search_clause(query))
         if category_id:
             stmt = stmt.where(ProductModel.category_id == category_id)
         if ipadrom_id:
@@ -764,9 +1024,12 @@ class MarketplaceRepository:
     ) -> int:
         from sqlalchemy import exists, func, or_
 
-        stmt = select(func.count(ProductModel.id)).where(ProductModel.is_available == True)
+        stmt = select(func.count(ProductModel.id)).where(
+            ProductModel.is_available == True,
+            self._public_shop_exists(),
+        )
         if query:
-            stmt = stmt.where(or_(ProductModel.name.ilike(f"%{query}%"), ProductModel.description.ilike(f"%{query}%")))
+            stmt = stmt.where(self._product_text_search_clause(query))
         if category_id:
             stmt = stmt.where(ProductModel.category_id == category_id)
         if ipadrom_id:

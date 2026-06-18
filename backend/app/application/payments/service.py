@@ -6,7 +6,17 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.payments.click_verify import verify_click_callback
+from app.application.payments.click_shop_api import (
+    CLICK_ALREADY_PAID,
+    CLICK_INVALID_AMOUNT,
+    CLICK_OK,
+    CLICK_SIGN_FAILED,
+    CLICK_TRANSACTION_NOT_FOUND,
+    click_amount_uzs,
+    click_response,
+    stable_prepare_id,
+    verify_click_shop_signature,
+)
 from app.core.config import Settings, get_settings
 from app.infrastructure.repositories.payment_repo import PaymentRepository
 from app.infrastructure.repositories.wallet_repo import WalletRepository
@@ -21,18 +31,21 @@ class PaymentService:
         self._wallet = WalletRepository(session)
 
     def _checkout_url(self, *, provider: str, transaction_id: UUID, amount_uzs: Decimal) -> str:
+        prov = provider.strip().lower()
+        amount = int(amount_uzs)
+        if prov == "click":
+            service_id = self._settings.click_service_id or self._settings.payment_sandbox_click_service_id
+            merchant_id = self._settings.click_merchant_id or service_id
+            if service_id:
+                return (
+                    f"https://my.click.uz/services/pay"
+                    f"?service_id={service_id}"
+                    f"&merchant_id={merchant_id}"
+                    f"&amount={amount}"
+                    f"&transaction_param={transaction_id}"
+                )
         base = (self._settings.payment_checkout_base_url or self._settings.site_url).rstrip("/")
-        if provider == "payme":
-            return (
-                f"{base}/checkout/payme"
-                f"?txn={transaction_id}&amount={int(amount_uzs)}"
-                f"&merchant={self._settings.payme_merchant_id or 'mock'}"
-            )
-        return (
-            f"{base}/checkout/click"
-            f"?txn={transaction_id}&amount={int(amount_uzs)}"
-            f"&service={self._settings.click_service_id or 'mock'}"
-        )
+        return f"{base}/checkout/{prov}?txn={transaction_id}&amount={amount}"
 
     async def list_coin_packages(self) -> list[dict[str, Any]]:
         rows = await self._payments.list_coin_packages()
@@ -59,7 +72,7 @@ class PaymentService:
             raise ValueError("package_not_found")
 
         prov = provider.strip().lower()
-        if prov not in ("click", "payme", "manual"):
+        if prov not in ("click", "manual"):
             raise ValueError("invalid_provider")
 
         amount = Decimal(str(pkg.amount_uzs))
@@ -88,18 +101,84 @@ class PaymentService:
         }
 
     async def process_click_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
-        if not verify_click_callback(payload, self._settings):
-            raise ValueError("invalid_signature")
+        """Coin top-up — Click SHOP API prepare/complete."""
+        if not verify_click_shop_signature(payload, self._settings):
+            return click_response(
+                click_trans_id=str(payload.get("click_trans_id") or ""),
+                merchant_trans_id=str(payload.get("merchant_trans_id") or ""),
+                error=CLICK_SIGN_FAILED,
+                error_note="SIGN CHECK FAILED!",
+            )
 
         merchant_trans_id = str(payload.get("merchant_trans_id", "")).strip()
         click_trans_id = str(payload.get("click_trans_id", "")).strip()
         action = int(payload.get("action", -1))
-        error_code = int(payload.get("error", -1))
+        amount = click_amount_uzs(payload)
 
         try:
             tx_id = UUID(merchant_trans_id)
-        except ValueError as exc:
-            raise ValueError("invalid_merchant_trans_id") from exc
+        except ValueError:
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                error=CLICK_TRANSACTION_NOT_FOUND,
+                error_note="Transaction not found",
+            )
+
+        prepare_id = stable_prepare_id(tx_id)
+
+        if action == 0:
+            tx = await self._payments.get_transaction_for_update(tx_id)
+            if not tx:
+                return click_response(
+                    click_trans_id=click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                    error=CLICK_TRANSACTION_NOT_FOUND,
+                    error_note="Transaction not found",
+                )
+            if tx.status == "success":
+                return click_response(
+                    click_trans_id=click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                    merchant_prepare_id=prepare_id,
+                    error=CLICK_ALREADY_PAID,
+                    error_note="Already paid",
+                )
+            if amount and int(tx.amount_uzs) != amount:
+                return click_response(
+                    click_trans_id=click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                    error=CLICK_INVALID_AMOUNT,
+                    error_note="Invalid amount",
+                )
+            await self._session.commit()
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                merchant_prepare_id=prepare_id,
+                error=CLICK_OK,
+                error_note="Success",
+            )
+
+        if action != 1:
+            return click_response(
+                click_trans_id=click_trans_id,
+                merchant_trans_id=merchant_trans_id,
+                error=CLICK_TRANSACTION_NOT_FOUND,
+                error_note="Action not found",
+            )
+
+        error_code = int(payload.get("error", -1))
+        if error_code != 0:
+            try:
+                tx = await self._payments.get_transaction_for_update(tx_id)
+                if tx and tx.status == "pending":
+                    await self._payments.mark_failed(tx)
+                await self._session.commit()
+            except Exception:
+                await self._session.rollback()
+                raise
+            raise ValueError("payment_not_successful")
 
         if click_trans_id:
             existing = await self._payments.get_by_provider_trans_id_for_update(
@@ -117,17 +196,6 @@ class PaymentService:
                     "coins_balance": balance,
                     "already_processed": True,
                 }
-
-        if action != 1 or error_code != 0:
-            try:
-                tx = await self._payments.get_transaction_for_update(tx_id)
-                if tx and tx.status == "pending":
-                    await self._payments.mark_failed(tx)
-                await self._session.commit()
-            except Exception:
-                await self._session.rollback()
-                raise
-            raise ValueError("payment_not_successful")
 
         try:
             tx = await self._payments.get_transaction_for_update(tx_id)
@@ -150,6 +218,10 @@ class PaymentService:
                 await self._session.rollback()
                 raise ValueError("invalid_transaction_state")
 
+            if amount and int(tx.amount_uzs) != amount:
+                await self._session.rollback()
+                raise ValueError("amount_mismatch")
+
             shop = await self._wallet.add_coins(tx.shop_id, int(tx.coins_added))
             await self._wallet.sync_legacy_wallet(tx.shop_id, int(shop.coins_balance))
             await self._payments.mark_success(tx, provider_trans_id=click_trans_id or f"click-{tx.id}")
@@ -164,5 +236,6 @@ class PaymentService:
             "error_note": "Success",
             "click_trans_id": click_trans_id,
             "merchant_trans_id": merchant_trans_id,
+            "merchant_confirm_id": prepare_id,
             "coins_balance": balance,
         }

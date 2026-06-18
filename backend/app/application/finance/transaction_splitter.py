@@ -8,7 +8,7 @@ from uuid import UUID
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.delivery.yandex_quote import YandexDeliveryQuoteEngine
+from app.application.delivery.bts_quote import BtsDeliveryQuoteEngine
 from app.application.finance.split_rules import (
     PaymentSplit,
     assert_split_integrity,
@@ -31,7 +31,7 @@ class TransactionSplitterService:
         self._session = session
         self._settings = settings or get_settings()
         self._repo = FinanceRepository(session)
-        self._delivery = YandexDeliveryQuoteEngine(self._settings)
+        self._delivery = BtsDeliveryQuoteEngine(self._settings)
 
     async def process_order_payment_success(
         self,

@@ -28,8 +28,20 @@ class DeliveryReserveRequest(DeliveryQuoteRequest):
     delivery_cost_uzs: int = Field(ge=0)
     delivery_eta_minutes: int | None = Field(default=None, ge=5, le=24 * 60)
     offer_payload: str | None = None
+    # Mehmon (login'siz) buyurtma uchun telefon OTP tasdiq tokeni
+    verification_token: str | None = Field(default=None, min_length=8, max_length=64)
 
 
 class MerchantPayoutRequestBody(BaseModel):
     amount_uzs: float = Field(gt=0)
     destination: str = Field(default="bank_card", max_length=64)
+    # Uzcard/Humo karta raqami (16 raqam) — reestr/payout uchun
+    card_number: str = Field(min_length=16, max_length=19)
+
+    @field_validator("card_number")
+    @classmethod
+    def normalize_card(cls, value: str) -> str:
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if len(digits) != 16:
+            raise ValueError("card_number must be 16 digits")
+        return digits

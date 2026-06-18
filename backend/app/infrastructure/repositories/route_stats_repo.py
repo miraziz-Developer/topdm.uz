@@ -7,8 +7,14 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.db.models import MerchantAlertLogModel, MerchantPendingProductModel, RouteStatModel
-from app.infrastructure.db.models import LeadModel, ShopModel
+from app.infrastructure.db.models import (
+    LeadModel,
+    MerchantAlertLogModel,
+    MerchantPendingProductModel,
+    ProductModel,
+    RouteStatModel,
+    ShopModel,
+)
 
 
 class RouteStatsRepository:
@@ -177,3 +183,22 @@ class MerchantAlertsRepository:
             .where(ShopModel.is_active == True, ShopModel.telegram_chat_id.is_not(None))
         )
         return [(shop, int(count)) for shop, count in result.all()]
+
+    async def shops_with_low_stock(self, *, threshold: int = 3) -> list[tuple[ShopModel, list[tuple[str, int]]]]:
+        result = await self.session.execute(
+            select(ShopModel)
+            .where(ShopModel.is_active == True, ShopModel.telegram_chat_id.is_not(None))
+        )
+        out: list[tuple[ShopModel, list[tuple[str, int]]]] = []
+        for shop in result.scalars().all():
+            prods = await self.session.execute(
+                select(ProductModel.name, ProductModel.stock_count).where(
+                    ProductModel.shop_id == shop.id,
+                    ProductModel.is_available == True,
+                    ProductModel.stock_count <= threshold,
+                ).limit(8)
+            )
+            rows = [(str(name), int(stock or 0)) for name, stock in prods.all()]
+            if rows:
+                out.append((shop, rows))
+        return out

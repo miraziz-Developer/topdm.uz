@@ -11,6 +11,7 @@ import {
   Package,
   Rocket,
   ShoppingBag,
+  Star,
   UserRound,
 } from "lucide-react";
 
@@ -34,7 +35,7 @@ export const CRM_MAIN_NAV: CrmNavItem[] = [
   {
     href: "/dashboard/sales",
     label: "Savdo",
-    description: "Buyurtmalar va leadlar",
+    description: "Buyurtmalar va murojaatlar",
     icon: ShoppingBag,
   },
   {
@@ -65,12 +66,13 @@ export const CRM_MAIN_NAV: CrmNavItem[] = [
 
 export const CRM_SALES_TABS = [
   { id: "orders", label: "Buyurtmalar", href: "/dashboard/sales?tab=orders", icon: ShoppingBag },
-  { id: "leads", label: "Leadlar", href: "/dashboard/sales?tab=leads", icon: UserRound },
+  { id: "leads", label: "Murojaatlar", href: "/dashboard/sales?tab=leads", icon: UserRound },
 ] as const;
 
 export const CRM_PRODUCT_TABS = [
-  { id: "catalog", label: "Do'kon ro'yxati", href: "/dashboard/products?tab=catalog", icon: Package },
-  { id: "moderation", label: "Yangi rasmlar", href: "/dashboard/products?tab=moderation", icon: Package },
+  { id: "catalog", label: "Katalog", href: "/dashboard/products?tab=catalog", icon: Package },
+  { id: "moderation", label: "Botdan kelganlar", href: "/dashboard/products?tab=moderation", icon: Package },
+  { id: "reviews", label: "Sharhlar", href: "/dashboard/products?tab=reviews", icon: Star },
 ] as const;
 
 export const CRM_CONTENT_TABS = [
@@ -113,7 +115,7 @@ export const CRM_SHOP_TABS = [
     label: "Reja va to'lov",
     href: "/dashboard/shop?tab=billing",
     icon: CreditCard,
-    hint: "Balans to'ldirish (Click/Payme), mahsulot boost",
+    hint: "Balans to'ldirish (Click), mahsulot boost",
   },
 ] as const;
 

@@ -8,7 +8,7 @@ import { allowOnlineCheckout } from "@/lib/runtime-flags";
 import { cn } from "@/lib/utils";
 
 export type InStorePaymentMethod = "cash" | "terminal";
-export type OnlinePaymentMethod = "click" | "payme";
+export type OnlinePaymentMethod = "click";
 export type CheckoutPaymentMethod = InStorePaymentMethod | OnlinePaymentMethod;
 
 const IN_STORE_OPTIONS: Array<{
@@ -41,11 +41,6 @@ const ONLINE_OPTIONS: Array<{
     title: "Click",
     subtitle: "Bron qiling — Click orqali onlayn to'lov",
   },
-  {
-    id: "payme",
-    title: "Payme",
-    subtitle: "Bron qiling — Payme orqali onlayn to'lov",
-  },
 ];
 
 type PaymentMethodPickerProps = {
@@ -64,7 +59,7 @@ export function PaymentMethodPicker({ value, onChange }: PaymentMethodPickerProp
       .catch(() =>
         setOptions({
           in_store: ["cash", "terminal"],
-          online: { click: false, payme: false, bridge: true },
+          online: { click: false, bridge: true },
         }),
       );
   }, [onlineEnabled]);
@@ -77,7 +72,7 @@ export function PaymentMethodPicker({ value, onChange }: PaymentMethodPickerProp
       <div>
         <h3 className="text-sm font-semibold text-ink-900">To&apos;lov usuli</h3>
         <p className="mt-0.5 text-[11px] text-ink-500">
-          {showOnline ? "Do'konda yoki onlayn (bron + to'lov)" : "Faqat do'konda — yetkazish yo'q"}
+          {showOnline ? "Do'konda yoki onlayn (bron + to'lov)" : "Naqd yoki terminal — do'konda yoki kuryerda"}
         </p>
       </div>
 

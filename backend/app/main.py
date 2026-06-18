@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.bootstrap import validate_settings
+from app.core.sentry_init import init_sentry
 from app.core.config import get_settings
 from app.core.logging_config import configure_logging
 from app.infrastructure.db.session import AsyncSessionFactory
@@ -28,6 +29,7 @@ from app.interfaces.middlewares.exception_handlers import (
     validation_exception_handler,
 )
 from app.interfaces.middlewares.client_context import client_context_middleware
+from app.interfaces.middlewares.rate_limit import global_rate_limit_middleware
 from app.interfaces.middlewares.request_id import request_id_middleware
 from app.application.crm_banners.expiration import banner_expiration_worker, expire_sponsored_banners
 from app.interfaces.ws.chat_ws import router as ws_router
@@ -38,30 +40,7 @@ validate_settings(settings)
 
 
 def _init_sentry() -> None:
-    dsn = settings.sentry_dsn.strip()
-    if not dsn:
-        return
-    try:
-        import sentry_sdk
-        from sentry_sdk.integrations.fastapi import FastApiIntegration
-        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-        from sentry_sdk.integrations.starlette import StarletteIntegration
-    except ImportError:
-        return
-
-    traces_sample_rate = 0.15 if settings.is_production else 1.0
-    sentry_sdk.init(
-        dsn=dsn,
-        environment=settings.app_env,
-        release=settings.app_name,
-        traces_sample_rate=traces_sample_rate,
-        send_default_pii=False,
-        integrations=[
-            StarletteIntegration(transaction_style="endpoint"),
-            FastApiIntegration(transaction_style="endpoint"),
-            SqlalchemyIntegration(),
-        ],
-    )
+    init_sentry(settings=settings)
 
 
 _init_sentry()
@@ -79,6 +58,19 @@ async def _app_lifespan(_app: FastAPI):
         await expire_sponsored_banners()
     except Exception:
         pass
+    try:
+        from app.infrastructure.ai_clients.clip_visual_embed import warmup_clip_model
+
+        await warmup_clip_model()
+    except Exception:
+        pass
+    if (settings.fashion_detect_backend or "yolos").lower() == "yolos":
+        try:
+            from app.infrastructure.ai_clients.yolos_fashion_detect import warmup_yolos_fashion
+
+            await warmup_yolos_fashion()
+        except Exception:
+            pass
     yield
     stop.set()
     worker.cancel()
@@ -122,11 +114,37 @@ app.add_middleware(
 
 app.middleware("http")(client_context_middleware)
 app.middleware("http")(request_id_middleware)
+app.middleware("http")(global_rate_limit_middleware)
+
+
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if settings.is_production:
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
 app.include_router(api_router, prefix=settings.api_prefix)
 app.include_router(billing_router, prefix=settings.api_prefix)
 app.include_router(vendors_router, prefix=settings.api_prefix)
 app.include_router(reels_router, prefix=settings.api_prefix)
 app.include_router(ws_router)
+
+# SQLAdmin web panel (faqat platforma egasi uchun — /admin)
+try:
+    from app.interfaces.admin_panel import setup_admin_panel
+
+    setup_admin_panel(app, settings)
+except Exception as exc:  # noqa: BLE001
+    from loguru import logger
+
+    logger.warning("Admin panel ulanmadi: {}", exc)
 
 
 async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:

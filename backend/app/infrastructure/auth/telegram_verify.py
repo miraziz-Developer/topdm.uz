@@ -8,6 +8,13 @@ from typing import Any
 from urllib.parse import parse_qsl
 
 
+def _telegram_field_value(value: Any) -> str:
+    """Telegram hash — barcha qiymatlar string sifatida."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
 def verify_telegram_login(data: dict[str, Any], bot_token: str, *, max_age_seconds: int = 86_400) -> bool:
     """Validate Telegram Login Widget payload (https://core.telegram.org/widgets/login)."""
     payload = {k: v for k, v in data.items() if v is not None and k != "hash"}
@@ -15,11 +22,16 @@ def verify_telegram_login(data: dict[str, Any], bot_token: str, *, max_age_secon
     if not received_hash or not bot_token:
         return False
 
-    auth_date = int(payload.get("auth_date") or 0)
+    try:
+        auth_date = int(payload.get("auth_date") or 0)
+    except (TypeError, ValueError):
+        return False
     if auth_date and time.time() - auth_date > max_age_seconds:
         return False
 
-    check_string = "\n".join(f"{k}={payload[k]}" for k in sorted(payload.keys()))
+    check_string = "\n".join(
+        f"{k}={_telegram_field_value(payload[k])}" for k in sorted(payload.keys())
+    )
     secret = hashlib.sha256(bot_token.encode()).digest()
     computed = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(computed, received_hash)

@@ -8,16 +8,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.marketplace.home_feed_service import HomeFeedService
 from app.application.premium_banners.service import PremiumBannerService
+from app.infrastructure.auth.deps import AuthUser, get_optional_user
 from app.infrastructure.db.session import get_db_session
+from app.interfaces.api.admin_routes import require_admin_key
 
 router = APIRouter(prefix="/home", tags=["home"])
 
 
 @router.get("/deal-feed")
-async def home_deal_feed(limit: int = 16, db: AsyncSession = Depends(get_db_session)) -> dict:
-    """Lightning + clearance + tavsiya (bitta so'rov, fallback ichida)."""
+async def home_deal_feed(
+    limit: int = 16,
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Lightning + clearance + tavsiya (buyurtma tarixiga qarab shaxsiylashtirilgan)."""
     svc = HomeFeedService(db)
-    return await svc.get_deal_feed(limit=min(max(limit, 4), 24))
+    return await svc.get_deal_feed(limit=min(max(limit, 4), 24), user_id=user.id if user else None)
 
 
 @router.get("/premium-banners")
@@ -72,6 +78,7 @@ class CreateSponsoredBannerBody(BaseModel):
 @router.post("/premium-banners")
 async def create_sponsored_banner(
     body: CreateSponsoredBannerBody,
+    _: None = Depends(require_admin_key),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     from datetime import datetime, timedelta, timezone

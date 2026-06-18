@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.reels.feed_algorithm import get_personalized_feed, record_interaction
 from app.application.reels.reels_service import ReelsService
+from app.core.upload_validation import validate_image_bytes, validate_video_bytes
 from app.infrastructure.auth.deps import require_merchant_shop, get_optional_user
 from app.infrastructure.auth.types import AuthUser
 from app.infrastructure.db.session import get_db_session
@@ -399,16 +400,14 @@ async def merchant_upload_reel(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Merchant video yuklash + mahsulot tagging."""
-    if video.content_type not in ("video/mp4", "video/webm", "video/quicktime"):
-        raise HTTPException(400, "Faqat MP4 / WebM video qabul qilinadi")
-
     video_bytes = await video.read()
-    if len(video_bytes) > MAX_VIDEO_BYTES:
-        raise HTTPException(400, f"Video hajmi {MAX_VIDEO_MB}MB dan oshmasligi kerak")
+    video_mime = validate_video_bytes(video_bytes, max_bytes=MAX_VIDEO_BYTES)
 
     thumbnail_bytes: bytes | None = None
     if thumbnail:
-        thumbnail_bytes = await thumbnail.read()
+        thumb_raw = await thumbnail.read()
+        validate_image_bytes(thumb_raw, max_bytes=2 * 1024 * 1024, label="Thumbnail")
+        thumbnail_bytes = thumb_raw
 
     tags = [t.strip() for t in hashtags.split(",") if t.strip()]
     product_ids = [p.strip() for p in tagged_product_ids.split(",") if p.strip()]
@@ -420,7 +419,7 @@ async def merchant_upload_reel(
         caption=caption,
         hashtags=tags,
         tagged_product_ids=product_ids,
-        content_type=video.content_type or "video/mp4",
+        content_type=video_mime,
         thumbnail_bytes=thumbnail_bytes,
         duration_seconds=duration_seconds,
     )

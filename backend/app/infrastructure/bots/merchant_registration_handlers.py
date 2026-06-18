@@ -3,21 +3,24 @@ from __future__ import annotations
 import uuid
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from app.application.merchant.registration import (
     MARKET_ZONE_OPTIONS,
+    SHOP_TYPE_OPTIONS,
     MerchantRegistrationDraft,
     MerchantRegistrationService,
     normalize_uz_phone,
+    parse_shop_type_label,
 )
 from app.infrastructure.bots.merchant_bot_ui import (
     contact_keyboard,
     location_keyboard,
     market_zone_keyboard,
     merchant_menu_keyboard,
+    shop_type_keyboard,
     start_inline_keyboard,
 )
 from app.application.map.geo_anchors import (
@@ -32,7 +35,7 @@ from app.infrastructure.db.session import AsyncSessionFactory
 reg_router = Router(name="merchant_registration")
 
 _LOCATION_STEP_HINT = (
-    "6/8 — Do'kon joylashuvi\n\n"
+    "7/9 — Do'kon joylashuvi\n\n"
     "📱 Telefon (Telegram mobil): pastdagi «Joylashuvni yuborish» → «Share».\n"
     "💻 Kompyuter (Telegram Desktop): 📎 (Attach) → Location → nuqtani yuboring.\n"
     "   (Desktopda pastdagi tugma ishlamasligi mumkin — bu Telegram cheklovi.)\n\n"
@@ -44,6 +47,8 @@ def _default_coords_for_market(market_zone: str) -> tuple[float, float]:
     zone = (market_zone or "").strip().lower()
     if "abu" in zone or "saxiy" in zone:
         return ABU_SAXIY_NODE_LAT, ABU_SAXIY_NODE_LNG
+    if "kozgalovka" in zone or "kozgalova" in zone:
+        return 41.2365, 69.1810
     return IPPODROM_CENTER_LAT, IPPODROM_CENTER_LNG
 
 
@@ -51,7 +56,7 @@ async def _advance_after_location(message: Message, state: FSMContext, *, lat: f
     await state.update_data(reg_lat=lat, reg_lon=lon, reg_loc_acc=acc)
     await state.set_state(MerchantBotStates.reg_storefront)
     await message.answer(
-        "7/8 — Do'kon tashqi ko'rinishi (fasad) rasmini yuboring — majburiy:",
+        "8/9 — Do'kon tashqi ko'rinishi (fasad) rasmini yuboring — majburiy:",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -63,7 +68,7 @@ def _cancel_hint() -> str:
 @reg_router.message(Command("register"))
 @reg_router.message(F.text.casefold() == "ro'yxatdan o'tish")
 @reg_router.message(F.text.casefold() == "royxatdan otish")
-async def cmd_register(message: Message, state: FSMContext) -> None:
+async def cmd_register(message: Message, state: FSMContext, command: CommandObject | None = None) -> None:
     if not message.from_user:
         return
     async with AsyncSessionFactory() as session:
@@ -79,10 +84,30 @@ async def cmd_register(message: Message, state: FSMContext) -> None:
         return
 
     await state.clear()
+    raw_args = (command.args or "").strip() if command and command.args else ""
+    fast = raw_args.casefold().startswith("tez")
+    ref_code: str | None = None
+    if fast:
+        tail = raw_args[3:].strip().upper()
+        if tail:
+            ref_code = tail
+    elif raw_args:
+        ref_code = raw_args.upper()
+    if ref_code:
+        await state.update_data(reg_referral_code=ref_code)
+    if fast:
+        await state.update_data(reg_fast=True)
     await state.set_state(MerchantBotStates.reg_name)
+    invite_hint = (
+        f"\n\n🎁 Do'stingizning taklifi: {ref_code} — ro'yxatdan o'tgach ikkalangizga coin!"
+        if ref_code
+        else ""
+    )
+    steps = "3/3 tez ro'yxat" if fast else "9 qadam"
     await message.answer(
-        "Bozorliii — do'kon ro'yxatdan o'tish\n\n"
-        "1/8 — Do'kon nomini yozing (masalan: Murod Fashion):",
+        f"Bozorliii — do'kon ro'yxatdan o'tish ({steps})\n\n"
+        f"1 — Do'kon nomini yozing (masalan: Murod Fashion):{invite_hint}\n"
+        + ("Tez rejim: joylashuv va rasm keyinroq CRM dan." if fast else ""),
         reply_markup=None,
     )
 
@@ -98,9 +123,37 @@ async def reg_name(message: Message, state: FSMContext) -> None:
         await message.answer("Nom juda qisqa. Qayta yozing.")
         return
     await state.update_data(reg_name=name)
+    data = await state.get_data()
+    if data.get("reg_fast"):
+        await state.update_data(reg_shop_type="chakana", reg_shop_type_label="Chakana")
+        await state.set_state(MerchantBotStates.reg_market)
+        await message.answer("2/3 — Qaysi bozor?", reply_markup=market_zone_keyboard())
+        return
+    await state.set_state(MerchantBotStates.reg_shop_type)
+    await message.answer(
+        "2/9 — Do'kon turi:\n"
+        "• Chakana — donalab sotadi\n"
+        "• Optomchi — pachkada sotadi\n"
+        "• Ikkalasi — ikkala formatda",
+        reply_markup=shop_type_keyboard(),
+    )
+
+
+@reg_router.message(MerchantBotStates.reg_shop_type, F.text)
+async def reg_shop_type(message: Message, state: FSMContext) -> None:
+    label = (message.text or "").strip()
+    if label.lower() in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Bekor qilindi.")
+        return
+    shop_type = parse_shop_type_label(label)
+    if not shop_type or label not in SHOP_TYPE_OPTIONS:
+        await message.answer("Tugmani tanlang.", reply_markup=shop_type_keyboard())
+        return
+    await state.update_data(reg_shop_type=shop_type, reg_shop_type_label=label)
     await state.set_state(MerchantBotStates.reg_market)
     await message.answer(
-        "2/8 — Qaysi bozor?\nTugmani tanlang:",
+        "3/9 — Qaysi bozor?\nTugmani tanlang:",
         reply_markup=market_zone_keyboard(),
     )
 
@@ -116,9 +169,27 @@ async def reg_market(message: Message, state: FSMContext) -> None:
         await message.answer("Ro'yxatdan tugmani tanlang.", reply_markup=market_zone_keyboard())
         return
     await state.update_data(reg_market=zone)
+    data = await state.get_data()
+    if data.get("reg_fast"):
+        lat, lon = _default_coords_for_market(zone)
+        await state.update_data(
+            reg_block="Aniqlanmadi",
+            reg_stall="—",
+            reg_location_comment="CRM xaritadan belgilanadi",
+            reg_lat=lat,
+            reg_lon=lon,
+            reg_loc_acc=None,
+        )
+        await state.set_state(MerchantBotStates.reg_contact)
+        await message.answer(
+            "3/3 — Telefon raqamini yuboring.\n"
+            "Blok/rasta va rasmni keyin CRM dan to'ldirasiz.",
+            reply_markup=contact_keyboard(),
+        )
+        return
     await state.set_state(MerchantBotStates.reg_block)
     await message.answer(
-        "3/8 — Blok / qator nomi (masalan: A blok, 2-qator):",
+        "4/9 — Blok / qator nomi (masalan: A blok, 2-qator):",
         reply_markup=None,
     )
 
@@ -135,7 +206,7 @@ async def reg_block(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(reg_block=block)
     await state.set_state(MerchantBotStates.reg_stall)
-    await message.answer("4/8 — Do'kon raqami (masalan: 12, 45-A):")
+    await message.answer("5/9 — Do'kon raqami (masalan: 12, 45-A):")
 
 
 @reg_router.message(MerchantBotStates.reg_stall, F.text)
@@ -146,9 +217,26 @@ async def reg_stall(message: Message, state: FSMContext) -> None:
         await message.answer("Bekor qilindi.")
         return
     await state.update_data(reg_stall=stall)
+    data = await state.get_data()
+    if data.get("reg_fast"):
+        market = str(data.get("reg_market") or "")
+        lat, lon = _default_coords_for_market(market)
+        await state.update_data(
+            reg_location_comment="CRM xaritadan belgilanadi",
+            reg_lat=lat,
+            reg_lon=lon,
+            reg_loc_acc=None,
+        )
+        await state.set_state(MerchantBotStates.reg_contact)
+        await message.answer(
+            "Tez rejim — oxirgi qadam: telefon raqamini yuboring.\n"
+            "Joylashuv va vitrina rasmini keyin CRM → Xarita dan to'ldirasiz.",
+            reply_markup=contact_keyboard(),
+        )
+        return
     await state.set_state(MerchantBotStates.reg_location_comment)
     await message.answer(
-        "5/8 — Joy topish uchun izoh (masalan: Eskalator yonida, ko'k eshik):"
+        "6/9 — Joy topish uchun izoh (masalan: Eskalator yonida, ko'k eshik):"
     )
 
 
@@ -210,43 +298,63 @@ async def reg_location_text(message: Message, state: FSMContext) -> None:
     )
 
 
+async def _ask_reg_phone(message: Message, state: FSMContext) -> None:
+    await state.set_state(MerchantBotStates.reg_contact)
+    await message.answer(
+        "9/9 — Egasi telefon raqamini yuboring:\n"
+        "• «Telefon raqamini yuborish» tugmasi (o'z raqamingiz)\n"
+        "• yoki +998XXXXXXXXX ko'rinishida yozing (boshqa egasi raqami bo'lishi mumkin)",
+        reply_markup=contact_keyboard(),
+    )
+
+
 @reg_router.message(MerchantBotStates.reg_storefront, F.photo)
 async def reg_storefront(message: Message, state: FSMContext) -> None:
     if not message.photo:
         return
     photo = message.photo[-1]
     await state.update_data(reg_storefront_file_id=photo.file_id)
-    await state.set_state(MerchantBotStates.reg_contact)
+    await _ask_reg_phone(message, state)
+
+
+@reg_router.message(MerchantBotStates.reg_storefront)
+async def reg_storefront_fallback(message: Message, state: FSMContext) -> None:
+    """Rasm o'rniga matn kelsa — yo'l-yo'riq beramiz yoki o'tkazib yuboramiz."""
+    text = (message.text or "").strip().lower()
+    if text in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Ro'yxatdan o'tish bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+    if text in {"keyinroq", "o'tkazib yuborish", "otkazib yuborish", "skip"}:
+        await message.answer("Do'kon rasmi keyinroq CRM orqali qo'shiladi.")
+        await _ask_reg_phone(message, state)
+        return
     await message.answer(
-        "8/8 — Egasi telefon raqamini yuboring (kontakt tugmasi):",
-        reply_markup=contact_keyboard(),
+        "8/9 — Do'kon (peshtaxta) RASMINI yuboring.\n"
+        "Hozir rasm yo'q bo'lsa «Keyinroq» deb yozing — keyin CRM dan qo'shasiz."
     )
 
 
-@reg_router.message(MerchantBotStates.reg_contact, F.contact)
-async def reg_contact(message: Message, state: FSMContext) -> None:
-    if not message.contact or not message.from_user:
-        return
-    phone = normalize_uz_phone(message.contact.phone_number or "")
-    if not phone:
-        await message.answer("Telefon +998 formatida bo'lishi kerak. Qayta yuboring.")
-        return
-
+async def _advance_reg_phone(
+    message: Message,
+    state: FSMContext,
+    *,
+    phone: str,
+    owner_name: str | None,
+) -> None:
     async with AsyncSessionFactory() as session:
         svc = MerchantRegistrationService(session)
         if await svc.phone_already_registered(phone):
-            await message.answer("Bu telefon boshqa do'konda ro'yxatdan o'tgan.")
+            await message.answer(
+                "Bu telefon boshqa do'konda ro'yxatdan o'tgan. Boshqa raqam kiriting.",
+                reply_markup=contact_keyboard(),
+            )
             return
 
     data = await state.get_data()
-    owner_name = " ".join(
-        p
-        for p in [message.contact.first_name or "", message.contact.last_name or ""]
-        if p
-    ).strip()
-
     summary = (
         f"Do'kon: {data.get('reg_name')}\n"
+        f"Turi: {data.get('reg_shop_type_label') or data.get('reg_shop_type')}\n"
         f"Bozor: {data.get('reg_market')}\n"
         f"Blok/qator: {data.get('reg_block')}\n"
         f"Raqam: {data.get('reg_stall')}\n"
@@ -254,7 +362,7 @@ async def reg_contact(message: Message, state: FSMContext) -> None:
         f"Telefon: {phone}\n\n"
         "Tasdiqlaysizmi?"
     )
-    await state.update_data(reg_phone=phone, reg_owner_name=owner_name or None)
+    await state.update_data(reg_phone=phone, reg_owner_name=owner_name)
     await state.set_state(MerchantBotStates.reg_confirm)
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -269,12 +377,76 @@ async def reg_contact(message: Message, state: FSMContext) -> None:
     await message.answer(summary, reply_markup=kb)
 
 
+@reg_router.message(MerchantBotStates.reg_contact, F.contact)
+async def reg_contact(message: Message, state: FSMContext) -> None:
+    if not message.contact or not message.from_user:
+        return
+    phone = normalize_uz_phone(message.contact.phone_number or "")
+    if not phone:
+        await message.answer(
+            "Telefon +998 formatida bo'lishi kerak.\n"
+            "O'zbek raqamini yozing (masalan: +998901234567) yoki kontakt tugmasini bosing.",
+            reply_markup=contact_keyboard(),
+        )
+        return
+    owner_name = " ".join(
+        p
+        for p in [message.contact.first_name or "", message.contact.last_name or ""]
+        if p
+    ).strip()
+    await _advance_reg_phone(message, state, phone=phone, owner_name=owner_name or None)
+
+
+@reg_router.message(MerchantBotStates.reg_contact, F.text)
+async def reg_contact_text(message: Message, state: FSMContext) -> None:
+    text = (message.text or "").strip()
+    if text.lower() in {"bekor qilish", "bekor"}:
+        await state.clear()
+        await message.answer("Ro'yxatdan o'tish bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+    if text == "Telefon raqamini yuborish":
+        await message.answer(
+            "Tugmani bosib kontaktni yuboring yoki +998XXXXXXXXX yozing.",
+            reply_markup=contact_keyboard(),
+        )
+        return
+
+    phone = normalize_uz_phone(text)
+    if not phone:
+        await message.answer(
+            "Telefon noto'g'ri. +998XXXXXXXXX yozing (masalan: +998976042102)\n"
+            "yoki «Telefon raqamini yuborish» tugmasidan foydalaning.",
+            reply_markup=contact_keyboard(),
+        )
+        return
+
+    owner_name: str | None = None
+    if message.from_user:
+        owner_name = " ".join(
+            p for p in [message.from_user.first_name or "", message.from_user.last_name or ""] if p
+        ).strip() or None
+    await _advance_reg_phone(message, state, phone=phone, owner_name=owner_name)
+
+
 @reg_router.callback_query(F.data == "reg:cancel")
 async def reg_cancel_cb(query: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     if query.message:
         await query.message.edit_text("Ro'yxatdan o'tish bekor qilindi.")
     await query.answer()
+
+
+@reg_router.message(MerchantBotStates.reg_confirm)
+async def reg_confirm_fallback(message: Message, state: FSMContext) -> None:
+    """Tasdiqlash bosqichida matn kelsa — tugmalardan foydalanishni eslatamiz."""
+    text = (message.text or "").strip().lower()
+    if text in {"bekor qilish", "bekor", "yo'q", "yoq"}:
+        await state.clear()
+        await message.answer("Ro'yxatdan o'tish bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+    await message.answer(
+        "Iltimos, yuqoridagi «Ha, ro'yxatdan o'tish» yoki «Bekor» tugmasini bosing."
+    )
 
 
 @reg_router.callback_query(F.data == "reg:confirm")
@@ -286,6 +458,7 @@ async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
     try:
         draft = MerchantRegistrationDraft(
             name=str(data["reg_name"]),
+            shop_type=str(data.get("reg_shop_type") or "chakana"),
             market_zone=str(data["reg_market"]),
             block_sector=str(data["reg_block"]),
             stall_number=str(data["reg_stall"]),
@@ -299,6 +472,7 @@ async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
             storefront_image_url=None,
             telegram_chat_id=int(query.message.chat.id),
             telegram_user_id=int(query.from_user.id),
+            referral_code=data.get("reg_referral_code"),
         )
         async with AsyncSessionFactory() as session:
             svc = MerchantRegistrationService(session)
@@ -328,7 +502,7 @@ async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
         f"Do'kon ID: {shop.id}\n\n"
         f"📱 CRM Panel tugmasi — buyurtma va chat (ilova shart emas)\n"
         f"🌐 Brauzer: {crm_url}/login\n\n"
-        "⏳ Mijoz saytida ko'rinish: platforma tasdiqlagach.\n"
+        "⏳ Birinchi mahsulotni botga rasm yuboring — joylangach saytda ko'rinasiz.\n"
         "Hozir: rasm yuboring (AI), CRM Panel — boshqaruv."
     )
     await query.message.answer(text, reply_markup=merchant_menu_keyboard(shop.id))

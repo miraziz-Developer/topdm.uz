@@ -24,7 +24,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - backend-network
+      - db-network
 
   redis:
     image: redis:7-alpine
@@ -38,7 +38,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - backend-network
+      - db-network
 
   backend:
     build:
@@ -58,8 +58,13 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
       DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      # CLIP ~400MB RAM — 1 worker on VPS; .env da 4 qo'ymang (OOM).
+      UVICORN_WORKERS: "1"
+      HF_HOME: /app/.cache/huggingface
+      FASHION_DETECT_BACKEND: yolos
     # Persistent media: stories, reels, review photos survive container redeploys.
     volumes:
       - bozor_uploads:/app/uploads
@@ -73,8 +78,9 @@ services:
       interval: 20s
       timeout: 10s
       retries: 5
-      start_period: 90s
+      start_period: 150s
     networks:
+      - db-network
       - backend-network
 
   merchant-bot:
@@ -91,12 +97,120 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
       PYTHONPATH: /app
+    # Mahsulot rasmlari backend bilan bir xil volume — aks holda 404 placeholder chiqadi.
+    volumes:
+      - bozor_uploads:/app/uploads
     entrypoint: []
     command: ["python", "/app/scripts/run_merchant_bot.py"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import pathlib; s=pathlib.Path('/proc/1/cmdline').read_bytes().decode('latin1','replace'); exit(0 if 'run_merchant_bot' in s else 1)\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
     depends_on:
       backend:
         condition: service_healthy
     networks:
+      - db-network
+      - backend-network
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.celery
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PYTHONPATH: /app
+    volumes:
+      - bozor_uploads:/app/uploads
+    entrypoint: []
+    command:
+      [
+        "celery",
+        "-A",
+        "app.infrastructure.tasks.celery_app.celery_app",
+        "worker",
+        "-l",
+        "info",
+        "-Q",
+        "celery",
+        "--concurrency",
+        "1",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import pathlib; s=pathlib.Path('/proc/1/cmdline').read_bytes().decode('latin1','replace'); exit(0 if 'celery' in s and 'worker' in s else 1)\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - db-network
+      - backend-network
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.celery
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PYTHONPATH: /app
+    entrypoint: []
+    command:
+      [
+        "celery",
+        "-A",
+        "app.infrastructure.tasks.celery_app.celery_app",
+        "beat",
+        "-l",
+        "info",
+      ]
+    depends_on:
+      celery-worker:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import pathlib; s=pathlib.Path('/proc/1/cmdline').read_bytes().decode('latin1','replace'); exit(0 if 'celery' in s and 'beat' in s else 1)\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - db-network
       - backend-network
 
   frontend:
@@ -106,8 +220,8 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
         NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.uz}
-        NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-https://crm.bozorliii.uz}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.online}
+        NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-https://crm.bozorliii.online}
         NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
         NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
         NEXT_PUBLIC_MEDIA_CDN_URL: ${NEXT_PUBLIC_MEDIA_CDN_URL:-}
@@ -121,6 +235,16 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000',(r)=>{r.resume();process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
     networks:
       - frontend-network
       - backend-network
@@ -148,6 +272,16 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000',(r)=>{r.resume();process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
     networks:
       - frontend-network
       - backend-network
@@ -166,9 +300,9 @@ services:
       - nginx_logs:/var/log/nginx
     depends_on:
       frontend:
-        condition: service_started
+        condition: service_healthy
       merchant-crm:
-        condition: service_started
+        condition: service_healthy
       backend:
         condition: service_healthy
     healthcheck:
@@ -185,9 +319,11 @@ services:
       - backend-network
 
 networks:
+  db-network:
+    driver: bridge
+    internal: true
   backend-network:
     driver: bridge
-    internal: false
   frontend-network:
     driver: bridge
 

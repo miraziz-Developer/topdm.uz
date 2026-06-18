@@ -60,11 +60,21 @@ class TariffDecision:
         return {"taxi_class": "express"}
 
 
+def _positive_or_default(value: Decimal | int | float | None, default: Decimal | int) -> Decimal | int:
+    if value is None:
+        return default
+    try:
+        numeric = Decimal(str(value))
+    except Exception:
+        return default
+    return default if numeric <= 0 else value
+
+
 def product_physics(product: ProductModel, quantity: int) -> CartLinePhysics:
-    w = product.weight_kg if product.weight_kg is not None else DEFAULT_WEIGHT_KG
-    length = product.length_cm if product.length_cm is not None else DEFAULT_LENGTH_CM
-    width = product.width_cm if product.width_cm is not None else DEFAULT_WIDTH_CM
-    height = product.height_cm if product.height_cm is not None else DEFAULT_HEIGHT_CM
+    w = _positive_or_default(product.weight_kg, DEFAULT_WEIGHT_KG)
+    length = int(_positive_or_default(product.length_cm, DEFAULT_LENGTH_CM))
+    width = int(_positive_or_default(product.width_cm, DEFAULT_WIDTH_CM))
+    height = int(_positive_or_default(product.height_cm, DEFAULT_HEIGHT_CM))
     return CartLinePhysics(
         product_id=str(product.id),
         quantity=quantity,

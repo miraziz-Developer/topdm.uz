@@ -273,6 +273,22 @@ async def fetch_stylist_catalog(
         ]
         if len(affordable) >= 6:
             merged = affordable
+        elif not affordable and merged:
+            overflow = sorted(
+                merged,
+                key=lambda row: float(row.get("price") or row.get("price_uzs") or 0),
+            )
+            merged = []
+            for row in overflow:
+                price = float(row.get("price") or row.get("price_uzs") or 0)
+                if price > max_uzs * 3.5:
+                    continue
+                if price > max_uzs * 1.15:
+                    row = dict(row)
+                    row["budget_overflow"] = True
+                merged.append(row)
+                if len(merged) >= limit:
+                    break
 
     in_stock = [
         p

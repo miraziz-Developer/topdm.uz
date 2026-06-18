@@ -2,12 +2,13 @@
 
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ProductImage } from "@/components/ui/product-image";
 import { stylistLookbook } from "@/lib/api";
+import { productImage } from "@/lib/media";
 import { formatPrice } from "@/lib/utils";
 import { useUserStore } from "@/stores/user-store";
 import type { Product } from "@/types";
@@ -16,6 +17,28 @@ type AiStylistAdviceProps = {
   product: Product;
   related?: Product[];
 };
+
+function stylistImageUrlForApi(images?: string[] | null): string | undefined {
+  const resolved = images?.[0] ? productImage(images, 0) : "";
+  if (!resolved || resolved.startsWith("/brand/") || resolved.startsWith("/placeholder")) {
+    return undefined;
+  }
+  return resolved.startsWith("http://") || resolved.startsWith("https://") ? resolved : undefined;
+}
+
+function offlineStylistAdvice(product: Product, related: Product[]): { explanation: string; pair: Product | null } {
+  const pair = related.find((item) => item.id !== product.id) ?? related[0] ?? null;
+  if (pair) {
+    return {
+      explanation: `«${product.name}» bilan bazadagi «${pair.name}» yonma-yon ko'rinishi mumkin. To'liq AI juftlik uchun pastdagi o'xshash tovarlarni ko'ring.`,
+      pair,
+    };
+  }
+  return {
+    explanation: `«${product.name}» uchun hozircha juftlik topilmadi. O'xshash tovarlar yoki AI chat orqali so'rang.`,
+    pair: null,
+  };
+}
 
 export function AiStylistAdvice({ product, related = [] }: AiStylistAdviceProps) {
   const profile = useUserStore((state) => state.profile);
@@ -27,22 +50,34 @@ export function AiStylistAdvice({ product, related = [] }: AiStylistAdviceProps)
     const run = async () => {
       setLoading(true);
       try {
-        const response = await stylistLookbook({
-          user_id: profile?.email || "consumer-web",
-          text: `${product.name} bilan nima kiyish mumkin?`,
-          image_url: product.images?.[0],
-          max_price: Math.round(product.price * 1.4),
-        });
-        setExplanation(response.explanation);
+        const response = await stylistLookbook(
+          {
+            user_id: profile?.email || "consumer-web",
+            text: `${product.name} bilan nima kiyish mumkin?`,
+            image_url: stylistImageUrlForApi(product.images),
+            max_price: Math.round(product.price * 1.4),
+          },
+          { silent: true },
+        );
+        const fallback = offlineStylistAdvice(product, related);
         const matchId = response.lookbook?.[0]?.product_id;
         const fromApi = response.lookbook?.find((item) => item.product)?.product;
-        const found = fromApi ?? related.find((item) => item.id === matchId) ?? related[0] ?? null;
-        setPair(found);
+        const found =
+          fromApi ??
+          related.find((item) => item.id === matchId && item.id !== product.id) ??
+          related.find((item) => item.id !== product.id) ??
+          null;
+        const apiExplanation = response.explanation?.trim();
+        const looksGeneric =
+          !apiExplanation ||
+          apiExplanation.toLowerCase().includes("no matching products") ||
+          apiExplanation.toLowerCase().includes("try a different search");
+        setExplanation(looksGeneric ? fallback.explanation : apiExplanation);
+        setPair(found ?? (looksGeneric ? fallback.pair : null));
       } catch {
-        setExplanation(
-          "Bu kiyim sizdagi to'q ko'k slim-fit shim va oq krossovka bilan zamonaviy kundalik look hosil qiladi. Chorsu 2-qavatdagi aksessuar do'konidan kamar qo'shsangiz, siluet yanada to'liq ko'rinadi.",
-        );
-        setPair(related[0] ?? null);
+        const fallback = offlineStylistAdvice(product, related);
+        setExplanation(fallback.explanation);
+        setPair(fallback.pair);
       } finally {
         setLoading(false);
       }
@@ -73,12 +108,17 @@ export function AiStylistAdvice({ product, related = [] }: AiStylistAdviceProps)
                 href={`/product/${pair.id}`}
                 className="mt-5 flex items-center gap-4 rounded-2xl border border-border-subtle bg-canvas/60 p-3 transition hover:border-gold-500/40"
               >
-                <div className="relative h-20 w-20 overflow-hidden rounded-xl bg-elevated">
-                  <Image src={pair.images?.[0] || "/placeholder.png"} alt={pair.name} fill className="object-cover" sizes="80px" />
-                </div>
+                <ProductImage
+                  images={pair.images}
+                  alt={pair.name}
+                  fill
+                  wrapperClassName="h-20 w-20 rounded-xl bg-elevated"
+                  className="object-cover"
+                  sizes="80px"
+                />
                 <div>
                   <p className="text-sm font-medium text-text-100">{pair.name}</p>
-                  <p className="mt-1 text-xs text-electric-500">Siz tanlagan look bilan 98% mos tushadi</p>
+                  <p className="mt-1 text-xs text-electric-500">Bazadagi o&apos;xshash tovar</p>
                   <p className="price-mono mt-2 text-lg font-bold text-gold-500">{formatPrice(pair.price)}</p>
                 </div>
               </Link>

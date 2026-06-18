@@ -5,29 +5,71 @@ from __future__ import annotations
 import hashlib
 import re
 
-# Frontend `/brand/bozorliii-product-placeholder.svg` — kategoriya sloti attributes da
-_CATALOG_PLACEHOLDER = "/brand/bozorliii-product-placeholder.svg"
-
-
-def _stable_pool_urls(pool_key: str, count: int = 6) -> tuple[str, ...]:
-    """Mahsulot kartasi — tasodifiy landshaft emas, brend placeholder."""
-    return tuple(_CATALOG_PLACEHOLDER for _ in range(count))
-
-
-# Har slot uchun bir nechta turli rasm (vizual qidiruv testi)
+# Har slot uchun turli rasm — CLIP vizual qidiruv uchun haqiqiy foto
 IMAGE_POOLS: dict[str, tuple[str, ...]] = {
-    "shim": _stable_pool_urls("shim"),
-    "kurtka": _stable_pool_urls("kurtka"),
-    "koylak": _stable_pool_urls("koylak", 5),
-    "poyabzal": _stable_pool_urls("poyabzal"),
-    "kamar": _stable_pool_urls("kamar", 3),
-    "sumka": _stable_pool_urls("sumka", 4),
-    "libos": _stable_pool_urls("libos", 4),
-    "mato": _stable_pool_urls("mato", 3),
-    "atir": _stable_pool_urls("atir", 2),
-    "sport": _stable_pool_urls("sport", 3),
-    "bolalar": _stable_pool_urls("bolalar", 2),
-    "soat": _stable_pool_urls("soat", 2),
+    "shim": (
+        "https://images.unsplash.com/photo-1473966968600-fa801b546d38?w=600&q=80",
+        "https://images.unsplash.com/photo-1542272604-787c3835535d?w=600&q=80",
+        "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600&q=80",
+    ),
+    "kurtka": (
+        "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80",
+        "https://images.unsplash.com/photo-1544022613-e87ca75d338e?w=600&q=80",
+        "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=600&q=80",
+    ),
+    "koylak": (
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&q=80",
+        "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600&q=80",
+        "https://images.unsplash.com/photo-1434389677669-641f78720c3e?w=600&q=80",
+        "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=600&q=80",
+        "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=600&q=80",
+    ),
+    "poyabzal": (
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80",
+        "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=600&q=80",
+        "https://images.unsplash.com/photo-1460353581641-745b41e12a4f?w=600&q=80",
+        "https://images.unsplash.com/photo-1595950653102-6c9ebd614d3a?w=600&q=80",
+        "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=600&q=80",
+    ),
+    "kamar": (
+        "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&q=80",
+        "https://images.unsplash.com/photo-1624222247344-550fb60583fd?w=600&q=80",
+        "https://images.unsplash.com/photo-1584917865442-de89d76aad62?w=600&q=80",
+    ),
+    "sumka": (
+        "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=600&q=80",
+        "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=600&q=80",
+        "https://images.unsplash.com/photo-1584917865442-de89d76aad62?w=600&q=80",
+        "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&q=80",
+    ),
+    "libos": (
+        "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=600&q=80",
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80",
+        "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=600&q=80",
+        "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&q=80",
+    ),
+    "mato": (
+        "https://images.unsplash.com/photo-1558171813-4c088753af8f?w=600&q=80",
+        "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=600&q=80",
+        "https://images.unsplash.com/photo-1615485925511-ef3c81a0e1e8?w=600&q=80",
+    ),
+    "atir": (
+        "https://images.unsplash.com/photo-1541643600914-78b084683702?w=600&q=80",
+        "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=600&q=80",
+    ),
+    "sport": (
+        "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80",
+        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80",
+        "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80",
+    ),
+    "bolalar": (
+        "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=600&q=80",
+        "https://images.unsplash.com/photo-1519233290459-e8b835a3e4d0?w=600&q=80",
+    ),
+    "soat": (
+        "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&q=80",
+        "https://images.unsplash.com/photo-1524592094715-efdd4c45d968?w=600&q=80",
+    ),
 }
 
 # Uzunroq iboralar avval — "kostyum kurtka" "kurtka" dan oldin
@@ -50,7 +92,7 @@ _HINT_TO_POOL: list[tuple[tuple[str, ...], str]] = [
 _SUB_CATEGORY_POOL: list[tuple[tuple[str, ...], str]] = [
     (("poyabzal", "tufli", "oyoq"), "poyabzal"),
     (("ko'ylak", "koylak", "klassik"), "koylak"),
-    (("bahoriy", "kuzgi", "ustki"), "kurtka"),  # nomda shim bo'lsa nom ustun
+    (("bahoriy", "kuzgi", "ustki"), "kurtka"),
     (("sport",), "sport"),
     (("sarpo", "libos"), "libos"),
     (("dubay", "atir"), "atir"),
@@ -99,7 +141,6 @@ def resolve_pool_key(name: str, desc: str = "", attrs: dict | None = None) -> st
     if best_key:
         return best_key
 
-    # Shim/kurtka: sub "Bahoriy" — nomda aniq slot bo'lsa ishlatiladi
     if any(h in clean_name for h in ("shim", "jinsi", "chino", "pant")):
         return "shim"
     if any(h in clean_name for h in ("kurtka", "palto", "blazer")):
@@ -128,11 +169,13 @@ def is_seed_placeholder_image(url: str) -> bool:
     u = (url or "").strip()
     if not u:
         return True
+    if "/api/v1/media/" in u or u.startswith("/uploads/"):
+        return False
+    if "bozorliii-product-placeholder" in u:
+        return True
     if u in _LEGACY_MISMATCH_URLS:
         return True
-    if "images.unsplash.com" in u:
-        return True
-    if "picsum.photos" in u:
+    if "unsplash.com" in u or "picsum.photos" in u:
         return True
     if "/placeholder" in u and "bozorliii-product-placeholder" not in u:
         return True

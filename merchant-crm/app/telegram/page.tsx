@@ -23,7 +23,13 @@ function TelegramCrmGate() {
     );
   }
 
-  const loginNext = `/telegram${shopId ? `?shop_id=${shopId}` : ""}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
+  const loginNext = (() => {
+    const params = new URLSearchParams();
+    if (shopId) params.set("shop_id", shopId);
+    if (nextPath) params.set("next", nextPath);
+    const qs = params.toString();
+    return qs ? `/telegram?${qs}` : "/telegram";
+  })();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-canvas bg-hero-glow px-6 text-center">

@@ -53,23 +53,36 @@ class DeliveryRepository:
         await self._session.flush()
         return row
 
-    async def attach_yandex_claim(
+    async def attach_bts_order(
         self,
         row: DeliveryClaimModel,
         *,
-        yandex_claim_id: str,
-        yandex_revision: str | None,
+        bts_order_id: str,
         status: str,
         meta_patch: dict | None = None,
     ) -> DeliveryClaimModel:
-        row.yandex_claim_id = yandex_claim_id
-        row.yandex_revision = yandex_revision
+        """BTS orderId — DB ustuni `yandex_claim_id` (legacy nom)."""
+        row.yandex_claim_id = str(bts_order_id)
         row.status = status
+        row.accepted_at = datetime.now(timezone.utc)
         if meta_patch:
             row.meta = {**(row.meta or {}), **meta_patch}
         row.updated_at = datetime.now(timezone.utc)
         await self._session.flush()
         return row
+
+    async def list_active_bts_claims(self, *, limit: int = 200) -> list[DeliveryClaimModel]:
+        stmt = (
+            select(DeliveryClaimModel)
+            .where(
+                DeliveryClaimModel.yandex_claim_id.isnot(None),
+                DeliveryClaimModel.status.notin_(("delivered", "cancelled")),
+            )
+            .order_by(DeliveryClaimModel.updated_at.asc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
 
     async def update_claim_status(
         self,
@@ -109,13 +122,40 @@ class DeliveryRepository:
         shop_id: UUID,
         amount_uzs: Decimal,
         destination: str = "bank_card",
+        card_number: str | None = None,
     ) -> MerchantPayoutRequestModel:
+        meta: dict = {}
+        dest = destination
+        if card_number:
+            digits = "".join(ch for ch in card_number if ch.isdigit())
+            meta["card_number"] = digits
+            dest = f"card:{digits[:4]}****{digits[-4:]}" if len(digits) == 16 else "bank_card"
         row = MerchantPayoutRequestModel(
             shop_id=shop_id,
             amount_uzs=amount_uzs,
-            destination=destination,
+            destination=dest,
             status="pending",
+            meta=meta,
         )
         self._session.add(row)
         await self._session.flush()
         return row
+
+    async def list_payout_requests(
+        self, *, status: str | None = None, limit: int = 200
+    ) -> list[MerchantPayoutRequestModel]:
+        stmt = select(MerchantPayoutRequestModel)
+        if status:
+            stmt = stmt.where(MerchantPayoutRequestModel.status == status)
+        stmt = stmt.order_by(MerchantPayoutRequestModel.created_at.asc()).limit(min(limit, 1000))
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_payout_for_update(self, payout_id: UUID) -> MerchantPayoutRequestModel | None:
+        stmt = (
+            select(MerchantPayoutRequestModel)
+            .where(MerchantPayoutRequestModel.id == payout_id)
+            .with_for_update()
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()

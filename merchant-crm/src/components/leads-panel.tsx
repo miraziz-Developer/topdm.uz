@@ -65,7 +65,7 @@ export function LeadsPanel() {
       try {
         await load();
       } catch {
-        if (!cancelled) toast.error("Leadlarni yuklab bo'lmadi");
+        toast.error("Murojaatlarni yuklab bo'lmadi");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -121,7 +121,7 @@ export function LeadsPanel() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Lead qidirish..."
+            placeholder="Murojaat qidirish..."
             className="h-11 w-full rounded-full border border-border-subtle bg-canvas pl-10 pr-4 text-sm text-text-100 placeholder:text-text-400 focus:border-electric-500 focus:outline-none focus:ring-2 focus:ring-electric-500/15"
           />
         </div>
@@ -149,7 +149,7 @@ export function LeadsPanel() {
       {!leads.length ? (
         <div className="py-20 text-center">
           <UserRound className="mx-auto h-10 w-10 text-text-400/40" />
-          <p className="mt-3 font-medium text-text-100">Lead yo&apos;q</p>
+          <p className="mt-3 font-medium text-text-100">Murojaat yo&apos;q</p>
           <p className="mt-1 text-sm text-text-400">Xarita yoki mahsulotdan murojaatlar shu yerda</p>
         </div>
       ) : !visible.length ? (

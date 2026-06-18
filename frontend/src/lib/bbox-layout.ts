@@ -130,3 +130,32 @@ export function bboxRectCenter(rect: PixelRect): { x: number; y: number } {
     y: rect.top + rect.height / 2,
   };
 }
+
+/** object-contain ichidagi bosish nuqtasidan normalizatsiya qilingan ramka. */
+export function pixelToNormalizedBbox(
+  containerWidth: number,
+  containerHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+  px: number,
+  py: number,
+  regionSize = 0.24,
+): NormalizedBbox {
+  if (!containerWidth || !containerHeight || !imageWidth || !imageHeight) {
+    return { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
+  }
+  const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight);
+  const renderedW = imageWidth * scale;
+  const renderedH = imageHeight * scale;
+  const offsetX = (containerWidth - renderedW) / 2;
+  const offsetY = (containerHeight - renderedH) / 2;
+  const nx = (px - offsetX) / renderedW;
+  const ny = (py - offsetY) / renderedH;
+  const half = regionSize / 2;
+  return normalizeBbox({
+    x: nx - half,
+    y: ny - half,
+    w: regionSize,
+    h: regionSize,
+  });
+}
