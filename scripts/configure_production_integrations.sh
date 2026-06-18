@@ -26,9 +26,33 @@ patch_var "PAYMENT_SANDBOX_MODE" "true"
 patch_var "ALLOW_PAYMENT_SANDBOX_IN_PRODUCTION" "true"
 patch_var "PAYMENT_CHECKOUT_BASE_URL" "https://bozorliii.online"
 
-# Media: local volume (R2 kalitlari bo'lsa MEDIA_STORAGE_BACKEND=s3 qo'lda yoqing)
-if ! grep -q "^MEDIA_STORAGE_BACKEND=" "$ENV_FILE"; then
+# Media: local volume + nginx edge cache; R2 kalitlari bo'lsa enable_r2_media.sh
+if ! grep -q "^MEDIA_STORAGE_BACKEND=" "$ENV_FILE" 2>/dev/null; then
   patch_var "MEDIA_STORAGE_BACKEND" "local"
+fi
+
+cdn_base="$(grep -E '^S3_PUBLIC_BASE_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '\r')"
+if [[ -z "$cdn_base" ]]; then
+  patch_var "S3_PUBLIC_BASE_URL" "https://media.bozorliii.online"
+  cdn_base="https://media.bozorliii.online"
+fi
+
+# Frontend CDN: media subdomain DNS bo'lmasa api orqali (nginx edge cache).
+api_media="https://api.bozorliii.online/api/v1/media"
+if command -v dig >/dev/null 2>&1 && dig +short A media.bozorliii.online @8.8.8.8 2>/dev/null | grep -q .; then
+  patch_var "NEXT_PUBLIC_MEDIA_CDN_URL" "$cdn_base"
+else
+  patch_var "NEXT_PUBLIC_MEDIA_CDN_URL" "$api_media"
+  echo "INFO: media.bozorliii.online DNS yo'q — CDN vaqtincha $api_media"
+fi
+
+# R2 kalitlari to'ldirilgan bo'lsa avtomatik s3
+if grep -qE '^S3_ACCESS_KEY_ID=.+' "$ENV_FILE" 2>/dev/null \
+  && grep -qE '^S3_SECRET_ACCESS_KEY=.+' "$ENV_FILE" 2>/dev/null \
+  && grep -qE '^S3_BUCKET=.+' "$ENV_FILE" 2>/dev/null \
+  && grep -qE '^S3_ENDPOINT_URL=.+' "$ENV_FILE" 2>/dev/null; then
+  patch_var "MEDIA_STORAGE_BACKEND" "s3"
+  echo "OK — R2/S3 kalitlari topildi, MEDIA_STORAGE_BACKEND=s3"
 fi
 
 rm -f "${ENV_FILE}.bak"

@@ -298,6 +298,7 @@ services:
       - ./deploy/ssl:/etc/nginx/ssl:ro
       - ./deploy/certbot/www:/var/www/certbot:ro
       - nginx_logs:/var/log/nginx
+      - nginx_media_cache:/var/cache/nginx
     depends_on:
       frontend:
         condition: service_healthy
@@ -332,3 +333,4 @@ volumes:
   bozor_redis:
   bozor_uploads:
   nginx_logs:
+  nginx_media_cache:

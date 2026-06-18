@@ -3,7 +3,7 @@
 set -euo pipefail
 
 IP="${SERVER_IP:-8.222.211.54}"
-DOMAINS=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online)
+DOMAINS=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online media.bozorliii.online)
 
 echo "Kutilayotgan server IP: $IP"
 echo ""

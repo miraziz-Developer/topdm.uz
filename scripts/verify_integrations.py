@@ -80,14 +80,22 @@ async def main() -> int:
 
     print("\n[Media]")
     backend = (settings.media_storage_backend or "local").strip().lower()
+    cdn = (os.getenv("NEXT_PUBLIC_MEDIA_CDN_URL") or settings.s3_public_base_url or "").strip()
     if backend == "s3" and settings.s3_bucket and settings.s3_access_key_id:
-        _ok("MEDIA_STORAGE_BACKEND=s3", settings.s3_bucket)
+        _ok("MEDIA_STORAGE_BACKEND=s3 (R2)", settings.s3_bucket)
+        if cdn:
+            _ok("Media CDN URL", cdn)
     elif backend == "local":
-        _warn("MEDIA_STORAGE_BACKEND=local", "Docker volume /api/v1/media — R2 keyin ulang")
-        uploads = os.path.join(os.path.dirname(__file__), "..", "backend", "uploads", "products")
+        if cdn:
+            _ok("MEDIA_STORAGE_BACKEND=local + edge CDN", cdn)
+        else:
+            _warn("MEDIA_STORAGE_BACKEND=local", "NEXT_PUBLIC_MEDIA_CDN_URL yo'q")
+        uploads = "/app/uploads/products"
+        if not os.path.isdir(uploads):
+            uploads = os.path.join(os.path.dirname(__file__), "..", "backend", "uploads", "products")
         if os.path.isdir(uploads):
-            count = sum(1 for _ in os.scandir(uploads))
-            _ok("Local uploads papkasi", f"{count} shop papka")
+            count = sum(1 for e in os.scandir(uploads) if e.is_dir())
+            _ok("Local uploads volume", f"{count} shop papka")
     else:
         fails += int(not _fail("Media backend sozlanmagan"))
 

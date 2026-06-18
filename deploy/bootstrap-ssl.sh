@@ -8,7 +8,7 @@ cd "$ROOT"
 IP="${SERVER_IP:-8.222.211.54}"
 EMAIL="${CERTBOT_EMAIL:-admin@bozorliii.online}"
 DNS_SERVER="${DNS_SERVER:-8.8.8.8}"
-CANDIDATES=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online)
+CANDIDATES=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online media.bozorliii.online)
 
 mkdir -p deploy/ssl deploy/certbot/www
 

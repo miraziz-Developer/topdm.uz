@@ -13,6 +13,8 @@ const API_ORIGIN = (() => {
   }
 })();
 
+const MEDIA_CDN = (process.env.NEXT_PUBLIC_MEDIA_CDN_URL ?? "").replace(/\/$/, "");
+
 const PROD_MEDIA_HOSTS = new Set([
   "bozorliii.uz",
   "www.bozorliii.uz",
@@ -21,7 +23,18 @@ const PROD_MEDIA_HOSTS = new Set([
   "www.bozorliii.online",
   "api.bozorliii.online",
   "crm.bozorliii.online",
+  "media.bozorliii.online",
 ]);
+
+/** /api/v1/media/... → CDN host (media.bozorliii.online yoki R2 public URL). */
+function rewriteToMediaCdn(url: string): string {
+  if (!MEDIA_CDN) return url;
+  const match = url.match(/\/api\/v1\/media\/(.+)$/);
+  if (match) {
+    return `${MEDIA_CDN}/${match[1]}`;
+  }
+  return url;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,7 +59,7 @@ export function resolveMediaUrl(url?: string | null): string {
   if (raw.startsWith("/")) {
     if (raw.startsWith("/api/")) {
       const absolute = API_BASE.startsWith("http") ? `${API_ORIGIN}${raw}` : raw;
-      return resolveApiMediaUrlForBrowser(absolute);
+      return rewriteToMediaCdn(resolveApiMediaUrlForBrowser(absolute));
     }
     return raw;
   }
@@ -57,14 +70,17 @@ export function resolveMediaUrl(url?: string | null): string {
         const absolute = API_BASE.startsWith("http")
           ? `${API_ORIGIN}${parsed.pathname}`
           : parsed.pathname;
-        return resolveApiMediaUrlForBrowser(absolute);
+        return rewriteToMediaCdn(resolveApiMediaUrlForBrowser(absolute));
+      }
+      if (MEDIA_CDN && parsed.hostname === new URL(MEDIA_CDN).hostname) {
+        return raw;
       }
     } catch {
       /* keep absolute url */
     }
     return raw;
   }
-  return `${API_ORIGIN}/${raw.replace(/^\//, "")}`;
+  return rewriteToMediaCdn(`${API_ORIGIN}/${raw.replace(/^\//, "")}`);
 }
 
 function isStorefrontHost(hostname: string): boolean {

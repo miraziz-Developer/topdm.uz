@@ -9,6 +9,8 @@ const API_ORIGIN = (() => {
   }
 })();
 
+const MEDIA_CDN = (process.env.NEXT_PUBLIC_MEDIA_CDN_URL ?? "").replace(/\/$/, "");
+
 const PROD_MEDIA_HOSTS = new Set([
   "bozorliii.uz",
   "www.bozorliii.uz",
@@ -17,7 +19,15 @@ const PROD_MEDIA_HOSTS = new Set([
   "www.bozorliii.online",
   "api.bozorliii.online",
   "crm.bozorliii.online",
+  "media.bozorliii.online",
 ]);
+
+function rewriteToMediaCdn(url: string): string {
+  if (!MEDIA_CDN) return url;
+  const match = url.match(/\/api\/v1\/media\/(.+)$/);
+  if (match) return `${MEDIA_CDN}/${match[1]}`;
+  return url;
+}
 
 function mediaApiOriginForBrowser(): string | null {
   if (typeof window === "undefined") return null;
@@ -40,7 +50,7 @@ export function resolveMediaUrl(url?: string | null): string {
   if (raw.startsWith("/")) {
     if (raw.startsWith("/api/")) {
       if (!API_BASE.startsWith("http")) return raw;
-      return `${API_ORIGIN}${raw}`;
+      return rewriteToMediaCdn(`${API_ORIGIN}${raw}`);
     }
     return raw;
   }
@@ -48,8 +58,8 @@ export function resolveMediaUrl(url?: string | null): string {
     try {
       const parsed = new URL(raw);
       if (parsed.pathname.startsWith("/api/v1/media/") && PROD_MEDIA_HOSTS.has(parsed.hostname)) {
-        if (!API_BASE.startsWith("http")) return parsed.pathname;
-        return `${API_ORIGIN}${parsed.pathname}`;
+        if (!API_BASE.startsWith("http")) return rewriteToMediaCdn(parsed.pathname);
+        return rewriteToMediaCdn(`${API_ORIGIN}${parsed.pathname}`);
       }
     } catch {
       /* keep */
