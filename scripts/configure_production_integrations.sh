@@ -7,6 +7,10 @@ ENV_FILE="${1:-.env}"
 patch_var() {
   local key="$1"
   local val="$2"
+  # Oxirida newline bo'lmasa keyingi patch bir qatorga yopishib qoladi.
+  if [[ -s "$ENV_FILE" ]] && [[ "$(tail -c 1 "$ENV_FILE")" != $'\n' ]]; then
+    echo "" >>"$ENV_FILE"
+  fi
   if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
     sed -i.bak "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
   else
