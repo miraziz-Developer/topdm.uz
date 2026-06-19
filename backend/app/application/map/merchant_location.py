@@ -16,19 +16,37 @@ def _clean(text: str | None) -> str:
     return (text or "").strip()
 
 
+_RASTA_RE = re.compile(r"rasta\s+([A-Za-z0-9\-]+)", re.I)
+_ALNUM_STALL_RE = re.compile(r"\b([A-Z]{1,3}\d{1,4})\b", re.I)
+_STALL_MAX_LEN = 16
+
+
+def _normalize_stall_token(raw: str) -> str:
+    token = raw.strip()
+    if len(token) <= _STALL_MAX_LEN:
+        return token
+    return token[:_STALL_MAX_LEN]
+
+
 def _extract_shop_number(section: str | None) -> str | None:
     raw = _clean(section)
     if not raw:
         return None
-    m = re.search(r"rasta\s*([A-Z]?\d{1,4})\b", raw, re.I)
+    m = _RASTA_RE.search(raw)
     if m:
-        return m.group(1).upper()
+        return _normalize_stall_token(m.group(1))
     m = re.search(r"(\d{1,4})\s*-?\s*do['’`]?kon", raw, re.I) or re.search(r"\b(\d{1,4})\b", raw)
     if m:
         return m.group(1)
-    if len(raw) <= 16:
-        return raw
-    return None
+    m = _ALNUM_STALL_RE.search(raw)
+    if m:
+        return _normalize_stall_token(m.group(1).upper())
+    if "•" in raw:
+        tail = raw.split("•")[-1].strip()
+        nested = _extract_shop_number(tail)
+        if nested:
+            return nested
+    return _normalize_stall_token(raw)
 
 
 def _extract_block_letter(*sources: str | None) -> str | None:
@@ -137,6 +155,8 @@ def parse_merchant_location(shop) -> dict[str, Any]:
     stall = shop_number
     if not stall and block_letter:
         stall = str(8 + (ord(block_letter) % 4) * 3)
+    if stall and stall != "—":
+        stall = _normalize_stall_token(str(stall))
 
     parts: list[str] = [market]
     if building:
