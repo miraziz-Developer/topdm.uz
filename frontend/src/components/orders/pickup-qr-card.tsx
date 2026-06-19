@@ -1,6 +1,6 @@
 "use client";
 
-import { QrCode, RefreshCw, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronUp, QrCode, RefreshCw, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getGuestOrderPickupQr, getOrderPickupQr } from "@/lib/api";
@@ -27,6 +27,8 @@ type Props = {
   guestVerificationToken?: string;
   className?: string;
   variant?: "default" | "boarding";
+  /** Buyurtmalar ro'yxatida yopiq; bron muvaffaqiyati oynasida ochiq */
+  defaultOpen?: boolean;
 };
 
 const ACTIVE = new Set(["pending", "reserved", "confirmed", "preparing", "ready"]);
@@ -39,14 +41,16 @@ export function PickupQrCard({
   guestVerificationToken,
   className,
   variant = "default",
+  defaultOpen,
 }: Props) {
   const [data, setData] = useState<PickupQrPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isBoarding = variant === "boarding";
+  const [open, setOpen] = useState(defaultOpen ?? isBoarding);
 
   const isPickup = (fulfillmentType || "pickup") !== "delivery";
   const canShow = isPickup && ACTIVE.has(status);
-  const isBoarding = variant === "boarding";
 
   const load = useCallback(async () => {
     if (!canShow) return;
@@ -68,20 +72,47 @@ export function PickupQrCard({
   }, [canShow, orderId, guestPhone, guestVerificationToken]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (open && canShow) void load();
+  }, [open, canShow, load]);
 
   if (!canShow) return null;
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "mt-4 flex w-full items-center gap-3 rounded-2xl border border-electric-500/20 bg-electric-500/[0.06] px-4 py-3.5 text-left transition hover:border-electric-500/35 hover:bg-electric-500/[0.1] active:scale-[0.99]",
+          className,
+        )}
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-electric-600 shadow-sm ring-1 ring-electric-500/15">
+          <QrCode className="h-5 w-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink-900">Do&apos;konda QR kodni ko&apos;rsating</span>
+          <span className="mt-0.5 block text-xs leading-snug text-ink-500">
+            Do&apos;konga kelganda shu yerga bosing — sotuvchi skaner qiladi
+          </span>
+        </span>
+        <ChevronDown className="h-5 w-5 shrink-0 text-electric-500" aria-hidden />
+      </button>
+    );
+  }
 
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[1.35rem] border border-electric-500/25 bg-gradient-to-br from-electric-500/[0.08] via-white to-amber-50/40 p-4 shadow-[0_20px_50px_-24px_rgba(0,102,255,0.45)]",
-        isBoarding && "border-electric-500/35 p-5 ring-1 ring-white/60",
+        "relative mt-4 overflow-hidden rounded-2xl border border-electric-500/20 bg-white p-4 shadow-sm",
+        isBoarding &&
+          "rounded-[1.35rem] border-electric-500/25 bg-gradient-to-br from-electric-500/[0.08] via-white to-amber-50/40 p-5 shadow-[0_20px_50px_-24px_rgba(0,102,255,0.45)] ring-1 ring-white/60",
         className,
       )}
     >
-      <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-electric-500/10 blur-2xl" />
+      {isBoarding ? (
+        <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-electric-500/10 blur-2xl" />
+      ) : null}
 
       <div className="relative flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -95,7 +126,20 @@ export function PickupQrCard({
             <p className="text-[10px] text-ink-500">Do&apos;konda skaner qiling</p>
           </div>
         </div>
-        <LivePill className="bg-electric-500/10 text-electric-600 [&_span:last-child]:bg-electric-500" />
+        <div className="flex items-center gap-2">
+          <LivePill className="bg-electric-500/10 text-electric-600 [&_span:last-child]:bg-electric-500" />
+          {!isBoarding ? (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-ink-500 transition hover:bg-ink-50 hover:text-ink-800"
+              aria-label="QR kodni yopish"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+              Yopish
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <p className="relative mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-500">
@@ -103,21 +147,32 @@ export function PickupQrCard({
         Imzolangan token — faqat sizning buyurtmangiz uchun. Sotuvchi skaner qilgach avtomatik yopiladi.
       </p>
 
-      {loading ? <div className="skeleton relative mt-4 h-52 w-full max-w-[13rem] rounded-2xl" /> : null}
-      {error ? <p className="relative mt-3 text-xs text-red">{error}</p> : null}
+      {loading ? <div className="skeleton relative mt-4 mx-auto h-44 w-44 rounded-2xl" /> : null}
+      {error ? (
+        <div className="relative mt-3 space-y-2">
+          <p className="text-xs text-red">{error}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="text-xs font-semibold text-electric-600 hover:underline"
+          >
+            Qayta urinish
+          </button>
+        </div>
+      ) : null}
 
       {data ? (
-        <div className="relative mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+        <div className="relative mt-4 flex flex-col items-center gap-3">
           <div className="relative">
             <ScanBeam active variant="electric" className="rounded-2xl" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={data.qr_image_url}
               alt="Olib ketish QR"
-              className="relative z-[1] h-44 w-44 rounded-2xl bg-white p-3 shadow-lg ring-2 ring-electric-500/20 scan-pulse"
+              className="relative z-[1] h-44 w-44 rounded-2xl bg-white p-3 shadow-md ring-2 ring-electric-500/20 scan-pulse"
             />
           </div>
-          <div className="min-w-0 flex-1 text-center sm:text-left">
+          <div className="w-full text-center">
             <p className="text-sm font-bold text-ink-900">{data.product_name}</p>
             <p className="mt-1 price-mono text-xs text-ink-500">
               {data.quantity} dona · #{data.order_id.slice(0, 8).toUpperCase()}

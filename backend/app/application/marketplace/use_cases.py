@@ -249,7 +249,7 @@ class MarketplaceUseCases:
             raise ValueError(f"status must be one of: {', '.join(sorted(allowed))}")
 
         existing = (
-            await self._repo._session.execute(
+            await self._repo._db.execute(
                 select(OrderModel).where(OrderModel.id == order_id, OrderModel.shop_id == shop_id)
             )
         ).scalar_one_or_none()
@@ -259,7 +259,7 @@ class MarketplaceUseCases:
 
         if status == "cancelled" and prev_status in ACTIVE_RESERVED_STATUSES:
             try:
-                await release_order_reserved_stock(self._repo._session, order_id=order_id)
+                await release_order_reserved_stock(self._repo._db, order_id=order_id)
             except Exception:
                 logger.exception("order_stock_release_failed", extra={"order_id": str(order_id)})
 
@@ -271,7 +271,7 @@ class MarketplaceUseCases:
             from app.application.finance.transaction_splitter import TransactionSplitterService
             from app.application.merchant.growth_service import MerchantGrowthService
 
-            splitter = TransactionSplitterService(self._repo._session)
+            splitter = TransactionSplitterService(self._repo._db)
             try:
                 await splitter.release_escrow_to_merchant(order_id)
             except Exception:
@@ -279,11 +279,11 @@ class MarketplaceUseCases:
             from app.application.billing.merchant_debt_service import MerchantDebtService
 
             try:
-                await MerchantDebtService(self._repo._session).process_cash_pickup_completion(order_id)
+                await MerchantDebtService(self._repo._db).process_cash_pickup_completion(order_id)
             except Exception:
                 logger.exception("cash_completion_debt_failed", extra={"order_id": str(order_id)})
             try:
-                await MerchantGrowthService(self._repo._session).try_reward_referral(shop_id)
+                await MerchantGrowthService(self._repo._db).try_reward_referral(shop_id)
             except Exception:
                 logger.debug("referral_reward_skipped", exc_info=True)
 
