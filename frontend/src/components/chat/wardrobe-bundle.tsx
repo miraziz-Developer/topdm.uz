@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, MapPin, Sparkles } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 
-import { isLocalDevMedia, productImage, resolveMediaUrl, PLACEHOLDER_CLOTHING } from "@/lib/media";
+import { ProductImage } from "@/components/ui/product-image";
 import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -68,8 +66,6 @@ function WardrobePieceCard({
 }) {
   const product = slot.item;
   const meta = slotMeta(slot.role);
-  const img = productImage(product.images);
-  const [imgSrc, setImgSrc] = useState(img);
   const location = [product.shop?.floor, product.shop?.section || product.shop?.shop_number]
     .filter(Boolean)
     .join(" · ");
@@ -96,14 +92,12 @@ function WardrobePieceCard({
           </span>
         </div>
         <div className="relative mx-auto mb-3 aspect-[3/4] w-full max-w-[140px] overflow-hidden rounded-xl border border-white/10 bg-black/20">
-          <Image
-            src={imgSrc}
+          <ProductImage
+            images={product.images}
             alt={product.name}
             fill
-            unoptimized={imgSrc.startsWith("data:") || isLocalDevMedia(resolveMediaUrl(imgSrc))}
             className="object-cover transition duration-500 group-hover:scale-110"
             sizes="160px"
-            onError={() => setImgSrc(PLACEHOLDER_CLOTHING)}
           />
         </div>
         <p className="line-clamp-2 text-center text-sm font-semibold text-white">{product.name}</p>

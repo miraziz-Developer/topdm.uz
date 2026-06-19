@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 
-import { isLocalDevMedia, productImage, resolveMediaUrl } from "@/lib/media";
+import { ProductImage } from "@/components/ui/product-image";
 import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -29,14 +28,10 @@ export function StylistProductSuggestions({ items, onNavigate }: StylistProductS
             className="w-[140px] shrink-0 snap-start rounded-xl border border-border-subtle bg-surface p-2 transition-transform hover:scale-[1.01] hover:border-gold-500/40"
           >
             <div className="relative h-24 w-full overflow-hidden rounded-lg bg-elevated">
-              <Image
-                src={productImage(product.images)}
+              <ProductImage
+                images={product.images}
                 alt={product.name}
                 fill
-                unoptimized={
-                  productImage(product.images).startsWith("data:") ||
-                  isLocalDevMedia(resolveMediaUrl(productImage(product.images)))
-                }
                 className="object-cover"
                 sizes="140px"
               />
