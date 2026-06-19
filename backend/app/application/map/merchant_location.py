@@ -20,8 +20,15 @@ def _extract_shop_number(section: str | None) -> str | None:
     raw = _clean(section)
     if not raw:
         return None
+    m = re.search(r"rasta\s*([A-Z]?\d{1,4})\b", raw, re.I)
+    if m:
+        return m.group(1).upper()
     m = re.search(r"(\d{1,4})\s*-?\s*do['’`]?kon", raw, re.I) or re.search(r"\b(\d{1,4})\b", raw)
-    return m.group(1) if m else raw
+    if m:
+        return m.group(1)
+    if len(raw) <= 16:
+        return raw
+    return None
 
 
 def _extract_block_letter(*sources: str | None) -> str | None:

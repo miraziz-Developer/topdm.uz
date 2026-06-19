@@ -12,6 +12,27 @@ from app.application.map.merchant_location import parse_merchant_location
 
 BLOCKS = ("A", "B", "C", "D")
 STALL_SLOTS = ("08", "12", "16", "20", "24", "28")
+_STALL_TOKEN_RE = re.compile(r"rasta\s*([A-Z]?\d{1,4})\b", re.I)
+_AD_STALL_RE = re.compile(r"\bAD\s*(\d+)\b", re.I)
+
+
+def normalize_stall_number(stall: str | None) -> str:
+    """Map API schema max_length=16 — uzun section matnlarini qisqa rasta kodiga aylantiradi."""
+    raw = (stall or "").strip()
+    if not raw or raw == "—":
+        return "14"
+    m = _STALL_TOKEN_RE.search(raw)
+    if m:
+        return m.group(1).upper()[:16]
+    m = _AD_STALL_RE.search(raw)
+    if m:
+        return f"AD{m.group(1)}"[:16]
+    if re.fullmatch(r"[A-Z]?\d{1,4}", raw, re.I):
+        return raw.upper()[:16]
+    m = re.search(r"(\d{1,4})", raw)
+    if m:
+        return m.group(1)[:16]
+    return raw[:16]
 
 
 def _ipadrom_name(shop) -> str:
@@ -44,6 +65,7 @@ def parse_shop_spatial(shop) -> dict[str, Any]:
     stall = loc["stall_number"]
     if stall == "—":
         stall = str(8 + (ord(block) % 4) * 3)
+    stall = normalize_stall_number(stall)
     raw_floor = loc["floor_level"] if loc["floor_level"] is not None else 1
     floor = max(1, min(99, int(raw_floor)))
     return {

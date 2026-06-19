@@ -7,7 +7,7 @@ from app.application.map.store_locations import shop_to_map_store, stores_to_geo
 from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 
-_CACHE_KEY = "map:stores:v6"
+_CACHE_KEY = "map:stores:v7"
 _CACHE_TTL = 300
 
 
