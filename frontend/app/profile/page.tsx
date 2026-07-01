@@ -10,8 +10,8 @@ import { Navigation } from "@/components/Navigation";
 import { PremiumCabinet } from "@/components/profile/cabinet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { pageShell, pageContentTop, pageWithBottomNav } from "@/lib/responsive-layout";
 import { useAuthStore } from "@/stores/auth-store";
-import { useLoyaltyStore } from "@/stores/loyalty-store";
 import { useUserStore } from "@/stores/user-store";
 
 export default function ProfilePage() {
@@ -21,7 +21,6 @@ export default function ProfilePage() {
   const refresh = useUserStore((state) => state.refresh);
   const logout = useUserStore((state) => state.logout);
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
-  const coins = useLoyaltyStore((state) => state.coins);
 
   useEffect(() => {
     void refresh();
@@ -31,12 +30,12 @@ export default function ProfilePage() {
   const isLoading = !hydrated || (isLoggedIn && loading && !profile);
 
   return (
-    <main className="page-shell min-h-dvh bg-canvas md:pb-10">
+    <main className={`${pageShell} ${pageWithBottomNav} md:pb-10`}>
       <Navigation />
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="page-content-top relative mx-auto max-w-7xl px-4 pb-10 sm:px-5 md:px-6"
+        className={`${pageContentTop} relative mx-auto max-w-7xl px-4 pb-10 sm:px-5 md:px-6`}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 mesh-bg opacity-90" />
 
@@ -84,7 +83,6 @@ export default function ProfilePage() {
         ) : profile ? (
           <PremiumCabinet
             profile={profile}
-            coins={coins}
             onLogout={() =>
               void logout().then(() => {
                 window.location.href = "/auth";

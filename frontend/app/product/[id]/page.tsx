@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { AIChat } from "@/components/AIChat";
 import { BandQilishModal } from "@/components/BandQilishModal";
 import { BottomNav } from "@/components/BottomNav";
 import { Navigation } from "@/components/Navigation";
@@ -197,7 +196,7 @@ export default function ProductPage() {
                           index={0}
                           alt=""
                           fill
-                          className="object-cover"
+                          className="object-contain bg-[#f0eeea] p-0.5"
                           sizes="72px"
                         />
                       </button>
@@ -336,7 +335,6 @@ export default function ProductPage() {
       </div>
       <BandQilishModal product={product} isOpen={bandOpen} onClose={() => setBandOpen(false)} />
       {product?.shop?.id ? <ShopLiveChat shopId={product.shop.id} shopName={product.shop.name} /> : null}
-      <AIChat />
       <BottomNav />
     </main>
   );

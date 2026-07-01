@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.merchant.wholesale_pack import normalize_shop_type
+from app.core.phone import normalize_uz_phone_e164
+from app.infrastructure.auth.user_repo import UserAuthRepository
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.infrastructure.storage.object_store import ObjectMediaStore
 from app.interfaces.api.serializers import shop_to_dict
@@ -39,12 +43,56 @@ class MerchantShopBrandingService:
             raise ShopBrandingError("not_found", "Do'kon topilmadi")
         return shop_to_dict(shop)
 
-    async def update_description(self, shop_id: UUID, *, description: str | None) -> dict:
+    async def update_profile(
+        self,
+        shop_id: UUID,
+        *,
+        user_id: UUID | None = None,
+        **fields: Any,
+    ) -> dict:
         shop = await self._repo.get_shop(shop_id)
         if not shop:
             raise ShopBrandingError("not_found", "Do'kon topilmadi")
-        text = (description or "").strip()
-        shop.description = text[:2000] if text else None
+
+        if "name" in fields:
+            text = (fields["name"] or "").strip()
+            if len(text) < 2:
+                raise ShopBrandingError("invalid_name", "Do'kon nomi kamida 2 ta belgi bo'lsin")
+            shop.name = text[:200]
+
+        if "description" in fields:
+            text = (fields["description"] or "").strip()
+            shop.description = text[:2000] if text else None
+
+        if "owner_display_name" in fields:
+            text = (fields["owner_display_name"] or "").strip()
+            shop.owner_display_name = text[:120] if text else None
+
+        if "shop_type" in fields:
+            shop.shop_type = normalize_shop_type(fields["shop_type"])
+
+        if "owner_phone" in fields:
+            normalized = normalize_uz_phone_e164(fields["owner_phone"])
+            if not normalized:
+                raise ShopBrandingError(
+                    "invalid_phone",
+                    "Telefon +998XXXXXXXXX formatida bo'lishi kerak",
+                )
+            current = normalize_uz_phone_e164(shop.owner_phone) or shop.owner_phone
+            if normalized != current:
+                taken = await self._repo.get_shop_by_owner_phone(normalized)
+                if taken and taken.id != shop.id:
+                    raise ShopBrandingError(
+                        "phone_taken",
+                        "Bu telefon boshqa do'konda ro'yxatdan o'tgan",
+                    )
+                shop.owner_phone = normalized
+                if user_id:
+                    auth_repo = UserAuthRepository(self._session)
+                    user = await auth_repo.get_by_id(user_id)
+                    if user:
+                        user.phone = normalized
+
         await self._session.commit()
         await self._session.refresh(shop)
         return shop_to_dict(shop)

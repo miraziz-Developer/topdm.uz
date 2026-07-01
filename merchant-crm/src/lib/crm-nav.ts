@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
-  CreditCard,
   Film,
   ImageIcon,
   LayoutDashboard,
@@ -13,6 +12,7 @@ import {
   ShoppingBag,
   Star,
   UserRound,
+  Wallet,
 } from "lucide-react";
 
 export type CrmNavItem = {
@@ -87,7 +87,7 @@ export const CRM_SHOP_TABS = [
     label: "Profil",
     href: "/dashboard/shop?tab=profile",
     icon: UserRound,
-    hint: "Logo, muqova va do'kon tavsifi — mijoz saytida brend",
+    hint: "Nom, telefon, logo va tavsif — mijoz saytida brend",
   },
   {
     id: "share",
@@ -111,11 +111,35 @@ export const CRM_SHOP_TABS = [
     hint: "Ko'rishlar, buyurtmalar, eng mashhur mahsulotlar",
   },
   {
-    id: "billing",
-    label: "Reja va to'lov",
-    href: "/dashboard/shop?tab=billing",
-    icon: CreditCard,
-    hint: "Balans to'ldirish (Click), mahsulot boost",
+    id: "ads",
+    label: "Reklama",
+    href: "/dashboard/shop?tab=ads",
+    icon: Megaphone,
+    hint: "Reklama balansi, boost va banner",
+  },
+  {
+    id: "finance",
+    label: "Moliya",
+    href: "/dashboard/shop?tab=finance",
+    icon: Wallet,
+    hint: "Savdo puli, yechish va qarz",
+  },
+] as const;
+
+export const CRM_BILLING_TABS = [
+  {
+    id: "ads",
+    label: "Reklama",
+    href: "/dashboard/billing?tab=ads",
+    icon: Megaphone,
+    hint: "Boost va bosh sahifa banneri — alohida reklama balansi",
+  },
+  {
+    id: "finance",
+    label: "Moliya",
+    href: "/dashboard/billing?tab=finance",
+    icon: Wallet,
+    hint: "Savdo daromadi, kartaga yechish, platforma qarzi",
   },
 ] as const;
 
@@ -130,5 +154,6 @@ export const CRM_LEGACY_REDIRECTS: Record<string, string> = {
   "/dashboard/map": "/dashboard/shop?tab=map",
   "/dashboard/analytics": "/dashboard/shop?tab=analytics",
   "/dashboard/trust": "/dashboard/shop?tab=share",
+  "/dashboard/shop?tab=billing": "/dashboard/billing?tab=ads",
   "/dashboard/moderation": "/dashboard/products?tab=moderation",
 };

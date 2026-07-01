@@ -11,7 +11,7 @@ from loguru import logger
 from app.application.merchant.chat_service import ChatServiceError, MerchantChatService
 from app.core.config import get_settings
 from app.infrastructure.auth.jwt import decode_access_token
-from app.infrastructure.cache.chat_pubsub import ChatPubSubGateway, chat_channel
+from app.infrastructure.cache.chat_pubsub import ChatPubSubGateway, chat_channel, shop_inbox_channel
 from app.infrastructure.db.session import AsyncSessionFactory
 from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
 
@@ -237,3 +237,130 @@ async def chat_websocket(
             await redis_pubsub.aclose()
         except Exception:
             logger.warning("chat_ws_pubsub_cleanup_failed", thread_id=str(thread_id))
+
+
+async def _resolve_merchant_shop_from_token(token: str) -> UUID:
+    try:
+        payload = decode_access_token(token)
+    except JWTError as exc:
+        raise ChatServiceError("auth_invalid", "Invalid token") from exc
+    if str(payload.get("role") or "") != "merchant":
+        raise ChatServiceError("auth_invalid", "Merchant role required")
+    shop_id_raw = payload.get("shop_id")
+    if not shop_id_raw:
+        raise ChatServiceError("auth_invalid", "Shop not in token")
+
+    async with AsyncSessionFactory() as session:
+        from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop
+        from app.infrastructure.auth.types import AuthUser
+        from app.infrastructure.auth.user_repo import UserAuthRepository
+
+        auth_repo = UserAuthRepository(session)
+        user_row = await auth_repo.get_by_id(UUID(str(payload.get("sub"))))
+        if not user_row:
+            raise ChatServiceError("auth_invalid", "User not found")
+        auth_user = AuthUser(
+            id=user_row.id,
+            email=user_row.email,
+            telegram_id=user_row.telegram_id,
+            phone=user_row.phone,
+            display_name=user_row.display_name,
+            role="merchant",
+            shop_id=UUID(str(shop_id_raw)),
+        )
+        shop = await resolve_merchant_shop(session, auth_user)
+        if not shop:
+            raise ChatServiceError("auth_invalid", "Shop not found")
+        return shop.id
+
+
+@router.websocket("/ws/chat/inbox")
+async def chat_inbox_websocket(
+    websocket: WebSocket,
+    token: str = Query(...),
+) -> None:
+    pubsub_gateway = ChatPubSubGateway()
+
+    try:
+        shop_id = await _resolve_merchant_shop_from_token(token)
+    except ChatServiceError as exc:
+        await websocket.close(code=4403, reason=exc.code)
+        return
+
+    client_key = f"merchant_inbox:{shop_id}"
+    if not await pubsub_gateway.check_ws_rate_limit(client_key):
+        await websocket.close(code=4429, reason="rate_limit")
+        return
+
+    await websocket.accept()
+    await pubsub_gateway.set_merchant_online(str(shop_id))
+    await _safe_send_json(
+        websocket,
+        {"type": "system", "code": "connected", "shop_id": str(shop_id), "scope": "inbox"},
+    )
+
+    redis_pubsub = pubsub_gateway.pubsub()
+    channel = shop_inbox_channel(str(shop_id))
+    await redis_pubsub.subscribe(channel)
+
+    stop_event = asyncio.Event()
+
+    async def redis_listener() -> None:
+        try:
+            async for raw in redis_pubsub.listen():
+                if stop_event.is_set():
+                    break
+                if raw.get("type") != "message":
+                    continue
+                data = raw.get("data")
+                if not data:
+                    continue
+                ok = await _safe_send_text(websocket, data if isinstance(data, str) else str(data))
+                if not ok:
+                    break
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            logger.exception("chat_inbox_ws_redis_listener_failed", shop_id=str(shop_id))
+            await _safe_send_json(websocket, {**_RECONNECT_HINT, "source": "inbox_listener"})
+
+    async def heartbeat() -> None:
+        try:
+            while not stop_event.is_set():
+                await asyncio.sleep(_PING_INTERVAL_SECONDS)
+                if stop_event.is_set():
+                    break
+                if not await _safe_send_json(websocket, {"type": "ping", "scope": "inbox"}):
+                    break
+        except asyncio.CancelledError:
+            return
+
+    listener_task = asyncio.create_task(redis_listener())
+    heartbeat_task = asyncio.create_task(heartbeat())
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            if raw.strip().lower() in {"ping", '{"type":"ping"}'}:
+                await _safe_send_json(websocket, {"type": "pong", "scope": "inbox"})
+                continue
+            try:
+                payload = json.loads(raw)
+                if isinstance(payload, dict) and payload.get("type") == "ping":
+                    await _safe_send_json(websocket, {"type": "pong", "scope": "inbox"})
+                    continue
+            except json.JSONDecodeError:
+                pass
+            await pubsub_gateway.set_merchant_online(str(shop_id))
+    except WebSocketDisconnect:
+        logger.debug("chat_inbox_ws_disconnect", shop_id=str(shop_id))
+    finally:
+        stop_event.set()
+        listener_task.cancel()
+        heartbeat_task.cancel()
+        await asyncio.gather(listener_task, heartbeat_task, return_exceptions=True)
+        try:
+            await redis_pubsub.unsubscribe(channel)
+            await redis_pubsub.aclose()
+        except Exception:
+            logger.warning("chat_inbox_ws_pubsub_cleanup_failed", shop_id=str(shop_id))

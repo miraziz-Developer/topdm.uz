@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { postJson } from "@/lib/api";
-import { getAccessToken, setAccessToken } from "@/lib/auth";
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth";
+import { isMerchantTokenValid } from "@/lib/merchant-session";
 import { safeCrmNextPath } from "@/lib/crm-next-path";
 import { getTelegramWebApp, waitForWebAppInitData } from "@/lib/telegram-webapp";
 
@@ -27,8 +28,11 @@ export function useTelegramWebAppAuth({ shopId, nextPath, skipIfAuthed = true }:
     tg?.expand();
 
     if (skipIfAuthed && getAccessToken()) {
-      router.replace(destination);
-      return;
+      if (await isMerchantTokenValid()) {
+        router.replace(destination);
+        return;
+      }
+      clearAccessToken();
     }
 
     const initData = await waitForWebAppInitData();

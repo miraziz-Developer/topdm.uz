@@ -10,6 +10,7 @@ export type TopUpPackage = {
   id: string;
   name_uz: string;
   amount_uzs: number;
+  coins?: number;
 };
 
 type Props = {
@@ -37,7 +38,7 @@ export function BalanceTopUpModal({ open, onClose, packages, loading, onCheckout
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-text-100">Balans to&apos;ldirish</h3>
-            <p className="mt-0.5 text-sm text-text-400">Click orqali — summa so&apos;m da</p>
+            <p className="mt-0.5 text-sm text-text-400">Click orqali — startup narxlari, so&apos;m da</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-2 text-text-400 hover:bg-canvas" aria-label="Yopish">
             <X className="h-5 w-5" />
@@ -58,6 +59,11 @@ export function BalanceTopUpModal({ open, onClose, packages, loading, onCheckout
             >
               <p className="font-semibold text-text-100">{pkg.name_uz}</p>
               <p className="mt-1 text-2xl font-bold tabular-nums text-electric-600">{formatSom(pkg.amount_uzs)}</p>
+              {pkg.coins ? (
+                <p className="mt-0.5 text-xs text-text-400">
+                  Reklama balansi: {formatSom(pkg.coins * 1_000)} · boost va banner uchun
+                </p>
+              ) : null}
             </button>
           ))}
           {!packages.length ? <p className="py-6 text-center text-sm text-text-400">Paketlar yuklanmoqda…</p> : null}

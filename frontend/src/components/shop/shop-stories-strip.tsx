@@ -165,10 +165,23 @@ export function ShopStoriesStrip({
       <AnimatePresence>
         {viewerIndex !== null && stories.length > 0 ? (
           <StoryViewerModal
-            stories={stories}
-            index={viewerIndex}
+            rings={[
+              {
+                shop_id: shopId,
+                shop: stories[0]?.shop ?? {
+                  id: shopId,
+                  name: shopName,
+                  ipadrom: ipadrom || "Bozor",
+                  floor: "",
+                  slug: shopSlug,
+                },
+                preview_story: stories[viewerIndex] ?? stories[0],
+                active_count: stories.length,
+              },
+            ]}
+            initialRingIndex={0}
+            initialStoryIndex={viewerIndex}
             onClose={closeViewer}
-            onIndexChange={setViewerIndex}
           />
         ) : null}
       </AnimatePresence>

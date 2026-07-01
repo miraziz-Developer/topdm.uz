@@ -478,8 +478,13 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
                 inspector = AIInspectorService(session)
                 moderation = await inspector.moderate_image(raw)
                 if not moderation.allowed:
-                    await status_msg.edit_text(f"Rasm rad etildi: {moderation.reason}")
+                    hint = ""
+                    if "moderation_degraded" in (moderation.flags or []):
+                        hint = "\n\n💡 «Mahsulot qo'lda» tugmasi bilan nom/narxni o'zingiz kiriting."
+                    await status_msg.edit_text(f"Rasm rad etildi: {moderation.reason}{hint}")
                     return
+                if "moderation_degraded" in (moderation.flags or []):
+                    ai_note = "⚠️ AI vaqtincha cheklangan — nom va narxni tekshiring.\n\n"
                 try:
                     attrs = await analyze_product_photo(raw)
                     if str(attrs.get("product_name") or "").strip() in {"", "Yangi mahsulot"}:
@@ -1171,7 +1176,10 @@ async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
                         "stock_required": "Omborda nechta borligini kiriting (kamida 1 dona).",
                         "embedding_failed": "Qidiruv indeksi xatosi — qayta urinib ko'ring.",
                         "publish_failed": "Mahsulot saqlanmadi — qayta urinib ko'ring.",
+                        "shop_not_verified": "Do'kon hali AI tasdiqlanmagan. Avval do'kon profilingizni tasdiqlang.",
                     }.get(exc.code, str(exc))
+                    if exc.code == "ai_rejected":
+                        friendly = f"AI moderator rad etdi: {exc}"
                     await query.message.answer(f"Yuklashda xatolik: {friendly}")
                     return
     except TimeoutError:

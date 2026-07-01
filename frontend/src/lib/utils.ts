@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 
+import { useAuthStore } from "@/stores/auth-store";
+
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
@@ -32,6 +34,14 @@ export function getSessionId(): string {
     localStorage.setItem("session_id", id);
   }
   return id;
+}
+
+/** Chat thread/WS identifikatori — login bo'lsa user.id, aks holda brauzer session_id. */
+export function getChatCustomerKey(): string {
+  if (typeof window === "undefined") return "server-session";
+  const { isLoggedIn, meta } = useAuthStore.getState();
+  if (isLoggedIn && meta?.id) return meta.id;
+  return getSessionId();
 }
 
 export function timeAgo(date: Date | string): string {

@@ -16,7 +16,7 @@
 agent-transcripts
 terminals
 .cursor
-bozor_ai_engine
+.claude
 frontend/.next
 merchant-crm/.next
 backend/app/**/__pycache__

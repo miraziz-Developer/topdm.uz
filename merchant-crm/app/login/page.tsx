@@ -12,8 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { postJson } from "@/lib/api";
-import { getAccessToken, setAccessToken } from "@/lib/auth";
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth";
 import { safeCrmNextPath } from "@/lib/crm-next-path";
+import { isMerchantTokenValid } from "@/lib/merchant-session";
 
 const USERNAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
 const PHONE_REGEX = /^\+998\d{9}$/;
@@ -29,9 +30,15 @@ function LoginPageInner() {
   const [mode, setMode] = useState<LoginMode>("shop_password");
 
   useEffect(() => {
-    if (getAccessToken()) {
-      router.replace(afterLogin);
-    }
+    void (async () => {
+      const token = getAccessToken();
+      if (!token) return;
+      if (await isMerchantTokenValid(token)) {
+        router.replace(afterLogin);
+      } else {
+        clearAccessToken();
+      }
+    })();
   }, [router, afterLogin]);
   const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("+998");
@@ -156,10 +163,10 @@ function LoginPageInner() {
     <button
       type="button"
       className={cn(
-        "rounded-full px-4 py-2 text-xs font-semibold transition-all duration-300",
+        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
         mode === m
-          ? "bg-gradient-electric text-white shadow-[0_4px_14px_rgba(0,102,255,0.35)]"
-          : "bg-elevated/80 text-text-400 hover:bg-elevated hover:text-text-100",
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
       )}
       onClick={() => setMode(m)}
     >
@@ -168,40 +175,38 @@ function LoginPageInner() {
   );
 
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden bg-canvas lg:flex-row">
-      <div className="premium-aurora pointer-events-none absolute inset-0 opacity-80" />
-
-      <div className="relative hidden flex-1 flex-col justify-between p-12 lg:flex">
-        <BozorliiiLogo variant="full" size="lg" href={null} badge="CRM" showTagline />
+    <main className="relative flex min-h-screen flex-col bg-muted/40 lg:flex-row">
+      <div className="relative hidden flex-1 flex-col justify-between border-r bg-sidebar p-12 text-sidebar-foreground lg:flex">
+        <BozorliiiLogo variant="full" size="lg" href={null} badge="CRM" showTagline framed />
         <div className="max-w-md space-y-5">
-          <span className="inline-flex items-center gap-2 rounded-full border border-electric-500/20 bg-electric-500/[0.08] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-electric-600">
-            Premium merchant panel
+          <span className="inline-flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-primary">
+            Merchant CRM
           </span>
-          <h2 className="text-4xl font-extrabold leading-[1.1] tracking-tight text-text-100">
+          <h2 className="text-4xl font-bold leading-tight tracking-tight">
             Do&apos;koningizni{" "}
-            <span className="text-gradient-electric">bir joydan</span> boshqaring
+            <span className="text-sidebar-primary">bir joydan</span> boshqaring
           </h2>
-          <p className="text-base leading-relaxed text-text-400">
-            Buyurtmalar, chat, mahsulotlar va pul yechish — barchasi bir xil brendda, mobil va desktopda.
+          <p className="text-base leading-relaxed text-sidebar-foreground/65">
+            Buyurtmalar, chat, mahsulotlar va pul yechish — barchasi bir panelda.
           </p>
         </div>
-        <p className="text-xs text-text-400">© {BRAND.name}</p>
+        <p className="text-xs text-sidebar-foreground/45">© {BRAND.name}</p>
       </div>
 
       <div className="relative flex flex-1 items-center justify-center px-4 py-10 sm:px-6">
-        <div className="crm-page-enter premium-glass w-full max-w-md space-y-6 rounded-3xl p-8 sm:p-10">
+        <div className="crm-page-enter w-full max-w-md space-y-6 rounded-lg border bg-card p-8 shadow-sm sm:p-10">
         <div className="mb-2 lg:hidden">
           <BozorliiiLogo variant="full" size="sm" href={null} badge="CRM" />
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-electric-500">Kirish</p>
-          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-text-100">Hisobingizga kiring</h1>
-          <p className="mt-2 text-sm leading-relaxed text-text-400">
+          <p className="text-xs font-medium uppercase tracking-wider text-primary">Kirish</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Hisobingizga kiring</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Login va parol — eng tez yo&apos;l. Boshqa usullar pastdagi tablarda.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2 rounded-2xl bg-elevated/50 p-1.5">
+        <div className="flex flex-wrap gap-1 rounded-lg border bg-muted p-1">
           {modeBtn("shop_password", "Login + parol")}
           {modeBtn("shop_otp", "Do'kon OTP")}
           {modeBtn("telegram", "@username")}
@@ -309,7 +314,7 @@ function LoginPageInner() {
         ) : null}
 
         {error ? (
-          <p className="rounded-2xl border border-red/20 bg-red/5 px-3 py-2 text-sm text-red">{error}</p>
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
         ) : null}
         </div>
       </div>
@@ -321,8 +326,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-canvas">
-          <p className="text-sm text-text-400">Yuklanmoqda…</p>
+        <main className="flex min-h-screen items-center justify-center bg-muted/40">
+          <p className="text-sm text-muted-foreground">Yuklanmoqda…</p>
         </main>
       }
     >
@@ -334,6 +339,9 @@ export default function LoginPage() {
 function extractError(err: unknown): string {
   if (!(err instanceof Error)) return "Xatolik";
   const raw = err.message;
+  if (raw.includes("database_error")) {
+    return "Server vaqtincha band — bir ozdan keyin qayta urinib ko'ring yoki Do'kon OTP dan foydalaning";
+  }
   if (raw.includes("bot_not_started") || raw.includes("/start")) {
     const bot = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME?.replace(/^@+/, "") ?? "bot";
     return `Iltimos, avval @${bot} ni ochib /register bosing`;

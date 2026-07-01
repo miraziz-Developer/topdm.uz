@@ -90,16 +90,29 @@ class MerchantWorkspaceHub:
                 }
             )
         if not shop.is_verified:
-            tasks.append(
-                {
-                    "type": "catalog",
-                    "priority": "medium",
-                    "id": "verify",
-                    "title": "Saytda chiqish uchun mahsulot joylang",
-                    "subtitle": "Telegram botga rasm yuboring — birinchi mahsulotdan keyin katalogda ko'rinasiz",
-                    "href": "/dashboard/products?tab=catalog",
-                }
-            )
+            reason = (shop.verification_reason or "").strip()
+            if shop.verification_status == "rejected" and reason:
+                tasks.append(
+                    {
+                        "type": "catalog",
+                        "priority": "high",
+                        "id": "verify_rejected",
+                        "title": "Do'kon AI tomonidan rad etildi",
+                        "subtitle": reason[:120],
+                        "href": "/dashboard/settings",
+                    }
+                )
+            else:
+                tasks.append(
+                    {
+                        "type": "catalog",
+                        "priority": "medium",
+                        "id": "verify",
+                        "title": "Do'kon AI tekshiruvida",
+                        "subtitle": "Telegram botda «Qayta tekshirish» yoki profilingizni yangilang",
+                        "href": "/dashboard/settings",
+                    }
+                )
         if last_upload_hint:
             tasks.append(
                 {
@@ -115,6 +128,8 @@ class MerchantWorkspaceHub:
         return {
             "generated_at": now.isoformat(),
             "shop_verified": bool(shop.is_verified),
+            "verification_status": shop.verification_status,
+            "verification_reason": shop.verification_reason,
             "counts": {
                 "pending_orders": len(pending_orders),
                 "chats_waiting": len(chats_waiting),

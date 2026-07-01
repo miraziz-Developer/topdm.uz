@@ -14,6 +14,7 @@ from app.models.business_rule import BusinessRuleModel  # noqa: F401
 from app.models.campaign import FlashSaleModel, LightningDealModel  # noqa: F401
 from app.models.transaction_ledger import TransactionLedgerModel  # noqa: F401
 from app.models.product_review import ProductReviewModel  # noqa: F401
+from app.models.merchant_support import MerchantSupportFaqModel, MerchantSupportTicketModel  # noqa: F401
 
 config = context.config
 settings = get_settings()

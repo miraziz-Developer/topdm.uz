@@ -6,7 +6,11 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.merchant.merchant_order_notify import notify_merchant_new_order, notify_first_order_pickup_tips
+from app.application.merchant.merchant_order_notify import (
+    notify_first_order_pickup_tips,
+    notify_merchant_new_order,
+    notify_merchant_pending_payment,
+)
 from app.domain.interfaces.notifier_gateway import NotifierGateway
 from app.infrastructure.db.models import OrderModel, ProductModel, ShopModel
 from app.models.merchant_notification import MerchantCrmNotificationModel
@@ -65,7 +69,7 @@ class ReservationCrmDispatcher:
             },
         )
 
-    async def send_telegram_broker(self, payload: PickupDispatchPayload) -> bool:
+    async def send_telegram_broker(self, payload: PickupDispatchPayload, *, payment_pending: bool = False) -> bool:
         chat_id = payload.shop.telegram_chat_id
         if not chat_id:
             logger.info(
@@ -88,17 +92,25 @@ class ReservationCrmDispatcher:
                     shop=payload.shop,
                 )
 
-            await notify_merchant_new_order(
-                self._notifier,
-                shop=payload.shop,
-                order=payload.order,
-                product_name=payload.product.name,
-                fulfillment_label=f"Olib ketish · {payload.pickup_date.isoformat()} {payload.pickup_window_label}",
-                extra_lines=[
-                    f"📍 {payload.store_location}",
-                    f"💳 {payload.payment_method_label}",
-                ],
-            )
+            fulfillment = f"Olib ketish · {payload.pickup_date.isoformat()} {payload.pickup_window_label}"
+            extra = [f"📍 {payload.store_location}", f"💳 {payload.payment_method_label}"]
+            if payment_pending:
+                await notify_merchant_pending_payment(
+                    self._notifier,
+                    shop=payload.shop,
+                    order=payload.order,
+                    product_name=payload.product.name,
+                    fulfillment_label=fulfillment,
+                )
+            else:
+                await notify_merchant_new_order(
+                    self._notifier,
+                    shop=payload.shop,
+                    order=payload.order,
+                    product_name=payload.product.name,
+                    fulfillment_label=fulfillment,
+                    extra_lines=extra,
+                )
             sent = True
             logger.info(
                 "reservation_telegram_dispatched",
@@ -116,7 +128,12 @@ class ReservationCrmDispatcher:
             )
             return False
 
-    async def dispatch_after_commit(self, payloads: list[PickupDispatchPayload]) -> None:
+    async def dispatch_after_commit(
+        self,
+        payloads: list[PickupDispatchPayload],
+        *,
+        payment_pending: bool = False,
+    ) -> None:
         """Persist CRM rows then fire Telegram — separate commit from inventory."""
         if not payloads:
             return
@@ -127,4 +144,4 @@ class ReservationCrmDispatcher:
         await self._db.commit()
 
         for payload in payloads:
-            await self.send_telegram_broker(payload)
+            await self.send_telegram_broker(payload, payment_pending=payment_pending)

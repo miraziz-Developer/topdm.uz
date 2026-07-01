@@ -106,7 +106,11 @@ async def list_thread_messages(
         messages = await service.list_messages(thread_id, limit=limit)
     except ChatServiceError as exc:
         raise _http_error(exc) from exc
-    return {"items": [m.model_dump(mode="json") for m in messages]}
+    summary = await service.thread_summary_for_role(thread_id, viewer_role="customer")
+    return {
+        "items": [m.model_dump(mode="json") for m in messages],
+        "unread_count": summary.unread_count if summary else 0,
+    }
 
 
 @router.post("/threads/{thread_id}/messages")
@@ -169,3 +173,20 @@ async def merchant_presence_ping(
     service = _chat_service(db)
     await service.touch_merchant_presence(user.shop_id)
     return {"status": "online"}
+
+
+@router.post("/threads/{thread_id}/read")
+async def mark_customer_thread_read(
+    thread_id: UUID,
+    session_id: str | None = Query(default=None, min_length=8, max_length=128),
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    await _assert_thread_access(db, thread_id, user=user, session_id=session_id)
+    service = _chat_service(db)
+    try:
+        await service.mark_thread_read(thread_id, viewer_role="customer")
+    except ChatServiceError as exc:
+        raise _http_error(exc) from exc
+    summary = await service.thread_summary_for_role(thread_id, viewer_role="customer")
+    return {"ok": True, "unread_count": summary.unread_count if summary else 0}

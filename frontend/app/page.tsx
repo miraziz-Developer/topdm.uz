@@ -3,7 +3,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useMemo, useState } from "react";
 
-import { AIChat } from "@/components/AIChat";
 import { BandQilishModal } from "@/components/BandQilishModal";
 import { BottomNav } from "@/components/BottomNav";
 import { AiVisualSearch } from "@/components/home/ai-visual-search";
@@ -24,6 +23,7 @@ import { Navigation } from "@/components/Navigation";
 import { ChinaProductPage } from "@/components/market/ChinaProductPage";
 import { MasonryProductGrid } from "@/components/ui/masonry-product-grid";
 import { useHomeExperience } from "@/hooks/useHomeExperience";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useHomeDealFeed } from "@/hooks/useDealProducts";
 import { useFeaturedProducts } from "@/hooks/useFeaturedProducts";
 import { useFeaturedShops } from "@/hooks/useFeaturedShops";
@@ -46,6 +46,7 @@ export default function HomePage() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [category, setCategory] = useState<DomainCategoryId>("all");
   const [bazaarFilters, setBazaarFilters] = useState<BazaarCatalogFilters>(DEFAULT_BAZAAR_FILTERS);
+  const debouncedFilters = useDebouncedValue(bazaarFilters, 500);
 
   const applyCatalogHints = useCallback((patch: Partial<BazaarCatalogFilters>) => {
     setBazaarFilters((prev) => ({ ...prev, ...patch }));
@@ -55,8 +56,8 @@ export default function HomePage() {
 
   const isChina = isChinaMarketEnabled() && bazaarFilters.catalogOrigin === "china";
 
-  const searchParams = useMemo(() => filtersToSearchParams(bazaarFilters), [bazaarFilters]);
-  const { data, isLoading: localLoading } = useProducts(searchParams, { enabled: !isChina });
+  const searchParams = useMemo(() => filtersToSearchParams(debouncedFilters), [debouncedFilters]);
+  const { data, isLoading: localLoading, isFetching, isError } = useProducts(searchParams, { enabled: !isChina });
   const featured = useFeaturedProducts();
   const dealFeed = useHomeDealFeed(16);
   const featuredShops = useFeaturedShops();
@@ -65,8 +66,8 @@ export default function HomePage() {
 
   const filteredFeed = useMemo(() => {
     const byCategory = filterProductsByCategory(localFeed, category);
-    return filterProductsClient(byCategory, bazaarFilters);
-  }, [bazaarFilters, category, localFeed]);
+    return filterProductsClient(byCategory, debouncedFilters);
+  }, [debouncedFilters, category, localFeed]);
 
   const displayFeed = useMemo(() => {
     if (filteredFeed.length > 0) return filteredFeed;
@@ -76,7 +77,8 @@ export default function HomePage() {
     return [];
   }, [filteredFeed, category, bazaarFilters.marketZone, localFeed]);
 
-  const gridKey = `${filtersAnimationKey(bazaarFilters)}|${category}`;
+  const gridKey = `${filtersAnimationKey(debouncedFilters)}|${category}`;
+  const catalogLoading = localLoading || isFetching;
 
   const filterBar = (
     <div className="sticky top-14 z-40 border-b border-border-subtle bg-white/98 shadow-sm backdrop-blur-md sm:top-16">
@@ -106,13 +108,18 @@ export default function HomePage() {
         >
           <MasonryProductGrid
             products={displayFeed}
-            loading={localLoading || featured.isLoading}
+            loading={catalogLoading && displayFeed.length === 0}
             onBand={setSelected}
-            bulkMode={bazaarFilters.saleMode === "Optom"}
+            bulkMode={debouncedFilters.saleMode === "Optom"}
           />
         </motion.div>
       </AnimatePresence>
-      {displayFeed.length === 0 && !localLoading ? (
+      {isError && !catalogLoading ? (
+        <p className="mt-8 text-center text-sm text-red-600">
+          Mahsulotlarni yuklab bo&apos;lmadi. Filtrlarni tekshirib qayta urinib ko&apos;ring.
+        </p>
+      ) : null}
+      {displayFeed.length === 0 && !catalogLoading && !isError ? (
         <p className="mt-8 text-center text-sm text-gray-500">{t("home.discovery.noResults")}</p>
       ) : null}
     </section>
@@ -123,8 +130,6 @@ export default function HomePage() {
     clearance: [],
     recommended: [],
   };
-
-  const recommendedPool = useMemo(() => dealSections.recommended, [dealSections]);
 
   return (
     <main className="min-h-dvh overflow-x-clip bg-canvas pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] md:pb-0">
@@ -160,8 +165,8 @@ export default function HomePage() {
             categories: categoryBar,
             recommended: isChina ? null : (
               <HomeRecommendedRow
-                products={recommendedPool}
-                loading={dealFeed.isLoading || localLoading}
+                products={displayFeed}
+                loading={catalogLoading && displayFeed.length === 0}
                 category={category}
                 onCategoryChange={setCategory}
               />
@@ -183,7 +188,6 @@ export default function HomePage() {
 
       <SiteFooter />
       <BandQilishModal product={selected} isOpen={Boolean(selected)} onClose={() => setSelected(null)} />
-      {experience?.show_chat !== false ? <AIChat /> : null}
       <BottomNav />
     </main>
   );

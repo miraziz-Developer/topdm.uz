@@ -10,6 +10,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.billing.plans import ALL_BOOSTS, BOOST_WEEK, BOOST_MONTH, BoostPackage
+from app.application.crm_banners.service import COIN_UZS_RATE, uzs_to_coins
 from app.infrastructure.repositories.wallet_repo import WalletRepository
 
 
@@ -42,7 +43,7 @@ class BoostService:
         if not pkg:
             raise ValueError("Noto'g'ri boost kodi")
 
-        coin_cost = max(1, pkg.price_uzs // 10_000)
+        coin_cost = uzs_to_coins(pkg.price_uzs)
         shop = await self._wallet.deduct_coins(shop_id, coin_cost)
 
         now = datetime.now(timezone.utc)
@@ -69,8 +70,6 @@ class BoostService:
             raise ValueError("Mahsulot topilmadi yoki do'kon sizga tegishli emas")
 
         await self._db.commit()
-
-        from app.application.crm_banners.service import COIN_UZS_RATE
 
         return {
             "boosted": True,

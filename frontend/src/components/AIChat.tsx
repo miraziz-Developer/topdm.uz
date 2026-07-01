@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, ChevronDown, Loader2, Mic, Send, Sparkles, X } from "lucide-react";
+import { Bot, ChevronDown, Loader2, Mic, Send, Shirt, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StylistProductSuggestions } from "@/components/chat/stylist-product-suggestions";
@@ -10,10 +11,11 @@ import { WardrobeBundle } from "@/components/chat/wardrobe-bundle";
 import { ChatMiniMap } from "@/components/chat/chat-mini-map";
 import { StylistProductFeedback } from "@/components/chat/stylist-product-feedback";
 import { StylistPhotoPreview, StylistPhotoUpload } from "@/components/stylist/stylist-photo-upload";
+import { useFabDockItem, useFabDockPanel } from "@/components/ui/action-fab-dock";
 import { useAIChat } from "@/hooks/useAIChat";
 import { useVoiceSearch } from "@/hooks/useVoiceSearch";
 import { AI_CHAT_OPEN_EVENT, STYLIST_PROMPT_EVENT } from "@/lib/ai-chat-bus";
-import { FAB_AI } from "@/lib/fab-positions";
+import { SHOP_CHAT_OPEN_EVENT } from "@/lib/shop-chat-bus";
 import { cn } from "@/lib/utils";
 
 const quickActionsFloating = [
@@ -38,8 +40,16 @@ const showAiDebug =
 
 export function AIChat({ variant = "floating" }: AIChatProps) {
   const isStudio = variant === "studio";
+  const pathname = usePathname();
+  const suppressFloating =
+    !isStudio &&
+    (pathname.startsWith("/stylist") ||
+      pathname.startsWith("/checkout") ||
+      pathname.startsWith("/auth") ||
+      pathname.startsWith("/reels"));
+
   const [open, setOpen] = useState(isStudio);
-  const [compactFab, setCompactFab] = useState(true);
+  const [shopChatOpen, setShopChatOpen] = useState(false);
   const [text, setText] = useState("");
   const [photoOpenSignal, setPhotoOpenSignal] = useState(0);
   const { messages, isLoading, isTyping, sendMessage, clearChat, threadId, userId } = useAIChat();
@@ -75,21 +85,18 @@ export function AIChat({ variant = "floating" }: AIChatProps) {
       if (detail?.trim()) void sendMessage(detail.trim());
       setOpen(true);
     };
+    const onShopChat = (event: Event) => {
+      setShopChatOpen(Boolean((event as CustomEvent<boolean>).detail));
+    };
     window.addEventListener(AI_CHAT_OPEN_EVENT, onOpen);
     window.addEventListener(STYLIST_PROMPT_EVENT, onPrompt);
+    window.addEventListener(SHOP_CHAT_OPEN_EVENT, onShopChat);
     return () => {
       window.removeEventListener(AI_CHAT_OPEN_EVENT, onOpen);
       window.removeEventListener(STYLIST_PROMPT_EVENT, onPrompt);
+      window.removeEventListener(SHOP_CHAT_OPEN_EVENT, onShopChat);
     };
   }, [sendMessage]);
-
-  useEffect(() => {
-    if (!isStudio) return;
-    const onScroll = () => setCompactFab(window.scrollY > 96);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [isStudio]);
 
   const quickActions = isStudio ? quickActionsStudio : quickActionsFloating;
 
@@ -117,38 +124,24 @@ export function AIChat({ variant = "floating" }: AIChatProps) {
     }
   };
 
+  useFabDockItem({
+    id: "ai-stylist",
+    order: 30,
+    label: "AI Stylist",
+    shortLabel: "AI",
+    icon: <Shirt className="h-5 w-5" />,
+    variant: "default",
+    pulse: false,
+    hidden: suppressFloating || isStudio || open || shopChatOpen,
+    onClick: () => setOpen(true),
+  });
+
+  useFabDockPanel("ai-stylist", open && !suppressFloating);
+
+  if (suppressFloating) return null;
+
   return (
     <>
-      {/* Floating trigger — faqat boshqar sahifalarda */}
-      {!isStudio ? (
-        <AnimatePresence>
-          {!open && (
-            <motion.button
-              id="ai-trigger"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              transition={{ type: "spring", damping: 20 }}
-              className={cn(
-                FAB_AI,
-                "flex items-center justify-center rounded-full bg-gradient-gold font-semibold text-canvas shadow-gold transition-all hover:scale-105",
-                compactFab ? "h-14 w-14 max-w-[calc(100vw-2rem)] p-0" : "max-w-[calc(100vw-2rem)] gap-2 px-4 py-3.5 sm:px-5",
-              )}
-              onClick={() => setOpen(true)}
-              aria-label="AI bilan toping"
-            >
-              <Bot className="h-5 w-5" />
-              {!compactFab ? <span className="hidden sm:inline">AI bilan toping</span> : null}
-              {!compactFab ? <span className="inline sm:hidden">AI</span> : null}
-              <span className="absolute -right-1 -top-1 flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-400 opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-gold-500" />
-              </span>
-            </motion.button>
-          )}
-        </AnimatePresence>
-      ) : null}
-
       {/* Chat Panel */}
       <AnimatePresence>
         {(open || isStudio) && (
@@ -217,8 +210,8 @@ export function AIChat({ variant = "floating" }: AIChatProps) {
               >
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center text-center">
-                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-500/10">
-                      <Sparkles className="h-8 w-8 text-gold-500" />
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-electric-500/10">
+                      <Shirt className="h-8 w-8 text-electric-500" />
                     </div>
                     <h4 className="mb-2 text-lg font-semibold text-text-100">
                       {isStudio ? "Salom! Men sizning shaxsiy stylingizman" : "Salom! Men sizning stylistingizman"}

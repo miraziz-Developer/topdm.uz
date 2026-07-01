@@ -97,8 +97,13 @@ class MerchantGrowthService:
         """Birinchi yakunlangan buyurtmada ikkala tomonga coin."""
         from app.infrastructure.db.models import ShopModel
 
+        from sqlalchemy.orm import noload
+
         result = await self._session.execute(
-            select(ShopModel).where(ShopModel.id == shop_id).with_for_update()
+            select(ShopModel)
+            .where(ShopModel.id == shop_id)
+            .options(noload(ShopModel.ipadrom))
+            .with_for_update()
         )
         shop = result.scalar_one_or_none()
         if not shop or shop.referral_rewarded_at or not shop.referred_by_shop_id:

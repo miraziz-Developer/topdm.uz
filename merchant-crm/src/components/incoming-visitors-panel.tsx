@@ -6,11 +6,11 @@ import { toast } from "sonner";
 
 import { CrmSection, CrmTip } from "@/components/crm/crm-section";
 import {
-  confirmMerchantPickup,
   getIncomingVisitors,
   patchMerchantApproachSettings,
   type IncomingVisitor,
 } from "@/lib/api";
+import Link from "next/link";
 import {
   clampApproachRadiusKm,
   DEFAULT_APPROACH_RADIUS_KM,
@@ -245,18 +245,9 @@ export function IncomingVisitorsPanel() {
                     )}
                   </p>
                   {v.arrival_status === "at_shop" ? (
-                    <button
-                      type="button"
-                      className="crm-btn-primary mt-3 text-xs"
-                      onClick={() =>
-                        void confirmMerchantPickup(v.order_id).then(() => {
-                          toast.success("Olib ketildi");
-                          void load();
-                        })
-                      }
-                    >
-                      Olib ketdi deb belgilash
-                    </button>
+                    <Link href="/scan" className="crm-btn-primary mt-3 inline-flex text-xs">
+                      QR skaner orqali yakunlash
+                    </Link>
                   ) : null}
                 </article>
               ))}

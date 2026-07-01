@@ -122,3 +122,4 @@ class ChatThreadSummary(BaseModel):
     updated_at: datetime
     last_message: str | None = None
     last_sender_role: str | None = None
+    unread_count: int = 0

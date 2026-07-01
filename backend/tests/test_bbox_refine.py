@@ -3,6 +3,7 @@ from PIL import Image
 from app.application.visual_search.bbox_refine import (
     build_body_part_detections,
     estimate_person_silhouette_bbox,
+    is_horizontal_strip_bbox,
     is_invalid_outfit_bbox,
     snap_bbox_to_subject,
 )
@@ -44,3 +45,8 @@ def test_person_bbox_centered():
             pil.putpixel((x, y), (40, 40, 40))
     person = estimate_person_silhouette_bbox(pil)
     assert 0.30 <= person["x"] + person["w"] / 2 <= 0.70
+
+
+def test_horizontal_strip_bbox():
+    assert is_horizontal_strip_bbox({"x": 0, "y": 0.1, "w": 0.95, "h": 0.28}) is True
+    assert is_horizontal_strip_bbox({"x": 0.2, "y": 0.1, "w": 0.5, "h": 0.6}) is False

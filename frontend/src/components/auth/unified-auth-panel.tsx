@@ -18,6 +18,7 @@ import { authMetaFromTokenResponse, establishSession, setClientSession } from "@
 import type { AuthTokenResponse } from "@/lib/api";
 import { useUserStore } from "@/stores/user-store";
 import { cn } from "@/lib/utils";
+import { MARKET } from "@/components/brand/premium-market-ui";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TELEGRAM_BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
@@ -166,7 +167,7 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-panel-strong overflow-hidden rounded-3xl shadow-elevated ring-1 ring-black/[0.04]"
+        className={cn(MARKET.authCard, "overflow-hidden rounded-3xl shadow-elevated", className)}
       >
         <motion.div
           initial={{ opacity: 0, y: 16 }}

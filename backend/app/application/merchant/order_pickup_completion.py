@@ -20,8 +20,18 @@ logger = logging.getLogger(__name__)
 PICKUP_SETTINGS_KEY = "pickup_completion_settings"
 ARRIVAL_TTL_SECONDS = 4 * 60 * 60
 
-MANUAL_PICKUP_ALLOWED_STATUSES = frozenset({"confirmed", "preparing", "ready"})
-QR_PICKUP_ALLOWED_STATUSES = frozenset({"reserved", "confirmed", "preparing", "ready"})
+from app.application.merchant.pickup_qr import QR_SCAN_ALLOWED_STATUSES
+
+MANUAL_PICKUP_ALLOWED_STATUSES = frozenset()
+QR_PICKUP_ALLOWED_STATUSES = QR_SCAN_ALLOWED_STATUSES
+
+_PAYMENT_LABELS = {
+    "cash": "Naqd",
+    "card": "Terminal",
+    "click": "Click",
+    "payme": "Payme",
+    "online": "Onlayn",
+}
 
 DEFAULT_PICKUP_SETTINGS = {
     "notify_on_arrival": True,
@@ -37,6 +47,7 @@ async def get_pickup_settings(shop_id: UUID) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raw = {}
     merged = {**DEFAULT_PICKUP_SETTINGS, **raw}
+    merged["auto_complete_enabled"] = False
     merged["auto_complete_after_minutes"] = max(5, min(int(merged["auto_complete_after_minutes"]), 120))
     merged["shop_arrival_radius_m"] = max(40, min(int(merged["shop_arrival_radius_m"]), 300))
     return merged
@@ -47,6 +58,7 @@ async def set_pickup_settings(shop_id: UUID, payload: dict[str, Any]) -> dict[st
     for key in DEFAULT_PICKUP_SETTINGS:
         if key in payload and payload[key] is not None:
             current[key] = payload[key]
+    current["auto_complete_enabled"] = False
     await merge_workspace_draft(shop_id, {PICKUP_SETTINGS_KEY: current})
     return current
 
@@ -58,6 +70,15 @@ def _parse_iso(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def _format_phone_label(phone: str) -> str:
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    if digits.startswith("998") and len(digits) == 12:
+        return f"+998 {digits[3:5]} {digits[5:8]} {digits[8:10]} {digits[10:12]}"
+    if len(digits) == 9:
+        return f"+998 {digits[0:2]} {digits[2:5]} {digits[5:7]} {digits[7:9]}"
+    return (phone or "").strip() or "Mijoz"
 
 
 class OrderPickupCompletionService:
@@ -134,17 +155,6 @@ class OrderPickupCompletionService:
             state["merchant_notified"] = True
             await self._cache.set(arrival_key, state, ttl_seconds=ARRIVAL_TTL_SECONDS)
 
-        auto_after = int(pickup_settings["auto_complete_after_minutes"])
-        if pickup_settings["auto_complete_enabled"] and dwell_min >= auto_after and status != "completed":
-            completed = await self._complete_order(shop.id, order.id, source="auto_arrival")
-            if completed:
-                result["auto_completed"] = True
-                result["order_status"] = "completed"
-                result["customer_message"] = "Rahmat! Olib ketilgan deb belgilandi."
-                result["pickup_hint"] = None
-                await self._clear_tracking(order.id, shop.id)
-                return result
-
         if dwell_min >= 3 and not state.get("reminder_sent"):
             await self._notify_merchant_pickup_reminder(shop, order, product, dwell_min)
             state["reminder_sent"] = True
@@ -159,10 +169,11 @@ class OrderPickupCompletionService:
 
         from app.application.merchant.pickup_qr import (
             is_pickup_fulfillment,
+            normalize_scanned_payload,
             verify_pickup_qr_token,
         )
 
-        order_id, token_shop_id = verify_pickup_qr_token(token)
+        order_id, token_shop_id = verify_pickup_qr_token(normalize_scanned_payload(token))
         if token_shop_id != shop_id:
             raise ValueError("wrong_shop")
 
@@ -210,12 +221,46 @@ class OrderPickupCompletionService:
                 {
                     "type": "pickup_qr_scanned",
                     "title": "QR orqali berildi",
-                    "body": f"{product.name if product else 'Mahsulot'} — mijozga topshirildi",
+                    "body": f"{await self._resolve_customer_name(existing) or _format_phone_label(existing.customer_phone)} — {product.name if product else 'Mahsulot'} olib ketdi",
                 },
             )
+            await self._notify_customer_status(
+                order,
+                new_status="completed",
+                prev_status=prev_status,
+                product_name=product.name if product else None,
+            )
+            try:
+                from app.application.loyalty.customer_coin_service import CustomerCoinService
+
+                await CustomerCoinService(self._session).award_completed_order(order)
+            except Exception:
+                logger.exception("customer_coin_award_failed", extra={"order_id": str(order.id)})
             existing = order
 
-        return self._build_scan_response(existing, product, shop, already_completed=already_completed)
+        customer_name = await self._resolve_customer_name(existing)
+        return self._build_scan_response(
+            existing,
+            product,
+            shop,
+            already_completed=already_completed,
+            customer_name=customer_name,
+        )
+
+    async def _resolve_customer_name(self, order: OrderModel) -> str | None:
+        from sqlalchemy import select
+
+        from app.infrastructure.db.models import AppUserModel
+
+        user_id = getattr(order, "customer_user_id", None)
+        if not user_id:
+            return None
+        row = (
+            await self._session.execute(select(AppUserModel.display_name).where(AppUserModel.id == user_id))
+        ).scalar_one_or_none()
+        if row and str(row).strip():
+            return str(row).strip()
+        return None
 
     @staticmethod
     def _build_scan_response(
@@ -224,23 +269,57 @@ class OrderPickupCompletionService:
         shop: ShopModel | None,
         *,
         already_completed: bool,
+        customer_name: str | None = None,
     ) -> dict[str, Any]:
+        phone = str(order.customer_phone or "")
+        customer_label = (customer_name or "").strip() or _format_phone_label(phone)
+        product_name = product.name if product else "Mahsulot"
+        qty = int(order.quantity or 1)
+        unit_price = int(product.price) if product else 0
+        product_image = None
+        if product and product.images:
+            product_image = str(product.images[0]).strip() or None
+        payment_raw = getattr(order, "payment_method", None)
+        payment_label = _PAYMENT_LABELS.get(str(payment_raw or "").lower(), payment_raw)
+
+        if already_completed:
+            headline = f"{customer_label} — bu buyurtma allaqachon olib ketilgan"
+        else:
+            headline = f"{customer_label} «{product_name}» ni olib ketdi"
+
         return {
             "order_id": str(order.id),
             "status": order.status,
             "already_completed": already_completed,
             "completed_via": "qr_scan",
-            "quantity": int(order.quantity or 1),
+            "headline": headline,
+            "customer_name": customer_name,
+            "customer_label": customer_label,
+            "customer_phone": phone,
+            "quantity": qty,
             "total_price": int(order.total_price or 0),
-            "customer_phone": str(order.customer_phone or ""),
-            "payment_method": getattr(order, "payment_method", None),
+            "unit_price": unit_price,
+            "payment_method": payment_raw,
+            "payment_label": payment_label,
             "pickup_date": order.pickup_date.isoformat() if getattr(order, "pickup_date", None) else None,
             "pickup_time": getattr(order, "pickup_time", None),
+            "completed_at": datetime.now(timezone.utc).isoformat() if not already_completed else None,
             "product": {
                 "id": str(product.id) if product else "",
-                "name": product.name if product else "",
-                "price": int(product.price) if product else 0,
+                "name": product_name,
+                "price": unit_price,
+                "image_url": product_image,
             },
+            "items": [
+                {
+                    "product_id": str(product.id) if product else "",
+                    "name": product_name,
+                    "quantity": qty,
+                    "unit_price": unit_price,
+                    "line_total": int(order.total_price or 0),
+                    "image_url": product_image,
+                }
+            ],
             "shop": {
                 "id": str(shop.id) if shop else "",
                 "name": shop.name if shop else "",
@@ -274,7 +353,7 @@ class OrderPickupCompletionService:
             raise ValueError("not_pickup_order")
         status = (order.status or "").lower()
         if status not in CUSTOMER_QR_VISIBLE_STATUSES:
-            raise ValueError("qr_not_available")
+            raise ValueError("qr_not_ready")
         product = order.product
         token, exp = issue_pickup_qr_token(order.id, order.shop_id)
         return {
@@ -291,6 +370,30 @@ class OrderPickupCompletionService:
             "hint": "Do'konda sotuvchiga ushbu QR ni ko'rsating — skaner qilgach buyurtma yopiladi.",
         }
 
+    async def _notify_customer_status(
+        self,
+        order: OrderModel,
+        *,
+        new_status: str,
+        prev_status: str | None,
+        product_name: str | None = None,
+    ) -> None:
+        from app.application.marketplace.customer_order_notify_dispatch import (
+            dispatch_customer_order_status_notify,
+        )
+
+        name = product_name
+        if not name and order.product_id:
+            product = await self._repo.get_product_by_id(order.product_id)
+            name = product.name if product else "Mahsulot"
+        await dispatch_customer_order_status_notify(
+            self._session,
+            order=order,
+            product_name=name or "Mahsulot",
+            new_status=new_status,
+            prev_status=prev_status,
+        )
+
     async def confirm_pickup_manual(
         self,
         shop_id: UUID,
@@ -298,51 +401,7 @@ class OrderPickupCompletionService:
         *,
         note: str | None = None,
     ) -> dict[str, Any]:
-        from sqlalchemy import select
-
-        existing = (
-            await self._session.execute(
-                select(OrderModel).where(OrderModel.id == order_id, OrderModel.shop_id == shop_id)
-            )
-        ).scalar_one_or_none()
-        if not existing:
-            raise ValueError("order_not_found")
-        prev_status = (existing.status or "").lower()
-        if prev_status in {"completed", "cancelled"}:
-            raise ValueError(f"order_already_{prev_status}")
-        if prev_status not in MANUAL_PICKUP_ALLOWED_STATUSES:
-            raise ValueError("order_not_ready_for_pickup")
-
-        order = await self._repo.update_order_status(
-            shop_id=shop_id,
-            order_id=order_id,
-            status="completed",
-        )
-        if not order:
-            raise ValueError("order_not_found")
-        await self._finalize_completed_order(order.id, shop_id, prev_status)
-        try:
-            from app.application.merchant.growth_service import MerchantGrowthService
-
-            await MerchantGrowthService(self._session).try_reward_referral(shop_id)
-        except Exception:
-            logger.debug("referral_reward_skipped", exc_info=True)
-        await self._clear_tracking(order_id, shop_id)
-        hub = MerchantWorkspaceHub(self._session)
-        await hub.push_alert(
-            shop_id,
-            {
-                "type": "pickup_confirmed",
-                "title": "Olib ketildi",
-                "body": note or "Buyurtma qo'lda yakunlandi",
-            },
-        )
-        return {
-            "order_id": str(order.id),
-            "status": order.status,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-            "source": "manual",
-        }
+        raise ValueError("pickup_requires_qr_scan")
 
     async def get_arrival_meta(self, order_id: UUID) -> dict[str, Any] | None:
         raw = await self._cache.get(f"arrival:order:{order_id}")
@@ -441,7 +500,7 @@ class OrderPickupCompletionService:
                 f"Mijoz do'koningizda!\n"
                 f"Mahsulot: {name}\n"
                 f"Bron holati: {order.status}\n\n"
-                f"Olib ketilgan bo'lsa CRMda «Olib ketdi» bosing."
+                f"Olib ketilgan bo'lsa 📷 QR Skaner orqali tasdiqlang."
             )
             try:
                 from app.application.merchant.telegram_crm_notify import notify_merchant_telegram
@@ -470,6 +529,6 @@ class OrderPickupCompletionService:
             {
                 "type": "pickup_reminder",
                 "title": "Tasdiqlash kerak",
-                "body": f"{name} — {int(dwell_min)} daq bo'ldi, olib ketildimi?",
+                "body": f"{name} — {int(dwell_min)} daq bo'ldi, QR skaner bilan tasdiqlang",
             },
         )

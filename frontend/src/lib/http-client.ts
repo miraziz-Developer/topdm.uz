@@ -50,6 +50,17 @@ export function parseApiErrorBody(status: number, raw: string): ApiError {
     /* plain text */
   }
 
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("<") || trimmed.toLowerCase().includes("<html")) {
+    if (status === 502) {
+      return new ApiError("Server vaqtincha javob bermadi. Birozdan keyin qayta urinib ko'ring.", status);
+    }
+    if (status === 504) {
+      return new ApiError("So'rov vaqti tugadi. Filtrlarni soddalashtirib qayta urinib ko'ring.", status);
+    }
+    return new ApiError(`So'rov muvaffaqiyatsiz (${status})`, status);
+  }
+
   return new ApiError(raw.slice(0, 240), status);
 }
 
@@ -129,9 +140,18 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
       throw timeoutError;
     }
     if (err instanceof ApiError) throw err;
+    const devHint =
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+        ? " Docker ishlatilsa http://localhost:3002, backend http://localhost:8000/health ni tekshiring."
+        : typeof window !== "undefined" &&
+            (window.location.hostname === "bozorliii.online" ||
+              window.location.hostname.endsWith(".bozorliii.online"))
+          ? " DNS yangilanishi kerak — Terminalda: sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder. Yoki tarmoq DNS ni 8.8.8.8 qiling va brauzerni qayta oching."
+          : " Internet yoki server holatini tekshiring.";
     const networkError = new ApiError(
       typeof window !== "undefined"
-        ? "Serverga ulanib bo'lmadi. Sahifani yangilang — Docker ishlatilsa http://localhost:3002, backend http://localhost:8000/health ni tekshiring."
+        ? `Serverga ulanib bo'lmadi. Sahifani yangilang.${devHint}`
         : "Serverga ulanib bo'lmadi. Internet yoki backendni tekshiring.",
       0,
     );

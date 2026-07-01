@@ -1,10 +1,10 @@
 "use client";
 
-import { Building2, MapPin, Navigation2, Store } from "lucide-react";
+import { Building2, MapPin, Navigation2, Save, Store } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { CrmSection } from "@/components/crm/crm-section";
+import { CrmSection, CrmTip } from "@/components/crm/crm-section";
 import { MerchantShopYandexMap } from "@/components/merchant-shop-yandex-map";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,11 @@ import {
   getWorkspaceDraft,
   patchWorkspaceDraft,
   saveMerchantPrecisionLocation,
+  type MerchantShopProfile,
 } from "@/lib/api";
 import { captureCurrentPosition } from "@/lib/geolocation";
 import { marketDisplayName } from "@/lib/map/market-geo";
+import { cn } from "@/lib/utils";
 
 type PrecisionLocationWorkspaceProps = {
   marketSlug?: string;
@@ -30,6 +32,29 @@ const FLOORS = [
 
 const BLOCKS = ["A", "B", "C", "D"];
 
+function parseBlockLetter(shop: MerchantShopProfile): string {
+  const fromId = (shop.block_id ?? "").trim().toUpperCase();
+  if (BLOCKS.includes(fromId)) return fromId;
+  const sector = (shop.block_sector ?? shop.section ?? "").toUpperCase();
+  const m = sector.match(/\b([A-D])\s*-?\s*BLOK\b/) ?? sector.match(/\b([A-D])\b/);
+  return m && BLOCKS.includes(m[1]) ? m[1] : "A";
+}
+
+function parseStallNumber(shop: MerchantShopProfile): string {
+  const stall = (shop.stall_number ?? "").trim();
+  if (stall && stall !== "—") return stall;
+  const section = shop.section ?? "";
+  const m = section.match(/rasta\s+(\S+)/i) ?? section.match(/\b(\d{1,4})\b/);
+  return m ? m[1] : "";
+}
+
+function parseFloorLabel(shop: MerchantShopProfile): string {
+  const raw = (shop.floor ?? "").trim();
+  if (raw) return raw.includes("qavat") ? raw : `${raw}-qavat`;
+  if (shop.floor_level) return `${shop.floor_level}-qavat`;
+  return "1-qavat";
+}
+
 export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: PrecisionLocationWorkspaceProps) {
   const marketName = marketDisplayName(marketSlug);
   const [shopName, setShopName] = useState("Do'kon");
@@ -39,32 +64,44 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
   const [comment, setComment] = useState("");
   const [gps, setGps] = useState<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
   const [pin, setPin] = useState<{ x: number; y: number } | null>(null);
-  const [insideMarket, setInsideMarket] = useState<boolean | null>(null);
   const [loadingGps, setLoadingGps] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    void getMerchantMe()
-      .then((me) => setShopName(me.shop?.name || "Do'kon"))
-      .catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     const run = async () => {
       try {
-        const { draft } = await getWorkspaceDraft();
+        const [me, draftRes] = await Promise.all([getMerchantMe(), getWorkspaceDraft()]);
+        const shop = me.shop;
+        setShopName(shop.name || "Do'kon");
+        setFloor(parseFloorLabel(shop));
+        setBlock(parseBlockLetter(shop));
+        setStall(parseStallNumber(shop));
+        if (shop.location_comment) setComment(shop.location_comment);
+
+        const { draft } = draftRes;
         if (draft.floor) setFloor(String(draft.floor));
         if (draft.block) setBlock(String(draft.block));
         if (draft.stall) setStall(String(draft.stall));
         if (draft.comment) setComment(String(draft.comment));
+
+        if (shop.latitude != null && shop.longitude != null) {
+          const geofence = await checkMarketGeofence(marketSlug, shop.latitude, shop.longitude);
+          setGps({
+            latitude: shop.latitude,
+            longitude: shop.longitude,
+            accuracy: null,
+          });
+          setPin(geofence.pin);
+        }
       } catch {
-        /* draft optional */
+        /* optional */
       } finally {
         setHydrated(true);
       }
     };
     void run();
-  }, []);
+  }, [marketSlug]);
 
   const draftPayload = useMemo(
     () => ({
@@ -102,7 +139,6 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
   const applyGps = async (latitude: number, longitude: number, accuracy: number | null) => {
     setGps({ latitude, longitude, accuracy });
     const geofence = await checkMarketGeofence(marketSlug, latitude, longitude);
-    setInsideMarket(geofence.inside);
     setPin(geofence.pin);
     return geofence;
   };
@@ -111,11 +147,14 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
     setLoadingGps(true);
     try {
       const reading = await captureCurrentPosition();
-      const geofence = await applyGps(reading.latitude, reading.longitude, reading.accuracy);
+      const geofence = await checkMarketGeofence(marketSlug, reading.latitude, reading.longitude);
       if (!geofence.inside) {
-        toast.error("Siz bozor chegarasidan tashqaridasiz. Do'kon oldida turib qayta bosing.");
+        toast.message("Siz hozir bozor yaqinida emassiz", {
+          description: "Xaritada pinni qo'lda qo'ying — ofisdan ham belgilash mumkin.",
+        });
         return;
       }
+      await applyGps(reading.latitude, reading.longitude, reading.accuracy);
       toast.success(
         reading.accuracy
           ? `Joylashuv aniqlandi (±${Math.round(reading.accuracy)} m)`
@@ -130,10 +169,7 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
 
   const handleMapMove = async (lat: number, lng: number) => {
     try {
-      const geofence = await applyGps(lat, lng, gps?.accuracy ?? null);
-      if (!geofence.inside) {
-        toast.error("Pin bozor ichida bo'lishi kerak");
-      }
+      await applyGps(lat, lng, gps?.accuracy ?? null);
     } catch {
       toast.error("Joylashuvni tekshirib bo'lmadi");
     }
@@ -145,13 +181,10 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
       return;
     }
     if (!gps || !pin) {
-      toast.error("Avval xaritada do'kon joyini belgilang");
+      toast.error("Xaritada do'kon joyini belgilang (pinni sudrang yoki bosing)");
       return;
     }
-    if (insideMarket === false) {
-      toast.error("Joylashuv bozor ichida emas");
-      return;
-    }
+    setSaving(true);
     try {
       await saveMerchantPrecisionLocation({
         market_slug: marketSlug,
@@ -171,11 +204,30 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Saqlab bo'lmadi");
+    } finally {
+      setSaving(false);
     }
   };
 
+  const saveButton = (
+    <Button
+      onClick={() => void finalizeLocation()}
+      isLoading={saving}
+      size="sm"
+      leftIcon={<Save className="h-4 w-4" />}
+    >
+      Saqlash
+    </Button>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-20">
+      <CrmTip>
+        Bozordan uzoqda bo&apos;lsangiz ham joylashuvni belgilashingiz mumkin — xaritada pinni do&apos;koningiz ustiga qo&apos;ying.
+        Maydonlarni to&apos;ldiring va <strong className="font-semibold text-foreground">Saqlash</strong> tugmasini bosing.
+        «Hozirgi joyim» faqat bozorda turganingizda qulay.
+      </CrmTip>
+
       <div className="crm-surface-card overflow-hidden">
         <div className="grid gap-0 sm:grid-cols-2 lg:grid-cols-4">
           <div className="border-b border-border-subtle p-4 sm:border-b-0 sm:border-r">
@@ -212,15 +264,18 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
         description="Mijozlar xaritada qayerdaligingizni shu maydonlar orqali tushunadi"
         icon={MapPin}
         action={
-          <Button
-            onClick={() => void detectCurrentLocation()}
-            isLoading={loadingGps}
-            variant="secondary"
-            size="sm"
-            leftIcon={<Navigation2 className="h-4 w-4" />}
-          >
-            Hozirgi joyim
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => void detectCurrentLocation()}
+              isLoading={loadingGps}
+              variant="secondary"
+              size="sm"
+              leftIcon={<Navigation2 className="h-4 w-4" />}
+            >
+              Hozirgi joyim
+            </Button>
+            {saveButton}
+          </div>
         }
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -270,7 +325,7 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
 
       <CrmSection
         title="Yandex xaritada joylashuv"
-        description="Haqiqiy bozor joyi — pinni do'koningiz ustiga qo'ying"
+        description="Pinni do'koningiz ustiga qo'ying — ofisdan ham, bozordan ham mumkin"
         icon={MapPin}
       >
         <MerchantShopYandexMap
@@ -281,26 +336,35 @@ export function PrecisionLocationWorkspace({ marketSlug = "ippodrom" }: Precisio
         />
         {gps ? (
           <p className="mt-3 text-xs text-text-400">
-            GPS: {gps.latitude.toFixed(5)}, {gps.longitude.toFixed(5)}
+            Koordinata: {gps.latitude.toFixed(5)}, {gps.longitude.toFixed(5)}
             {gps.accuracy != null ? ` · ±${Math.round(gps.accuracy)} m` : ""}
-            {insideMarket === false ? (
-              <span className="ml-2 font-semibold text-red">Bozor tashqarisi</span>
-            ) : (
-              <span className="ml-2 font-semibold text-emerald-600">Bozor ichida</span>
-            )}
           </p>
         ) : (
           <p className="mt-3 text-xs text-amber-800">
-            «Hozirgi joyim» tugmasini bosing yoki xaritada pin qo&apos;ying
+            «Hozirgi joyim» tugmasini bosing yoki xaritada pin qo&apos;ying — keyin <strong>Saqlash</strong>
           </p>
         )}
       </CrmSection>
 
-      <div className="flex justify-end">
-        <button type="button" className="crm-btn-primary" onClick={() => void finalizeLocation()}>
-          <MapPin className="mr-2 inline h-4 w-4" />
-          Joylashuvni saqlash
-        </button>
+      <div
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-30 border-t border-border-subtle bg-surface/95 px-4 py-3 backdrop-blur-md",
+          "md:static md:z-auto md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none",
+        )}
+      >
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 md:justify-end">
+          <p className="text-xs text-text-400 md:hidden">
+            {metadataReady && gps ? "Tayyor — saqlang" : "Maydonlar va xaritani to'ldiring"}
+          </p>
+          <Button
+            onClick={() => void finalizeLocation()}
+            isLoading={saving}
+            className="min-w-[140px] shrink-0"
+            leftIcon={<MapPin className="h-4 w-4" />}
+          >
+            Joylashuvni saqlash
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -83,3 +83,14 @@ class OrderPaymentRepository:
         row.status = "failed"
         await self._session.flush()
         return row
+
+    async def find_latest_for_order(self, order_id: UUID) -> OrderCheckoutPaymentModel | None:
+        oid = str(order_id)
+        stmt = (
+            select(OrderCheckoutPaymentModel)
+            .where(OrderCheckoutPaymentModel.order_ids.contains([oid]))
+            .order_by(OrderCheckoutPaymentModel.created_at.desc())
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()

@@ -118,11 +118,10 @@ export function resolveReelPosterUrl(url?: string | null): string {
   return resolveApiMediaUrlForBrowser(resolved);
 }
 
-/** Eski seed / tasodifiy placeholder — mahsulotga mos emas. */
+/** Eski seed / tasodifiy placeholder — mahsulotga mos emas. Unsplash katalog demo rasmlari ruxsat. */
 export function isUnreliableProductImage(url?: string | null): boolean {
   const u = (url ?? "").trim().toLowerCase();
   if (!u) return true;
-  if (u.includes("images.unsplash.com")) return true;
   if (u.includes("picsum.photos")) return true;
   if (u.includes("loremflickr.com") || u.includes("placehold.co")) return true;
   if (u.includes("/placeholder") && !u.includes("bozorliii-product-placeholder")) return true;

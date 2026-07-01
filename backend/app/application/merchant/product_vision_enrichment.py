@@ -158,6 +158,16 @@ def _merge_listing(base: dict[str, Any], payload: dict[str, Any]) -> dict[str, A
     return merged
 
 
+def _listing_sufficient(merged: dict[str, Any]) -> bool:
+    name = str(merged.get("product_name") or "").strip()
+    if not name or name == "Yangi mahsulot":
+        return False
+    if merged.get("price_uzs"):
+        return True
+    hint = str(merged.get("category_hint") or "").strip()
+    return bool(hint and hint != "boshqa")
+
+
 async def _groq_listing_from_image(image_bytes: bytes) -> dict[str, Any]:
     groq = GroqClient()
     mime = _guess_mime(image_bytes)
@@ -185,7 +195,7 @@ async def analyze_product_photo(image_bytes: bytes) -> dict[str, Any]:
         try:
             listing = await _groq_listing_from_image(raw_bytes)
             merged = _merge_listing(merged, listing)
-            if merged.get("product_name") and merged.get("product_name") != "Yangi mahsulot":
+            if _listing_sufficient(merged):
                 merged["vision_source"] = "groq_listing"
                 return merged
         except Exception as exc:
@@ -194,6 +204,8 @@ async def analyze_product_photo(image_bytes: bytes) -> dict[str, Any]:
     try:
         vision = await GeminiClient().extract_attributes(raw_bytes)
         merged = _merge_listing(merged, vision)
+        if vision.get("category") and not merged.get("category_hint"):
+            merged["category_hint"] = _normalize_category_hint(str(vision.get("category")))
         merged["vision_source"] = "gemini_vision"
     except Exception as exc:
         logger.warning(f"gemini_listing_fallback_failed detail={str(exc)[:200]}")

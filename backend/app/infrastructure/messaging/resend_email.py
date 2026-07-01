@@ -81,6 +81,45 @@ def build_otp_html(*, otp: str, brand: str = "Bozorliii") -> str:
 </html>"""
 
 
+def build_order_status_html(
+    *,
+    title: str,
+    body: str,
+    product_name: str,
+    order_url: str,
+    brand: str = "Bozorliii",
+) -> str:
+    safe_title = title.replace("<", "&lt;").replace(">", "&gt;")
+    safe_body = body.replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+    safe_product = product_name.replace("<", "&lt;").replace(">", "&gt;")
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f2f4f8;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f2f4f8;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:480px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(15,23,42,0.08);">
+        <tr><td style="background:linear-gradient(135deg,#2563eb 0%,#7c3aed 100%);padding:24px 28px;text-align:center;">
+          <h1 style="margin:0;font-size:20px;font-weight:700;color:#fff;">{safe_title}</h1>
+        </td></tr>
+        <tr><td style="padding:28px 24px;">
+          <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Mahsulot</p>
+          <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#0f172a;">{safe_product}</p>
+          <p style="margin:0;font-size:15px;line-height:1.6;color:#475569;">{safe_body}</p>
+          <p style="margin:24px 0 0;text-align:center;">
+            <a href="{order_url}" style="display:inline-block;padding:12px 24px;border-radius:12px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;">Buyurtmani ochish</a>
+          </p>
+        </td></tr>
+        <tr><td style="padding:12px 24px 20px;text-align:center;border-top:1px solid #e2e8f0;">
+          <p style="margin:0;font-size:11px;color:#94a3b8;">© {brand}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
 class ResendEmailGateway:
     async def store_otp(self, *, to_email: str, otp: str, link_user_id: str | None = None) -> str:
         normalized = normalize_email(to_email)
@@ -157,6 +196,49 @@ class ResendEmailGateway:
             raise ResendEmailError("Email yuborib bo'lmadi", code="resend_send_failed")
 
         logger.info("resend_otp_sent", extra={"email": normalized})
+
+    async def send_order_status(
+        self,
+        *,
+        to_email: str,
+        title: str,
+        body: str,
+        product_name: str,
+        order_url: str,
+    ) -> None:
+        settings = get_settings()
+        if not settings.resend_api_key:
+            logger.debug("resend_order_status_skipped_no_key", extra={"email": to_email})
+            return
+
+        normalized = normalize_email(to_email)
+        payload = {
+            "from": settings.resend_from_email,
+            "to": [normalized],
+            "subject": f"Bozorliii — {title}",
+            "html": build_order_status_html(
+                title=title,
+                body=body,
+                product_name=product_name,
+                order_url=order_url,
+            ),
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(_RESEND_API, json=payload, headers=headers)
+            if response.status_code >= 400:
+                logger.warning(
+                    "resend_order_status_failed",
+                    extra={"email": normalized, "status": response.status_code, "body": response.text[:200]},
+                )
+                return
+            logger.info("resend_order_status_sent", extra={"email": normalized, "title": title})
+        except httpx.HTTPError:
+            logger.exception("resend_order_status_http_error", extra={"email": normalized})
 
     async def verify_otp(self, *, email: str, otp: str, link_user_id: str | None = None) -> str:
         normalized = normalize_email(email)

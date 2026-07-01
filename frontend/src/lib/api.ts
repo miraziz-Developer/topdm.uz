@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/http-client";
-import { getSessionId } from "@/lib/utils";
+import { getChatCustomerKey } from "@/lib/utils";
 import type {
   AuthMeResponse,
   Order,
@@ -577,6 +577,7 @@ export async function reservePickupOrders(
     note?: string;
     ref_token?: string;
     verification_token?: string;
+    coins_to_redeem?: number;
   },
   options?: { silent?: boolean },
 ): Promise<PickupReservationResponse> {
@@ -621,6 +622,34 @@ export async function getMyOrders(scope: "active" | "completed" | "cancelled" | 
   return getJson<{ items: Order[] }>(`/orders/me${query}`, true);
 }
 
+export type OrderNotification = {
+  id: string;
+  order_id: string;
+  status: string;
+  title: string;
+  body: string;
+  product_name: string;
+  created_at: string;
+  read: boolean;
+  highlight?: boolean;
+};
+
+export async function getOrderNotifications(
+  unreadOnly = true,
+): Promise<{ items: OrderNotification[]; unread_count: number }> {
+  const q = unreadOnly ? "?unread_only=true" : "?unread_only=false";
+  return getJson(`/orders/notifications${q}`, true);
+}
+
+export async function markOrderNotificationsRead(body: {
+  notification_ids?: string[];
+  mark_all?: boolean;
+  user_phone?: string;
+  verification_token?: string;
+}): Promise<{ updated: number }> {
+  return postJson("/orders/notifications/read", body, !body.verification_token);
+}
+
 /** Mehmon buyurtma qidiruv — SMS OTP yuborish. */
 export async function sendOrderLookupOtp(user_phone: string): Promise<{
   status: string;
@@ -652,7 +681,62 @@ export async function lookupOrdersByPhone(
   );
 }
 
-export async function getMyOrder(orderId: string): Promise<Order> {
+export async function cancelMyOrder(
+  orderId: string,
+  body: { reason?: string; user_phone?: string; verification_token?: string } = {},
+): Promise<{ order_id: string; status: string }> {
+  return postJson(`/orders/${orderId}/cancel`, body, !body.verification_token);
+}
+
+export async function rescheduleMyOrder(
+  orderId: string,
+  body: {
+    pickup_date: string;
+    pickup_time: string;
+    user_phone?: string;
+    verification_token?: string;
+  },
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/pickup-schedule`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    auth: !body.verification_token,
+  });
+}
+
+export async function retryOrderPayment(
+  orderId: string,
+  body: { user_phone?: string; verification_token?: string } = {},
+): Promise<{ checkout_id: string; online_checkout_url: string; amount_uzs: number }> {
+  return postJson(`/orders/${orderId}/retry-payment`, body, !body.verification_token);
+}
+
+export async function changeOrderPaymentMethod(
+  orderId: string,
+  body: {
+    payment_method: "cash" | "terminal";
+    user_phone?: string;
+    verification_token?: string;
+  },
+): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/payment-method`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    auth: !body.verification_token,
+  });
+}
+
+export async function getMyOrder(
+  orderId: string,
+  guest?: { user_phone: string; verification_token: string },
+): Promise<Order> {
+  if (guest) {
+    const q = new URLSearchParams({
+      user_phone: guest.user_phone,
+      verification_token: guest.verification_token,
+    });
+    return getJson<Order>(`/orders/${orderId}?${q.toString()}`, false);
+  }
   return getJson<Order>(`/orders/${orderId}`, true);
 }
 
@@ -899,13 +983,30 @@ export async function createChatThread(payload: {
   customer_key: string;
   customer_display_name?: string;
 }): Promise<{ thread: ChatThreadItem }> {
-  const sid = encodeURIComponent(getSessionId());
+  const sid = encodeURIComponent(getChatCustomerKey());
   return postJson(`/chat/threads?session_id=${sid}`, payload);
 }
 
-export async function getChatMessages(threadId: string): Promise<{ items: ChatMessageItem[] }> {
-  const sid = encodeURIComponent(getSessionId());
+export async function getChatMessages(threadId: string): Promise<{ items: ChatMessageItem[]; unread_count?: number }> {
+  const sid = encodeURIComponent(getChatCustomerKey());
   return getJson(`/chat/threads/${threadId}/messages?session_id=${sid}`, false);
+}
+
+export async function markChatThreadRead(threadId: string): Promise<{ ok: boolean; unread_count: number }> {
+  const sid = encodeURIComponent(getChatCustomerKey());
+  return postJson(`/chat/threads/${threadId}/read?session_id=${sid}`, {});
+}
+
+export async function sendChatMessage(
+  threadId: string,
+  body: string,
+  metadata?: Record<string, unknown>,
+): Promise<{ message: ChatMessageItem }> {
+  const sid = encodeURIComponent(getChatCustomerKey());
+  return postJson(`/chat/threads/${threadId}/messages?session_id=${sid}&role=customer`, {
+    body,
+    metadata: metadata ?? {},
+  });
 }
 
 export async function getShopDashboard(shopId: string): Promise<unknown> {

@@ -12,13 +12,16 @@ from sqlalchemy import select
 from app.application.marketplace.use_cases import MarketplaceUseCases
 from app.application.merchant.merchant_order_notify import (
     allowed_order_bot_actions,
+    is_click_payment_pending,
     order_action_markup,
     order_action_not_allowed_message,
+    order_status_next_step_hint,
 )
 from app.infrastructure.db.models import OrderModel
 from app.infrastructure.db.session import AsyncSessionFactory
 from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
+from app.infrastructure.repositories.order_payment_repo import OrderPaymentRepository
 
 logger = logging.getLogger(__name__)
 order_router = Router(name="merchant_orders")
@@ -68,6 +71,12 @@ async def on_order_action(query: CallbackQuery) -> None:
         await query.answer("Noto'g'ri buyruq", show_alert=True)
         return
     action, order_id_s = parts[1], parts[2]
+    if action == "d":
+        await query.answer(
+            "Olib ketilgan deb belgilash faqat QR skaner orqali. Botda «QR Skaner» yoki xabardagi 📷 tugmasini bosing.",
+            show_alert=True,
+        )
+        return
     target_status = _STATUS_MAP.get(action)
     if not target_status:
         await query.answer("Noto'g'ri amal", show_alert=True)
@@ -97,10 +106,21 @@ async def on_order_action(query: CallbackQuery) -> None:
 
         fulfillment_type = str(getattr(existing, "fulfillment_type", None) or "pickup")
         current_status = str(existing.status or "reserved")
-        allowed = allowed_order_bot_actions(status=current_status, fulfillment_type=fulfillment_type)
+        checkout = await OrderPaymentRepository(session).find_latest_for_order(order_id)
+        checkout_status = checkout.status if checkout else None
+        click_pending = is_click_payment_pending(existing, checkout_status=checkout_status)
+        allowed = allowed_order_bot_actions(
+            status=current_status,
+            fulfillment_type=fulfillment_type,
+            click_payment_pending=click_pending,
+        )
         if action not in allowed:
             await query.answer(
-                order_action_not_allowed_message(action, current_status),
+                order_action_not_allowed_message(
+                    action,
+                    current_status,
+                    click_payment_pending=click_pending,
+                ),
                 show_alert=True,
             )
             return
@@ -129,14 +149,19 @@ async def on_order_action(query: CallbackQuery) -> None:
     await query.answer(label)
     try:
         base = query.message.text or ""
+        hint = order_status_next_step_hint(status=new_status, fulfillment_type=fulfillment_type)
         markup = order_action_markup(
             shop.id,
             order_id,
             status=new_status,
             fulfillment_type=fulfillment_type,
+            click_payment_pending=False,
         )
+        suffix = f"\n\n— {label}"
+        if hint:
+            suffix += f"\n{hint}"
         await query.message.edit_text(
-            f"{base}\n\n— {label}",
+            f"{base}{suffix}",
             reply_markup=_markup_from_dict(markup),
         )
     except Exception:

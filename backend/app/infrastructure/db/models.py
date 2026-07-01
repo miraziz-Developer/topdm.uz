@@ -79,6 +79,7 @@ class AppUserModel(Base):
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True, index=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    coins_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
@@ -100,6 +101,11 @@ class ShopModel(Base):
     telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_verified: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False)
+    verification_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending_ai", server_default="pending_ai", index=True
+    )
+    verification_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_featured: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False)
     featured_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=True)
@@ -221,6 +227,8 @@ class OrderModel(Base):
     delivery_cost_uzs: Mapped[int | None] = mapped_column(Integer, nullable=True)
     delivery_eta_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     payment_method: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    loyalty_coins_redeemed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    loyalty_coins_awarded: Mapped[bool] = mapped_column(BOOLEAN, nullable=False, default=False, server_default="false")
     debt_commission_recorded: Mapped[bool] = mapped_column(
         BOOLEAN,
         nullable=False,
@@ -340,6 +348,8 @@ class ChatThreadModel(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+    merchant_last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    customer_last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     messages = relationship("ChatMessageModel", back_populates="thread", order_by="ChatMessageModel.created_at")
 

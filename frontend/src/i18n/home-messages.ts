@@ -8,8 +8,11 @@ export type HomeMessageKey =
   | "home.stories.eyebrow"
   | "home.stories.title"
   | "home.stories.description"
+  | "home.stories.descriptionPromo"
   | "home.stories.empty"
   | "home.stories.liveBadge"
+  | "home.stories.promoBadge"
+  | "home.stories.scrollHint"
   | "home.stories.wowwDock"
   | "home.premiumBanners.eyebrow"
   | "home.premiumBanners.title"
@@ -73,8 +76,11 @@ const uz: Record<HomeMessageKey, string> = {
   "home.stories.eyebrow": "Jonli oqim",
   "home.stories.title": "Hozir Ippodromda nima trend?",
   "home.stories.description": "Sotuvchilar yuborgan jonli storylar — 48 soat ko'rinadi.",
+  "home.stories.descriptionPromo": "Hozircha do'kon storylari yo'q — platforma reklamalari ko'rsatilmoqda.",
   "home.stories.empty": "Hozircha jonli storylar yo'q. Tez orada sotuvchilar yangi kiyimlar bilan chiqadi.",
   "home.stories.liveBadge": "JONLI",
+  "home.stories.promoBadge": "REKLAMA",
+  "home.stories.scrollHint": "Ko'proq story uchun chapga-o'ngga suring",
   "home.stories.wowwDock": "Woww Live",
   "home.premiumBanners.eyebrow": "Premium reklama",
   "home.premiumBanners.title": "Sponsorlangan do'konlar",
@@ -146,8 +152,11 @@ const ru: Record<HomeMessageKey, string> = {
   "home.stories.eyebrow": "Живая лента",
   "home.stories.title": "Что сейчас в тренде на Ипподроме?",
   "home.stories.description": "Живые сторис от продавцов — обновляются в течение 24 часов.",
+  "home.stories.descriptionPromo": "Пока нет сторис магазинов — показываем рекламу платформы.",
   "home.stories.empty": "Пока нет живых сторис. Скоро продавцы добавят новые образы.",
   "home.stories.liveBadge": "В ЭФИРЕ",
+  "home.stories.promoBadge": "РЕКЛАМА",
+  "home.stories.scrollHint": "Проведите влево/вправо, чтобы увидеть больше",
   "home.stories.wowwDock": "Woww Live",
   "home.premiumBanners.eyebrow": "Премиум реклама",
   "home.premiumBanners.title": "Спонсорские магазины",
@@ -219,8 +228,11 @@ const en: Record<HomeMessageKey, string> = {
   "home.stories.eyebrow": "Instant feed",
   "home.stories.title": "What's trending at Ippodrom now?",
   "home.stories.description": "Live seller stories — refreshed within 24 hours.",
+  "home.stories.descriptionPromo": "No shop stories yet — showing platform promotions.",
   "home.stories.empty": "No live stories yet. Sellers will post new looks soon.",
   "home.stories.liveBadge": "LIVE NOW",
+  "home.stories.promoBadge": "PROMO",
+  "home.stories.scrollHint": "Swipe left or right for more stories",
   "home.stories.wowwDock": "Woww Live",
   "home.premiumBanners.eyebrow": "Premium ads",
   "home.premiumBanners.title": "Sponsored shops",

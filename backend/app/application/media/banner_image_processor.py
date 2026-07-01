@@ -5,10 +5,8 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageOps
 
-# Premium carousel cards: clean vertical rectangle (~4:5)
-TARGET_ASPECT = 4 / 5
+# Banner: proporsiya saqlanadi, maksimal kenglik/balandlik chegarasi
 MAX_BYTES = 500_000
-TARGET_WIDTH = 1080
 WEBP_QUALITY_START = 88
 
 
@@ -23,22 +21,17 @@ class ProcessedBannerImage:
 
 
 def process_banner_upload(raw: bytes, *, max_bytes: int = MAX_BYTES) -> ProcessedBannerImage:
-    """Resize/crop to 4:5, encode WebP, compress under max_bytes."""
+    """Rasm proporsiyasini saqlab, maksimal o'lchamga moslashtirish (kesmasdan)."""
+    max_w, max_h = 1600, 900
     with Image.open(io.BytesIO(raw)) as img:
         img = ImageOps.exif_transpose(img.convert("RGB"))
         w, h = img.size
-        target_h = int(TARGET_WIDTH / TARGET_ASPECT)
-        # Center-crop to target aspect
-        current_aspect = w / h if h else 1
-        if current_aspect > TARGET_ASPECT:
-            new_w = int(h * TARGET_ASPECT)
-            left = (w - new_w) // 2
-            img = img.crop((left, 0, left + new_w, h))
-        else:
-            new_h = int(w / TARGET_ASPECT)
-            top = (h - new_h) // 2
-            img = img.crop((0, top, w, top + new_h))
-        img = img.resize((TARGET_WIDTH, target_h), Image.Resampling.LANCZOS)
+        scale = min(max_w / w, max_h / h, 1.0)
+        new_w = max(1, int(w * scale))
+        new_h = max(1, int(h * scale))
+        if scale < 1.0:
+            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        out_w, out_h = img.size
 
         quality = WEBP_QUALITY_START
         out = io.BytesIO()
@@ -58,7 +51,7 @@ def process_banner_upload(raw: bytes, *, max_bytes: int = MAX_BYTES) -> Processe
             data=data,
             content_type="image/webp",
             extension="webp",
-            width=TARGET_WIDTH,
-            height=target_h,
+            width=out_w,
+            height=out_h,
             byte_size=len(data),
         )

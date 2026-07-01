@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ProductImage } from "@/components/ui/product-image";
 import { productImage } from "@/lib/media";
@@ -16,19 +16,27 @@ type ImageMagnifierProps = {
   className?: string;
 };
 
+/** Do'kon rasmlari ko'pincha vertikal — kesmasdan to'liq ko'rsatish uchun clamp. */
+function clampAspect(ratio: number): number {
+  return Math.min(1.15, Math.max(0.52, ratio));
+}
+
 export function ImageMagnifier({ images, index = 0, src, alt, className }: ImageMagnifierProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const [position, setPosition] = useState({ x: 50, y: 50 });
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
 
-  const candidates = images?.length
-    ? images
-    : src
-      ? [src]
-      : [];
+  const candidates = images?.length ? images : src ? [src] : [];
 
   const zoomSrc = displaySrc ?? productImage(candidates, index);
+  const frameAspect = imageAspect ? clampAspect(imageAspect) : 3 / 4;
+
+  useEffect(() => {
+    setDisplaySrc(null);
+    setImageAspect(null);
+  }, [index, candidates.join("|")]);
 
   const onMove = (event: React.MouseEvent<HTMLDivElement>) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -42,9 +50,10 @@ export function ImageMagnifier({ images, index = 0, src, alt, className }: Image
     <div
       ref={containerRef}
       className={cn(
-        "relative aspect-[4/5] w-full overflow-hidden rounded-[1.75rem] bg-[#f0eeea] ring-1 ring-black/[0.06] shadow-[0_24px_64px_-28px_rgba(15,23,42,0.22)] sm:aspect-square sm:rounded-[2rem]",
+        "relative w-full max-h-[min(78vh,680px)] overflow-hidden rounded-[1.75rem] bg-[#f0eeea] ring-1 ring-black/[0.06] shadow-[0_24px_64px_-28px_rgba(15,23,42,0.22)] sm:rounded-[2rem]",
         className,
       )}
+      style={{ aspectRatio: frameAspect }}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       onMouseMove={onMove}
@@ -55,9 +64,14 @@ export function ImageMagnifier({ images, index = 0, src, alt, className }: Image
         alt={alt}
         fill
         priority
-        className="object-cover"
+        className="object-contain p-2 sm:p-3"
         sizes="(max-width: 768px) 100vw, 50vw"
-        onLoadingComplete={(img) => setDisplaySrc(img.currentSrc || img.src)}
+        onLoadingComplete={(img) => {
+          setDisplaySrc(img.currentSrc || img.src);
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            setImageAspect(img.naturalWidth / img.naturalHeight);
+          }
+        }}
       />
       {active ? (
         <div
@@ -68,11 +82,10 @@ export function ImageMagnifier({ images, index = 0, src, alt, className }: Image
       {active && zoomSrc ? (
         <div className="pointer-events-none absolute right-4 top-4 hidden h-40 w-40 overflow-hidden rounded-2xl border border-border-subtle bg-white shadow-modal md:block">
           <div
-            className="h-full w-full bg-cover bg-no-repeat"
+            className="h-full w-full bg-contain bg-center bg-no-repeat"
             style={{
               backgroundImage: `url(${zoomSrc})`,
-              backgroundPosition: `${position.x}% ${position.y}%`,
-              backgroundSize: "220%",
+              backgroundSize: "contain",
             }}
           />
         </div>

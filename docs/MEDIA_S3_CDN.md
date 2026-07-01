@@ -37,7 +37,7 @@ Migratsiya:
 
 ```bash
 # Mavjud /app/uploads fayllarni R2 ga ko‘chirish (serverda)
-docker compose -f docker-compose.prod.yml exec backend python /app/scripts/migrate_media_to_s3.py
+docker compose -f docker-compose.prod.yml exec backend python /app/scripts/migrate_local_uploads_to_s3.py
 ```
 
 ## Tekshirish

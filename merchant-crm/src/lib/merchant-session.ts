@@ -1,6 +1,6 @@
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth";
 import { resolveApiBase } from "@/lib/http-client";
-import { getWebAppInitData, waitForWebAppInitData } from "@/lib/telegram-webapp";
+import { getTelegramWebApp, getWebAppInitData, waitForWebAppInitData } from "@/lib/telegram-webapp";
 
 function apiUrl(path: string): string {
   return `${resolveApiBase()}${path}`;
@@ -18,6 +18,41 @@ async function probeMerchantMe(token: string): Promise<boolean> {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.ok;
+}
+
+/** JWT hali amal qiladimi (401 bo'lmasa true). */
+export async function isMerchantTokenValid(token?: string | null): Promise<boolean> {
+  const candidate = token ?? getAccessToken();
+  if (!candidate) return false;
+  return probeMerchantMe(candidate);
+}
+
+/**
+ * Amal qiladigan token qaytaradi: mavjud JWT, Telegram yangilash yoki null.
+ * Muddati o'tgan token localStorage dan o'chiriladi.
+ */
+export async function resolveMerchantSession(options?: {
+  allowTelegramRefresh?: boolean;
+}): Promise<string | null> {
+  const allowTelegramRefresh = options?.allowTelegramRefresh !== false;
+  const token = getAccessToken();
+  if (token && (await probeMerchantMe(token))) return token;
+
+  if (token) clearAccessToken();
+
+  if (allowTelegramRefresh && (getTelegramWebApp() || getWebAppInitData())) {
+    const refreshed = await refreshMerchantSessionFromTelegram();
+    if (refreshed) return getAccessToken();
+  }
+
+  return null;
+}
+
+export function redirectToMerchantLogin(): void {
+  if (typeof window === "undefined") return;
+  clearAccessToken();
+  const next = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+  window.location.replace(`/login?next=${next}`);
 }
 
 /** Telegram Mini App initData orqali JWT yangilash. */
@@ -43,17 +78,12 @@ export async function refreshMerchantSessionFromTelegram(shopId?: string | null)
 
 /** Saqlashdan oldin token bor-yo'qligini tekshiradi; Telegram ichida avtomatik yangilaydi. */
 export async function ensureMerchantSession(): Promise<void> {
-  const token = getAccessToken();
-  if (token && (await probeMerchantMe(token))) return;
+  const token = await resolveMerchantSession();
+  if (token) return;
 
-  if (token) clearAccessToken();
-
-  if (!getWebAppInitData() && !(await waitForWebAppInitData(1500))) {
+  if (!getTelegramWebApp() && !getWebAppInitData() && !(await waitForWebAppInitData(1500))) {
     throw new Error("Kirish kerak — botda «CRM Panel» tugmasini qayta bosing");
   }
 
-  const refreshed = await refreshMerchantSessionFromTelegram();
-  if (!refreshed) {
-    throw new Error("Kirish yangilanmadi — Telegram orqali qayta oching");
-  }
+  throw new Error("Kirish yangilanmadi — Telegram orqali qayta oching");
 }

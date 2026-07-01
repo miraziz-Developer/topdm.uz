@@ -4,7 +4,6 @@ import {
   MapPin,
   MoreHorizontal,
   Package,
-  PackageCheck,
   Search,
   Truck,
 } from "lucide-react";
@@ -17,13 +16,10 @@ import { CrmFilterChip } from "@/components/crm/filter-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  confirmMerchantPickup,
   dispatchMerchantCourier,
   getMerchantDashboard,
   getMerchantFinanceWallet,
-  getMerchantPickupSettings,
   getMerchantWaybill,
-  patchMerchantPickupSettings,
   syncMerchantDelivery,
   updateMerchantOrder,
 } from "@/lib/api";
@@ -107,14 +103,12 @@ function matchesFilter(order: OrderRow, filter: FilterKey): boolean {
 function OrderActionsMenu({
   order,
   busy,
-  onPickup,
   onDispatch,
   onSync,
   onWaybill,
 }: {
   order: OrderRow;
   busy: boolean;
-  onPickup: () => void;
   onDispatch: () => void;
   onSync: () => void;
   onWaybill: () => void;
@@ -139,20 +133,6 @@ function OrderActionsMenu({
         <>
           <button type="button" className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
           <div className="absolute right-0 z-20 mt-1 w-48 rounded-xl border border-border-subtle bg-surface py-1 shadow-lg">
-            {!isDelivery && order.status === "ready" ? (
-              <button
-                type="button"
-                disabled={busy}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas"
-                onClick={() => {
-                  setOpen(false);
-                  onPickup();
-                }}
-              >
-                <PackageCheck className="h-3.5 w-3.5" />
-                Olib ketdi
-              </button>
-            ) : null}
             {isDelivery ? (
               <>
                 <button
@@ -201,7 +181,6 @@ export function OrdersPanel() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [autoComplete, setAutoComplete] = useState(false);
   const [wallet, setWallet] = useState<{ current_balance: string; frozen_balance: string } | null>(null);
   const [filter, setFilter] = useState<FilterKey>("active");
   const [query, setQuery] = useState("");
@@ -216,13 +195,8 @@ export function OrdersPanel() {
   const knownActiveOrderIdsRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
-    const [data, settings, walletData] = await Promise.all([
-      getMerchantDashboard(),
-      getMerchantPickupSettings(),
-      getMerchantFinanceWallet(),
-    ]);
+    const [data, walletData] = await Promise.all([getMerchantDashboard(), getMerchantFinanceWallet()]);
     setOrders(data.orders ?? []);
-    setAutoComplete(settings.settings.auto_complete_enabled);
     setWallet(walletData.wallet);
   }, []);
 
@@ -307,23 +281,6 @@ export function OrdersPanel() {
     }
   };
 
-  const confirmPickup = async (order: OrderRow) => {
-    setBusyId(order.id);
-    try {
-      const res = await confirmMerchantPickup(order.id);
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: res.status, arrival_status: null, dwell_minutes: null } : o,
-        ),
-      );
-      toast.success("Olib ketildi");
-    } catch {
-      toast.error("Tasdiqlab bo'lmadi");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const dispatchCourier = async (order: OrderRow) => {
     setBusyId(order.id);
     try {
@@ -366,16 +323,6 @@ export function OrdersPanel() {
     }
   };
 
-  const toggleAutoComplete = async () => {
-    try {
-      const res = await patchMerchantPickupSettings({ auto_complete_enabled: !autoComplete });
-      setAutoComplete(res.settings.auto_complete_enabled);
-      toast.success(res.settings.auto_complete_enabled ? "Avtomatik yakunlash yoqildi" : "Qo'lda tasdiqlash");
-    } catch {
-      toast.error("Sozlamani saqlab bo'lmadi");
-    }
-  };
-
   if (loading) {
     return <div className="skeleton h-96 rounded-3xl" />;
   }
@@ -411,28 +358,11 @@ export function OrdersPanel() {
                 <p className="mt-1 text-2xl font-bold tabular-nums text-text-100">{counts.all}</p>
               </div>
             )}
-            <div className="col-span-2 flex items-center justify-between gap-3 rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90 sm:col-span-1 sm:flex-col sm:items-stretch sm:justify-center">
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Yakunlash</p>
-                <p className="mt-0.5 text-xs font-medium text-text-300">Tayyor → avto</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={autoComplete}
-                onClick={() => void toggleAutoComplete()}
-                className={cn(
-                  "relative h-8 w-[2.75rem] shrink-0 rounded-full transition-colors duration-200",
-                  autoComplete ? "bg-electric-500" : "bg-elevated ring-1 ring-border-subtle",
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-1 h-6 w-6 rounded-full bg-white shadow-md transition-all duration-200",
-                    autoComplete ? "left-[calc(100%-1.625rem)]" : "left-1",
-                  )}
-                />
-              </button>
+            <div className="col-span-2 rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90 sm:col-span-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-400">Olib ketish</p>
+              <p className="mt-1 text-xs font-medium leading-snug text-text-300">
+                Faqat QR skaner orqali yakunlanadi
+              </p>
             </div>
           </div>
 
@@ -572,7 +502,6 @@ export function OrdersPanel() {
                           <OrderActionsMenu
                             order={order}
                             busy={busyId === order.id}
-                            onPickup={() => void confirmPickup(order)}
                             onDispatch={() => void dispatchCourier(order)}
                             onSync={() => void syncDelivery(order)}
                             onWaybill={() => void openWaybill(order)}
@@ -629,7 +558,6 @@ export function OrdersPanel() {
                       <OrderActionsMenu
                         order={order}
                         busy={busyId === order.id}
-                        onPickup={() => void confirmPickup(order)}
                         onDispatch={() => void dispatchCourier(order)}
                         onSync={() => void syncDelivery(order)}
                         onWaybill={() => void openWaybill(order)}

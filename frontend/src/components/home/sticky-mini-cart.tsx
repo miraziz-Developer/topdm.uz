@@ -5,8 +5,11 @@ import { useEffect, useState } from "react";
 import { ShoppingBag, X } from "lucide-react";
 
 import { useCurrency } from "@/components/providers/currency-provider";
+import { SALES } from "@/components/brand/sales-ui";
 import { ProductImage } from "@/components/ui/product-image";
+import { useFabDockItem, useFabDockPanel } from "@/components/ui/action-fab-dock";
 import { cartLineImages } from "@/lib/cart-images";
+import { cn } from "@/lib/utils";
 import { productPriceUzs } from "@/lib/product-price";
 import { useCartStore } from "@/stores/cart-store";
 import { usePathname } from "next/navigation";
@@ -33,30 +36,31 @@ export function StickyMiniCart() {
     pathname.startsWith("/reels") ||
     pathname.startsWith("/china");
 
+  useFabDockItem({
+    id: "cart",
+    order: 10,
+    label: "Savat",
+    shortLabel: "Savat",
+    icon: <ShoppingBag className="h-5 w-5" />,
+    badge: totalItems,
+    hidden: hidden || totalItems === 0,
+    onClick: () => setCollapsed(false),
+  });
+
+  useFabDockPanel("cart", !collapsed && totalItems > 0);
+
   if (hidden) return null;
 
   if (collapsed || totalItems === 0) {
-    if (totalItems === 0) return null;
-    return (
-      <button
-        type="button"
-        onClick={() => setCollapsed(false)}
-        className="fab-safe-right fixed bottom-[calc(var(--app-bottom-nav-h)+var(--app-fab-stack-gap)+0.25rem)] z-40 flex h-12 w-12 items-center justify-center rounded-full bg-ink-900 text-white shadow-xl ring-2 ring-electric-500/30 md:bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))]"
-        aria-label="Savatni ochish"
-      >
-        <ShoppingBag className="h-5 w-5" />
-        {totalItems > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-neon-500 px-1 text-[10px] font-bold">
-            {totalItems}
-          </span>
-        ) : null}
-      </button>
-    );
+    return null;
   }
 
   return (
     <aside
-      className="pointer-events-auto fixed right-4 top-24 z-40 flex max-h-[calc(100dvh-7rem)] w-[min(260px,calc(100vw-2rem))] flex-col rounded-2xl border border-border-subtle bg-white/95 shadow-elevated backdrop-blur-md"
+      className={cn(
+        SALES.panel,
+        "pointer-events-auto fixed right-4 top-24 z-40 flex max-h-[calc(100dvh-7rem)] w-[min(260px,calc(100vw-2rem))] flex-col backdrop-blur-md",
+      )}
       aria-label="Savat"
     >
       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
@@ -114,11 +118,13 @@ export function StickyMiniCart() {
       <div className="border-t border-border-subtle p-3">
         <div className="mb-2 flex justify-between text-xs">
           <span className="text-ink-500">Jami</span>
-          <span className="font-bold text-ink-900">{formatPrice(subtotal)}</span>
+          <span className={cn(SALES.priceDeal, "font-bold text-ink-900")}>{formatPrice(subtotal)}</span>
         </div>
         <Link
           href={totalItems > 0 ? "/checkout" : "#catalog"}
-          className="flex w-full items-center justify-center rounded-xl bg-electric-500 py-2.5 text-sm font-bold text-white transition hover:bg-electric-400"
+          className={cn(
+            "sales-cta sales-cta-pulse flex w-full items-center justify-center py-2.5 text-sm",
+          )}
         >
           {totalItems > 0 ? "Buyurtma berish" : "Katalogga"}
         </Link>

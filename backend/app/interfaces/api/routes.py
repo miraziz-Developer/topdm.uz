@@ -440,6 +440,7 @@ async def search_products(
     sale_type: str | None = None,
     market_zone: str | None = None,
     block_sector: str | None = None,
+    root_category: str | None = None,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     repo = MarketplaceRepository(db)
@@ -455,6 +456,7 @@ async def search_products(
         sale_type=sale_type,
         market_zone=market_zone,
         block_sector=block_sector,
+        root_category=root_category,
     )
     total = await repo.count_products(
         q,
@@ -465,6 +467,7 @@ async def search_products(
         sale_type=sale_type,
         market_zone=market_zone,
         block_sector=block_sector,
+        root_category=root_category,
     )
     if q and q.strip():
         try:
@@ -622,6 +625,7 @@ from app.api.map import router as map_router
 from app.api.orders import router as orders_router
 from app.interfaces.api.merchant_workspace_routes import router as merchant_workspace_router
 from app.interfaces.api.merchant_growth_routes import router as merchant_growth_router
+from app.interfaces.api.merchant_support_routes import router as merchant_support_router
 from app.interfaces.api.merchant_product_routes import router as merchant_product_router
 from app.interfaces.api.merchant_shop_routes import router as merchant_shop_router
 from app.interfaces.api.platform_routes import router as platform_router
@@ -642,6 +646,7 @@ from app.interfaces.api.product_review_routes import router as product_review_ro
 from app.interfaces.api.crm_review_routes import router as crm_review_router
 from app.interfaces.api.business_rules_routes import router as business_rules_router
 from app.interfaces.api.crm_campaign_routes import router as crm_campaign_router
+from app.interfaces.api.loyalty_routes import router as loyalty_router
 
 router.include_router(auth_router)
 router.include_router(map_router)
@@ -655,6 +660,7 @@ router.include_router(merchant_pending_router)
 router.include_router(merchant_chat_router)
 router.include_router(merchant_workspace_router)
 router.include_router(merchant_growth_router)
+router.include_router(merchant_support_router)
 router.include_router(media_router)
 router.include_router(shop_chat_router)
 router.include_router(admin_router)
@@ -673,3 +679,4 @@ router.include_router(product_review_router)
 router.include_router(crm_review_router)
 router.include_router(business_rules_router)
 router.include_router(crm_campaign_router)
+router.include_router(loyalty_router)

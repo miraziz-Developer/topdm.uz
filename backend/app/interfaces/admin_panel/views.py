@@ -21,6 +21,7 @@ from app.infrastructure.db.models import (
 )
 from app.infrastructure.db.session import AsyncSessionFactory
 from app.models.delivery_claim import DeliveryClaimModel, MerchantPayoutRequestModel
+from app.models.merchant_support import MerchantSupportFaqModel, MerchantSupportTicketModel
 from app.models.finance import (
     MerchantFinanceWalletModel,
     PlatformProfitSweepModel,
@@ -40,12 +41,11 @@ class _ReadOnly(ModelView):
     page_size_options = [25, 50, 100, 200]
 
 
-class ShopAdmin(_ReadOnly):
+class ShopAdmin(_ReadOnly, model=ShopModel):
     name = "Do'kon"
     name_plural = "Do'konlar"
     icon = "fa-solid fa-store"
     category = "Marketplace"
-    model = ShopModel
     column_list = [
         ShopModel.id,
         ShopModel.name,
@@ -63,12 +63,11 @@ class ShopAdmin(_ReadOnly):
     column_default_sort = [(ShopModel.name, False)]
 
 
-class ProductAdmin(_ReadOnly):
+class ProductAdmin(_ReadOnly, model=ProductModel):
     name = "Mahsulot"
     name_plural = "Mahsulotlar"
     icon = "fa-solid fa-box"
     category = "Marketplace"
-    model = ProductModel
     column_list = [
         ProductModel.id,
         ProductModel.name,
@@ -85,12 +84,11 @@ class ProductAdmin(_ReadOnly):
     column_details_exclude_list = [ProductModel.embedding, ProductModel.visual_embedding]
 
 
-class OrderAdmin(_ReadOnly):
+class OrderAdmin(_ReadOnly, model=OrderModel):
     name = "Buyurtma"
     name_plural = "Buyurtmalar"
     icon = "fa-solid fa-receipt"
     category = "Marketplace"
-    model = OrderModel
     column_list = [
         OrderModel.id,
         OrderModel.customer_phone,
@@ -106,12 +104,11 @@ class OrderAdmin(_ReadOnly):
     column_default_sort = [(OrderModel.created_at, True)]
 
 
-class AppUserAdmin(_ReadOnly):
+class AppUserAdmin(_ReadOnly, model=AppUserModel):
     name = "Foydalanuvchi"
     name_plural = "Foydalanuvchilar"
     icon = "fa-solid fa-user"
     category = "Marketplace"
-    model = AppUserModel
     column_list = [
         AppUserModel.id,
         AppUserModel.display_name,
@@ -124,12 +121,11 @@ class AppUserAdmin(_ReadOnly):
     column_default_sort = [(AppUserModel.created_at, True)]
 
 
-class PlatformTransactionAdmin(_ReadOnly):
+class PlatformTransactionAdmin(_ReadOnly, model=PlatformTransactionModel):
     name = "Split tranzaksiya"
     name_plural = "Split tranzaksiyalar (escrow)"
     icon = "fa-solid fa-money-bill-transfer"
     category = "Moliya"
-    model = PlatformTransactionModel
     column_list = [
         PlatformTransactionModel.id,
         PlatformTransactionModel.order_id,
@@ -149,12 +145,11 @@ class PlatformTransactionAdmin(_ReadOnly):
     column_default_sort = [(PlatformTransactionModel.created_at, True)]
 
 
-class FinanceWalletAdmin(_ReadOnly):
+class FinanceWalletAdmin(_ReadOnly, model=MerchantFinanceWalletModel):
     name = "Do'kon hamyoni"
     name_plural = "Do'kon hamyonlari (settlement)"
     icon = "fa-solid fa-wallet"
     category = "Moliya"
-    model = MerchantFinanceWalletModel
     column_list = [
         MerchantFinanceWalletModel.shop_id,
         MerchantFinanceWalletModel.current_balance,
@@ -167,12 +162,11 @@ class FinanceWalletAdmin(_ReadOnly):
     ]
 
 
-class PayoutRequestAdmin(_ReadOnly):
+class PayoutRequestAdmin(_ReadOnly, model=MerchantPayoutRequestModel):
     name = "To'lov so'rovi"
     name_plural = "Do'kon to'lov so'rovlari"
     icon = "fa-solid fa-hand-holding-dollar"
     category = "Moliya"
-    model = MerchantPayoutRequestModel
     column_list = [
         MerchantPayoutRequestModel.id,
         MerchantPayoutRequestModel.shop_id,
@@ -190,12 +184,11 @@ class PayoutRequestAdmin(_ReadOnly):
     column_default_sort = [(MerchantPayoutRequestModel.created_at, True)]
 
 
-class ProfitSweepAdmin(_ReadOnly):
+class ProfitSweepAdmin(_ReadOnly, model=PlatformProfitSweepModel):
     name = "Foyda sweep"
     name_plural = "Foyda sweep tarixi"
     icon = "fa-solid fa-piggy-bank"
     category = "Moliya"
-    model = PlatformProfitSweepModel
     column_list = [
         PlatformProfitSweepModel.id,
         PlatformProfitSweepModel.amount_uzs,
@@ -213,12 +206,11 @@ class ProfitSweepAdmin(_ReadOnly):
     column_default_sort = [(PlatformProfitSweepModel.created_at, True)]
 
 
-class DeliveryClaimAdmin(_ReadOnly):
+class DeliveryClaimAdmin(_ReadOnly, model=DeliveryClaimModel):
     name = "Yetkazma"
     name_plural = "Yetkazmalar (BTS)"
     icon = "fa-solid fa-truck"
     category = "Moliya"
-    model = DeliveryClaimModel
     column_list = [
         DeliveryClaimModel.id,
         DeliveryClaimModel.order_id,
@@ -230,6 +222,85 @@ class DeliveryClaimAdmin(_ReadOnly):
     ]
     column_sortable_list = [DeliveryClaimModel.created_at, DeliveryClaimModel.status]
     column_default_sort = [(DeliveryClaimModel.created_at, True)]
+
+
+class MerchantSupportTicketAdmin(ModelView, model=MerchantSupportTicketModel):
+    name = "CRM murojaat"
+    name_plural = "CRM murojaatlar (muammo/taklif)"
+    icon = "fa-solid fa-headset"
+    category = "Marketplace"
+    can_create = False
+    can_delete = False
+    can_edit = True
+    can_view_details = True
+    page_size = 50
+    column_list = [
+        MerchantSupportTicketModel.id,
+        MerchantSupportTicketModel.shop_id,
+        MerchantSupportTicketModel.category,
+        MerchantSupportTicketModel.message,
+        MerchantSupportTicketModel.status,
+        MerchantSupportTicketModel.merchant_phone,
+        MerchantSupportTicketModel.created_at,
+    ]
+    column_searchable_list = [MerchantSupportTicketModel.message, MerchantSupportTicketModel.merchant_phone]
+    column_sortable_list = [MerchantSupportTicketModel.created_at, MerchantSupportTicketModel.status]
+    column_default_sort = [(MerchantSupportTicketModel.created_at, True)]
+    form_columns = [
+        MerchantSupportTicketModel.status,
+        MerchantSupportTicketModel.admin_note,
+    ]
+    column_details_list = [
+        MerchantSupportTicketModel.id,
+        MerchantSupportTicketModel.shop_id,
+        MerchantSupportTicketModel.category,
+        MerchantSupportTicketModel.message,
+        MerchantSupportTicketModel.status,
+        MerchantSupportTicketModel.admin_note,
+        MerchantSupportTicketModel.merchant_phone,
+        MerchantSupportTicketModel.merchant_email,
+        MerchantSupportTicketModel.created_at,
+        MerchantSupportTicketModel.updated_at,
+    ]
+
+
+class MerchantSupportFaqAdmin(ModelView, model=MerchantSupportFaqModel):
+    name = "AI FAQ"
+    name_plural = "AI yordam FAQ (bilim bazasi)"
+    icon = "fa-solid fa-circle-question"
+    category = "Marketplace"
+    can_create = True
+    can_delete = True
+    can_edit = True
+    can_view_details = True
+    page_size = 50
+    column_list = [
+        MerchantSupportFaqModel.topic,
+        MerchantSupportFaqModel.question,
+        MerchantSupportFaqModel.is_active,
+        MerchantSupportFaqModel.sort_order,
+        MerchantSupportFaqModel.updated_at,
+    ]
+    column_searchable_list = [
+        MerchantSupportFaqModel.topic,
+        MerchantSupportFaqModel.question,
+        MerchantSupportFaqModel.answer,
+        MerchantSupportFaqModel.keywords,
+    ]
+    column_sortable_list = [
+        MerchantSupportFaqModel.sort_order,
+        MerchantSupportFaqModel.topic,
+        MerchantSupportFaqModel.updated_at,
+    ]
+    column_default_sort = [(MerchantSupportFaqModel.sort_order, False)]
+    form_columns = [
+        MerchantSupportFaqModel.topic,
+        MerchantSupportFaqModel.question,
+        MerchantSupportFaqModel.answer,
+        MerchantSupportFaqModel.keywords,
+        MerchantSupportFaqModel.sort_order,
+        MerchantSupportFaqModel.is_active,
+    ]
 
 
 def _fmt(value: float) -> str:
@@ -584,6 +655,8 @@ ALL_MODEL_VIEWS = [
     ProductAdmin,
     OrderAdmin,
     AppUserAdmin,
+    MerchantSupportTicketAdmin,
+    MerchantSupportFaqAdmin,
     PlatformTransactionAdmin,
     FinanceWalletAdmin,
     PayoutRequestAdmin,

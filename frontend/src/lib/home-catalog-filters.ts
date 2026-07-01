@@ -1,4 +1,5 @@
 import type { Product, SearchParams } from "@/types";
+import { normalizePriceRange } from "@/lib/price-input";
 
 export type SaleMode = "Chakana" | "Optom";
 
@@ -92,15 +93,14 @@ export function filterProductsClient(
   products: Product[],
   filters: BazaarCatalogFilters,
 ): Product[] {
-  const min = filters.minPrice.trim() ? Number(filters.minPrice.replace(/\s/g, "")) : null;
-  const max = filters.maxPrice.trim() ? Number(filters.maxPrice.replace(/\s/g, "")) : null;
+  const { min, max } = normalizePriceRange(filters.minPrice, filters.maxPrice);
 
   return products.filter((product) => {
     if (filters.catalogOrigin === "china") return true;
     const saleType = product.sale_type ?? "Chakana";
     if (saleType !== filters.saleMode) return false;
-    if (min !== null && !Number.isNaN(min) && product.price < min) return false;
-    if (max !== null && !Number.isNaN(max) && product.price > max) return false;
+    if (min !== null && product.price < min) return false;
+    if (max !== null && product.price > max) return false;
 
     const hay = productHaystack(product);
     if (filters.marketZone !== "all" && !hay.includes(filters.marketZone.toLowerCase())) return false;
@@ -116,11 +116,22 @@ export function filtersToSearchParams(filters: BazaarCatalogFilters): SearchPara
   params.sale_type = filters.saleMode;
   if (filters.marketZone !== "all") params.market_zone = filters.marketZone;
   if (filters.blockSector !== "all") params.block_sector = filters.blockSector;
-  const min = filters.minPrice.trim() ? Number(filters.minPrice.replace(/\s/g, "")) : NaN;
-  const max = filters.maxPrice.trim() ? Number(filters.maxPrice.replace(/\s/g, "")) : NaN;
-  if (!Number.isNaN(min) && min > 0) params.min_price = min;
-  if (!Number.isNaN(max) && max > 0) params.max_price = max;
+  if (filters.rootCategory !== "all") params.root_category = filters.rootCategory;
+  const { min, max } = normalizePriceRange(filters.minPrice, filters.maxPrice);
+  if (min !== null && min > 0) params.min_price = min;
+  if (max !== null && max > 0) params.max_price = max;
   return params;
+}
+
+/** Filtr maydonlarini UI uchun qayta tartiblash (min > max bo'lsa) */
+export function normalizeFilterPrices(filters: BazaarCatalogFilters): BazaarCatalogFilters {
+  const { min, max, minSwapped } = normalizePriceRange(filters.minPrice, filters.maxPrice);
+  if (!minSwapped) return filters;
+  return {
+    ...filters,
+    minPrice: min !== null ? min.toLocaleString("uz-UZ") : filters.minPrice,
+    maxPrice: max !== null ? max.toLocaleString("uz-UZ") : filters.maxPrice,
+  };
 }
 
 export function filtersAnimationKey(filters: BazaarCatalogFilters): string {

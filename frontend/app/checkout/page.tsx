@@ -6,12 +6,13 @@ import { BottomNav } from "@/components/BottomNav";
 import { FastCheckout } from "@/components/checkout/FastCheckout";
 import { Navigation } from "@/components/Navigation";
 import { ProductSkeleton } from "@/components/ui/product-skeleton";
+import { pageShellCheckout, pageContentTop } from "@/lib/responsive-layout";
 
 export default function CheckoutPage() {
   return (
-    <main className="page-shell min-h-dvh md:pb-8">
+    <main className={pageShellCheckout}>
       <Navigation />
-      <div className="page-content-top">
+      <div className={pageContentTop}>
         <Suspense fallback={<ProductSkeleton />}>
           <FastCheckout />
         </Suspense>

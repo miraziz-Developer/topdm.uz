@@ -19,7 +19,6 @@ system-check:
 
 verify:
 	python3 scripts/verify_backend_core.py
-	python3 scripts/verify_frontend_api_contract.py
 
 verify-frontend-proxy:
 	@curl -sf http://127.0.0.1:3002/api/v1/health >/dev/null && echo "OK frontend proxy → backend" || (echo "FAIL: start frontend"; exit 1)

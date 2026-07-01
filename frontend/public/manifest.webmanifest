@@ -1,30 +1,51 @@
 {
   "id": "/",
-  "name": "Bozorliii.uz Marketplace",
+  "name": "Bozorliii — AI Marketplace",
   "short_name": "Bozorliii",
-  "description": "Bozordan tez buyurtma uchun PWA ilova",
+  "description": "Toshkent bozorlari — AI qidiruv, rasm bo'yicha topish, tez buyurtma",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
-  "orientation": "portrait",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
   "background_color": "#f2f4f8",
   "theme_color": "#0066ff",
   "lang": "uz",
+  "dir": "ltr",
   "icons": [
     {
-      "src": "/icon?size=192",
+      "src": "/brand/bozorliii-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon?size=512",
+      "src": "/brand/bozorliii-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/bozorliii-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["shopping", "business"],
-  "prefer_related_applications": false
+  "categories": ["shopping", "business", "lifestyle"],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Qidiruv",
+      "short_name": "Qidiruv",
+      "url": "/search?source=pwa_shortcut",
+      "icons": [{ "src": "/brand/bozorliii-icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Savatcha",
+      "short_name": "Savatcha",
+      "url": "/cart?source=pwa_shortcut",
+      "icons": [{ "src": "/brand/bozorliii-icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }

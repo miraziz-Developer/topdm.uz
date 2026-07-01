@@ -76,8 +76,8 @@ export function DashboardHome() {
         value: today?.counts.pending_orders ?? 0,
         href: "/dashboard/sales?tab=orders",
         icon: ShoppingBag,
-        tone: "text-electric-600",
-        bg: "bg-electric-500/10",
+        tone: "text-primary",
+        bg: "bg-primary/10",
       },
       {
         label: "Javob kutilayotgan chat",
@@ -171,17 +171,17 @@ export function DashboardHome() {
     <div className="crm-page-enter space-y-6">
       {/* Hero */}
       <section className="crm-hero-card overflow-hidden">
-        <div className="premium-aurora relative border-b border-border-subtle/80 px-5 py-7 sm:px-8 sm:py-9">
+        <div className="relative border-b border-white/50 px-5 py-7 sm:px-8 sm:py-9">
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm capitalize text-text-400">{formatTodayUz()}</p>
-              <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-text-100 sm:text-3xl">
-                {shopName ?? "Do'kon paneli"}
+              <p className="text-sm font-medium capitalize text-muted-foreground">{formatTodayUz()}</p>
+              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+                <span className="text-gradient-hero">{shopName ?? "Do'kon paneli"}</span>
               </h1>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-text-400">
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
                 {pendingTotal > 0 ? (
                   <>
-                    Bugun <strong className="font-semibold text-text-100">{pendingTotal} ta</strong> ish
+                    Bugun <strong className="font-semibold text-foreground">{pendingTotal} ta</strong> ish
                     kutilmoqda — pastdan boshlang.
                   </>
                 ) : (
@@ -189,9 +189,11 @@ export function DashboardHome() {
                 )}
               </p>
               {!today?.shop_verified ? (
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-800">
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-1 text-xs font-medium text-warning-foreground">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Do&apos;kon tasdiqlanishi kutilmoqda
+                  {today?.verification_status === "rejected"
+                    ? `AI rad etdi: ${today?.verification_reason || "profilni yangilang"}`
+                    : "Do'kon AI tekshiruvida — Telegram botda tasdiqlang"}
                 </p>
               ) : null}
             </div>
@@ -209,24 +211,24 @@ export function DashboardHome() {
         </div>
 
         {/* KPI strip */}
-        <div className="grid grid-cols-2 divide-x divide-y divide-border-subtle border-border-subtle lg:grid-cols-4 lg:divide-y-0">
+        <div className="relative grid grid-cols-2 divide-x divide-y divide-border/50 lg:grid-cols-4 lg:divide-y-0">
           {kpis.map((kpi) => {
             const Icon = kpi.icon;
             return (
               <Link
                 key={kpi.label}
                 href={kpi.href}
-                className="group flex flex-col gap-3 p-4 transition hover:bg-canvas/60 sm:p-5"
+                className="group flex flex-col gap-3 p-4 transition duration-200 hover:bg-primary/[0.03] sm:p-5"
               >
                 <div className="flex items-center justify-between">
-                  <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", kpi.bg)}>
+                  <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl shadow-sm", kpi.bg)}>
                     <Icon className={cn("h-4 w-4", kpi.tone)} />
                   </span>
-                  <ArrowUpRight className="h-4 w-4 text-text-400 opacity-0 transition group-hover:opacity-100" />
+                  <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold tabular-nums tracking-tight text-text-100">{kpi.value}</p>
-                  <p className="mt-0.5 text-xs font-medium text-text-400">{kpi.label}</p>
+                  <p className="font-display text-2xl font-semibold tabular-nums tracking-tight text-foreground">{kpi.value}</p>
+                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">{kpi.label}</p>
                 </div>
               </Link>
             );
@@ -255,8 +257,8 @@ export function DashboardHome() {
                     href={hub.href}
                     className="group flex items-center gap-3 px-4 py-3.5 transition hover:bg-canvas/50 sm:px-5"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-canvas ring-1 ring-border-subtle">
-                      <Icon className="h-4 w-4 text-electric-600" />
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-violet-500/10 ring-1 ring-primary/15">
+                      <Icon className="h-4 w-4 text-primary" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-text-100">{hub.title}</p>

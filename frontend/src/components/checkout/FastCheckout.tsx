@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { CheckoutShell } from "@/components/checkout/checkout-shell";
+import { CheckoutStepper } from "@/components/checkout/checkout-stepper";
 import {
   buildFullDeliveryAddress,
   DeliveryAddressSection,
@@ -37,9 +38,11 @@ import { cartLineKey } from "@/lib/cart-line";
 import { ApiError } from "@/lib/http-client";
 import { saveGuestPhone } from "@/lib/guest-phone";
 import { ProductImage } from "@/components/ui/product-image";
+import { PremiumPageHero } from "@/components/ui/premium-page-hero";
+import { MARKET } from "@/components/brand/premium-market-ui";
 import { selectionKey, selectionLabel } from "@/lib/product-options";
 import { allowOnlineCheckout } from "@/lib/runtime-flags";
-import { getRefToken } from "@/lib/utils";
+import { getRefToken, cn } from "@/lib/utils";
 import {
   applyPhoneMaskInput,
   formatUzbekPhoneParenDisplay,
@@ -48,8 +51,12 @@ import {
 } from "@/utils/phone-mask";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore } from "@/stores/cart-store";
-import { useLoyaltyStore } from "@/stores/loyalty-store";
 import { useUserStore } from "@/stores/user-store";
+import {
+  COIN_UZS_RATE,
+  coinsForPurchaseAmount,
+  maxRedeemableCoins,
+} from "@/lib/loyalty";
 
 const DEFAULT_LAT = 41.3111;
 const DEFAULT_LNG = 69.2797;
@@ -67,7 +74,7 @@ export function FastCheckout() {
   const removeItem = useCartStore((state) => state.removeItem);
   const clear = useCartStore((state) => state.clear);
   const totalPrice = useCartStore((state) => state.totalPrice());
-  const earn = useLoyaltyStore((state) => state.earn);
+  const refreshProfile = useUserStore((state) => state.refresh);
   const profile = useUserStore((state) => state.profile);
   const authHydrated = useAuthStore((state) => state.hydrated);
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
@@ -111,6 +118,8 @@ export function FastCheckout() {
   const [quote, setQuote] = useState<DeliveryQuoteResponse | null>(null);
   const [selectedCarrier, setSelectedCarrier] = useState<"express" | "cargo">("express");
   const [loadingQuote, setLoadingQuote] = useState(false);
+  const [coinsToRedeem, setCoinsToRedeem] = useState(0);
+  const [useCoins, setUseCoins] = useState(false);
 
   const cartProducts = useMemo(() => lines.map((line) => line.product), [lines]);
   const uniqueShopIds = useMemo(
@@ -147,6 +156,31 @@ export function FastCheckout() {
 
   const deliveryTotal =
     quote && selectedOption ? quote.product_subtotal_uzs + selectedOption.delivery_cost_uzs : null;
+
+  const coinBalance = profile?.coins_balance ?? 0;
+  const checkoutSubtotal =
+    fulfillmentMode === "delivery" && quote ? quote.product_subtotal_uzs : totalPrice;
+
+  const maxCoins = useMemo(() => {
+    if (!isLoggedIn || fulfillmentMode !== "pickup") return 0;
+    return maxRedeemableCoins(coinBalance, checkoutSubtotal);
+  }, [isLoggedIn, fulfillmentMode, coinBalance, checkoutSubtotal]);
+
+  const appliedCoins = useCoins && fulfillmentMode === "pickup" ? Math.min(coinsToRedeem, maxCoins) : 0;
+  const coinDiscountUzs = appliedCoins * COIN_UZS_RATE;
+  const pickupPayable = Math.max(0, totalPrice - coinDiscountUzs);
+  const expectedEarnCoins =
+    isLoggedIn && fulfillmentMode === "pickup"
+      ? coinsForPurchaseAmount(Math.max(0, checkoutSubtotal - coinDiscountUzs))
+      : 0;
+
+  useEffect(() => {
+    if (!useCoins || maxCoins < 1) {
+      setCoinsToRedeem(0);
+      return;
+    }
+    setCoinsToRedeem((prev) => (prev < 1 || prev > maxCoins ? maxCoins : prev));
+  }, [maxCoins, useCoins]);
 
   const handlePhoneChange = (value: string) => {
     setPhone(applyPhoneMaskInput(value));
@@ -293,12 +327,20 @@ export function FastCheckout() {
       note: mergedNote() || undefined,
       ref_token: getRefToken(),
       verification_token: isLoggedIn ? undefined : guestToken ?? undefined,
+      coins_to_redeem: isLoggedIn && appliedCoins > 0 ? appliedCoins : undefined,
     });
 
-    clear();
     saveGuestPhone(phoneE164);
-    earn(lines.length * 12);
+    if (isLoggedIn) void refreshProfile();
     void playSuccessDing();
+
+    if (effectivePayment === "click" && data.online_checkout_url) {
+      clear();
+      router.push(data.online_checkout_url);
+      return;
+    }
+
+    clear();
     setReservation(data);
   };
 
@@ -348,30 +390,11 @@ export function FastCheckout() {
       verification_token: isLoggedIn ? undefined : guestToken ?? undefined,
     });
 
-    clear();
     saveGuestPhone(phoneE164);
-    earn(lines.length * 12);
     void playSuccessDing();
     if (data.online_checkout_url) {
-      setReservation({
-        reservations: data.reservations,
-        reservation_count: data.reservation_count,
-        total_price: data.total_payable_uzs,
-        status: "reserved",
-        pickup_date: "",
-        pickup_time: "",
-        pickup_window_label: "",
-        payment_method: effectivePayment,
-        payment_method_label: "",
-        store_location: fullAddress,
-        store_address: { block: "", floor: "", stall: "", formatted: fullAddress },
-        merchant_phone: "",
-        shop_name: quote.shop_name,
-        shop_slug: "",
-        map_url: "",
-        checkout_id: data.checkout_id ?? null,
-        online_checkout_url: data.online_checkout_url ?? null,
-      });
+      clear();
+      router.push(data.online_checkout_url);
       return;
     }
     push("Yetkazish buyurtmasi qabul qilindi", "success");
@@ -438,11 +461,16 @@ export function FastCheckout() {
 
   return (
     <CheckoutShell>
-      <div className="mb-8 animate-fade-in">
-        <span className="eyebrow-pill">Checkout</span>
-        <h1 className="display-section mt-4 text-ink-900">Buyurtmani rasmiylashtirish</h1>
-        <p className="mt-2 text-sm text-ink-500">Bir necha qadam — tez va xavfsiz</p>
-      </div>
+      <CheckoutStepper activeStep="details" />
+      <PremiumPageHero
+        eyebrow="Bron va to'lov"
+        title={
+          <>
+            Buyurtmani <span className="text-gradient-electric">rasmiylashtirish</span>
+          </>
+        }
+        description="Bir necha qadam — tez, xavfsiz, do'konda olib ketasiz"
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
@@ -643,7 +671,7 @@ export function FastCheckout() {
           </Card>
         </div>
 
-        <Card className="sticky top-24 h-fit ring-glow-electric">
+        <Card className={cn("sticky top-24 h-fit", MARKET.summaryCard)}>
           <CardHeader>
             <h2 className="text-lg font-bold tracking-tight text-ink-900">Buyurtma xulosasi</h2>
           </CardHeader>
@@ -721,7 +749,44 @@ export function FastCheckout() {
               </div>
             ) : null}
 
-            <div className="space-y-2 border-t border-electric-500/15 pt-4 text-sm">
+              {fulfillmentMode === "pickup" && isLoggedIn && maxCoins > 0 ? (
+                <div className="space-y-2 rounded-xl border border-electric-500/20 bg-electric-500/5 p-3">
+                  <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-ink-900">
+                      Bozor Coin ({coinBalance} mavjud)
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={useCoins}
+                      onChange={(e) => setUseCoins(e.target.checked)}
+                      className="h-4 w-4 rounded border-border-default text-electric-500"
+                    />
+                  </label>
+                  {useCoins ? (
+                    <div className="space-y-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={maxCoins}
+                        value={appliedCoins}
+                        onChange={(e) => setCoinsToRedeem(Number(e.target.value))}
+                        className="w-full accent-electric-500"
+                      />
+                      <p className="text-xs text-ink-600">
+                        {appliedCoins} Coin · -{formatUzs(coinDiscountUzs)} chegirma
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {fulfillmentMode === "pickup" && isLoggedIn ? (
+                <p className="text-[11px] text-ink-500">
+                  Buyurtma yakunlangach taxminan +{expectedEarnCoins} Coin yig&apos;iladi.
+                </p>
+              ) : null}
+
+              <div className="space-y-2 border-t border-electric-500/15 pt-4 text-sm">
               <div className="flex justify-between text-ink-500">
                 <span>Mahsulotlar</span>
                 <span>{formatUzs(quote?.product_subtotal_uzs ?? totalPrice)}</span>
@@ -741,19 +806,27 @@ export function FastCheckout() {
                   {pickupDate} · {pickupLabel}
                 </p>
               ) : null}
+              {fulfillmentMode === "pickup" && appliedCoins > 0 ? (
+                <div className="flex justify-between text-ink-500">
+                  <span>Coin chegirmasi</span>
+                  <span className="font-medium text-neon-600">-{formatUzs(coinDiscountUzs)}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between text-lg font-bold text-ink-900">
                 <span>Jami</span>
-                <span className="price-mono text-electric-500">
+                <span className={cn(MARKET.priceDeal, "text-lg")}>
                   {formatUzs(
-                    fulfillmentMode === "delivery" && deliveryTotal != null ? deliveryTotal : totalPrice,
+                    fulfillmentMode === "delivery" && deliveryTotal != null
+                      ? deliveryTotal
+                      : pickupPayable,
                   )}
                 </span>
               </div>
             </div>
 
             <Button
-              variant="brand"
-              className="w-full uppercase tracking-wider"
+              variant="accent"
+              className={cn("w-full uppercase tracking-wider", MARKET.cta)}
               size="lg"
               isLoading={loading}
               disabled={loading || (fulfillmentMode === "delivery" && !quote)}

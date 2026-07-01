@@ -31,7 +31,11 @@ async def list_merchant_chat_threads(
         raise HTTPException(status_code=403, detail="Merchant shop not found")
     service = _service(db)
     items = await service.list_shop_threads(user.shop_id, limit=limit)
-    return {"items": [i.model_dump(mode="json") for i in items]}
+    total_unread = sum(i.unread_count for i in items)
+    return {
+        "items": [i.model_dump(mode="json") for i in items],
+        "total_unread": total_unread,
+    }
 
 
 @router.get("/threads/{thread_id}/messages")
@@ -53,5 +57,28 @@ async def list_merchant_thread_messages(
         messages = await service.list_messages(thread_id, limit=limit)
     except ChatServiceError as exc:
         raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    await service.mark_thread_read(thread_id, viewer_role="merchant")
     await service.touch_merchant_presence(user.shop_id)
     return {"items": [m.model_dump(mode="json") for m in messages]}
+
+
+@router.post("/threads/{thread_id}/read")
+async def mark_merchant_thread_read(
+    thread_id: UUID,
+    user: AuthUser = Depends(require_merchant),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    if not user.shop_id:
+        raise HTTPException(status_code=403, detail="Merchant shop not found")
+    from app.infrastructure.repositories.chat_repo import ChatRepository
+
+    thread = await ChatRepository(db).get_thread(thread_id)
+    if not thread or thread.shop_id != user.shop_id:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    service = _service(db)
+    try:
+        await service.mark_thread_read(thread_id, viewer_role="merchant")
+    except ChatServiceError as exc:
+        raise HTTPException(status_code=404, detail={"code": exc.code, "message": str(exc)}) from exc
+    summary = await service.thread_summary_for_role(thread_id, viewer_role="merchant")
+    return {"ok": True, "thread": summary.model_dump(mode="json") if summary else None}

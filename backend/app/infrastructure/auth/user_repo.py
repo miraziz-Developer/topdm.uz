@@ -57,15 +57,23 @@ class UserAuthRepository:
         phone: str,
         display_name: str | None = None,
     ) -> AppUserModel:
-        result = await self.session.execute(select(AppUserModel).where(AppUserModel.phone == phone))
-        user = result.scalar_one_or_none()
+        normalized = phone.strip()
+        if not normalized:
+            raise ValueError("phone_required")
+        result = await self.session.execute(
+            select(AppUserModel)
+            .where(AppUserModel.phone == normalized)
+            .order_by(AppUserModel.updated_at.desc())
+            .limit(1)
+        )
+        user = result.scalars().first()
         if user:
             if display_name and not user.display_name:
                 user.display_name = display_name
             return user
         user = AppUserModel(
             id=uuid.uuid4(),
-            phone=phone,
+            phone=normalized,
             display_name=display_name,
         )
         self.session.add(user)

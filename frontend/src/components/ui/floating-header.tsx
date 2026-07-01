@@ -1,19 +1,21 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ShoppingBag, Sparkles, UserRound } from "lucide-react";
+import { ShoppingBag, Shirt, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
+import { OrderNotificationsBell } from "@/components/notifications/order-notifications-bell";
 import { LocaleCurrencyNav } from "@/components/ui/locale-currency-bar";
 import { SearchField } from "@/components/ui/search-field";
 import { usePhotoSearchNavigate } from "@/hooks/usePhotoSearchNavigate";
 import { useVoiceSearch } from "@/hooks/useVoiceSearch";
 import { clearStoredPhotoSearch } from "@/lib/photoSearch";
 import { useCartStore } from "@/stores/cart-store";
-import { useLoyaltyStore } from "@/stores/loyalty-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { useUserStore } from "@/stores/user-store";
 import { cn } from "@/lib/utils";
 
 export function FloatingHeader() {
@@ -34,9 +36,10 @@ export function FloatingHeader() {
     router.push(`/search?q=${encodeURIComponent(transcript)}`);
   });
   const cartItems = useCartStore((state) => state.totalItems());
-  const loyaltyCoins = useLoyaltyStore((state) => state.coins);
+  const profile = useUserStore((state) => state.profile);
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const totalItems = mounted ? cartItems : 0;
-  const coins = mounted ? loyaltyCoins : 0;
+  const coins = mounted && isLoggedIn ? (profile?.coins_balance ?? 0) : 0;
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -133,12 +136,14 @@ export function FloatingHeader() {
         <div className="flex shrink-0 items-center gap-1">
           <LocaleCurrencyNav className="hidden lg:flex" />
 
+          <OrderNotificationsBell />
+
           <Link
             href="/stylist"
-            className="hidden shrink-0 rounded-full border border-gold-500/30 bg-gold-500/10 p-2 text-gold-600 transition hover:bg-gold-500/20 xl:flex"
+            className="hidden shrink-0 rounded-full border border-electric-500/25 bg-electric-500/8 p-2 text-electric-600 transition hover:bg-electric-500/15 xl:flex"
             aria-label="AI Stilist"
           >
-            <Sparkles className="h-4 w-4" />
+            <Shirt className="h-4 w-4" />
           </Link>
 
           <Link

@@ -216,6 +216,8 @@ def shop_to_dict(shop) -> dict:
         "id": str(shop.id),
         "slug": shop.slug,
         "name": shop.name,
+        "owner_display_name": getattr(shop, "owner_display_name", None),
+        "owner_phone": getattr(shop, "owner_phone", None),
         "description": shop.description,
         "logo_url": shop.logo_url,
         "storefront_image_url": getattr(shop, "storefront_image_url", None),

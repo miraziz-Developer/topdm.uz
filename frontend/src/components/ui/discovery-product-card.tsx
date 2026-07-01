@@ -5,6 +5,7 @@ import { Heart, ShoppingBag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { SALES } from "@/components/brand/sales-ui";
 import { ProductOptionModal } from "@/components/product/product-option-modal";
 import { ProductRatingStars } from "@/components/product/product-rating-stars";
 import { useCurrency } from "@/components/providers/currency-provider";
@@ -144,7 +145,8 @@ export function DiscoveryProductCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.03, 0.28), duration: 0.4, ease: "easeOut" }}
       className={cn(
-        "pin-card premium-card-glow group cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.015] hover:shadow-hover active:scale-[0.985] ring-1 ring-black/[0.04]",
+        SALES.panel,
+        "pin-card group cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.015] hover:shadow-hover active:scale-[0.985]",
         isOptom && "rounded-2xl border-2 border-electric-500/25 bg-electric-500/5 p-2 shadow-[0_0_24px_rgba(0,102,255,0.14)]",
       )}
       onClick={open}
@@ -174,12 +176,12 @@ export function DiscoveryProductCard({
             {t("home.pin.optomMin", { qty: minQty })}
           </span>
         ) : discountPct != null && discountPct > 0 ? (
-          <span className="absolute left-2.5 top-2.5 z-10 rounded-md bg-neon-500 px-2 py-0.5 text-[10px] font-black text-white shadow-sm">
+          <span className="badge-deal absolute left-2.5 top-2.5 z-10">
             -{discountPct}%
           </span>
         ) : null}
         {isLowStock(product) ? (
-          <span className="absolute bottom-2 left-2.5 z-10 rounded bg-black/70 px-2 py-0.5 text-[9px] font-bold text-amber-200">
+          <span className="badge-hot absolute bottom-2 left-2.5 z-10">
             Kam qoldi
           </span>
         ) : null}
@@ -189,8 +191,7 @@ export function DiscoveryProductCard({
             type="button"
             onClick={buyNow}
             className={cn(
-              "translate-y-1 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 ease-out group-hover:translate-y-0 hover:scale-105 active:scale-95",
-              "bg-electric-500 hover:bg-electric-400",
+              "sales-cta sales-cta-pulse translate-y-1 rounded-full px-5 py-2.5 text-sm font-bold text-white transition-all duration-300 ease-out group-hover:translate-y-0 hover:scale-105 active:scale-95",
             )}
           >
             Sotib olish
@@ -247,14 +248,14 @@ export function DiscoveryProductCard({
           </div>
         ) : null}
         <div className="mt-1.5 flex items-baseline gap-1">
-          <p className="price-mono text-sm font-extrabold text-electric-500">{formatPrice(displayPriceUzs)}</p>
+          <p className={cn(SALES.priceDeal, "text-sm")}>{formatPrice(displayPriceUzs)}</p>
           {unitSuffix ? <span className="text-[10px] font-medium text-gray-500">{unitSuffix}</span> : null}
         </div>
         {optomHint ? (
           <p className="mt-0.5 line-clamp-2 text-[10px] font-semibold leading-snug text-electric-600">{optomHint}</p>
         ) : null}
         {soldLabel || reviewCount > 0 ? (
-          <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+          <p className={cn(SALES.socialProof, "mt-1")}>
             {soldLabel ? `${soldLabel} sotilgan` : null}
             {soldLabel && reviewCount > 0 ? " · " : null}
             {reviewCount > 0 ? `${reviewCount} sharh` : null}

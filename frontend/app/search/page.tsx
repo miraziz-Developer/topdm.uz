@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AIChat } from "@/components/AIChat";
 import { BottomNav } from "@/components/BottomNav";
 import { Navigation } from "@/components/Navigation";
 import { ProductCard } from "@/components/ProductCard";
@@ -28,6 +27,7 @@ import { cropImageFromBbox } from "@/lib/crop-image";
 import { detectedColorToFilterLabel } from "@/lib/visual-search-color";
 import {
   getDetectedItems,
+  shouldShowPhotoSegmentPicker,
   pickDefaultDetectedId,
   patchDetectedBlockProducts,
   PHOTO_SEARCH_UPDATED_EVENT,
@@ -188,6 +188,7 @@ function SearchPageContent() {
     filteredItems.length > 0 || Boolean((isPhotoMode || isLookMode) && stylistNarrative);
   const showZeroResults = !resultsLoading && !resultsError && !hasActiveResults;
   const showTrendFallback = showZeroResults && !photoQuery && trendSuggestions.length > 0;
+  const showPhotoSegmentPicker = isPhotoMode && shouldShowPhotoSegmentPicker(photoSearch);
   const photoSlotEmpty =
     isPhotoMode && Boolean(selectedDetectedId) && photoProducts.items.length === 0 && !isPhotoLoading && !isCategoryRefining;
 
@@ -370,7 +371,7 @@ function SearchPageContent() {
           </motion.div>
         ) : null}
 
-        {isPhotoMode && photoSearch && detectedBlocks.length > 0 ? (
+        {showPhotoSegmentPicker && photoSearch ? (
           <PhotoDetectedRail
             previewUrl={photoSearch.previewUrl}
             items={detectedBlocks}
@@ -537,7 +538,6 @@ function SearchPageContent() {
       </div>
 
       <BandQilishModal product={selected} isOpen={Boolean(selected)} onClose={() => setSelected(null)} />
-      <AIChat />
       <BottomNav />
     </main>
   );

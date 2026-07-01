@@ -208,7 +208,7 @@ async def merchant_scan_pickup_qr(
             "wrong_shop": "Bu buyurtma boshqa do'konga tegishli",
             "not_pickup_order": "Yetkazish buyurtmasi — QR skaner ishlamaydi",
             "order_cancelled": "Buyurtma bekor qilingan",
-            "order_not_ready_for_pickup": "Buyurtma hali tayyor emas",
+            "order_not_ready_for_pickup": "Buyurtma hali tayyor emas — avval 📦 Tayyor bosing",
         }
         raise HTTPException(status_code=status, detail=messages.get(code, code)) from exc
 
@@ -230,6 +230,11 @@ async def merchant_confirm_pickup(
     except ValueError as exc:
         if str(exc) == "order_not_found":
             raise HTTPException(status_code=404, detail="Buyurtma topilmadi") from exc
+        if str(exc) == "pickup_requires_qr_scan":
+            raise HTTPException(
+                status_code=403,
+                detail="Olib ketish faqat QR skaner orqali tasdiqlanadi",
+            ) from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

@@ -14,8 +14,8 @@ from app.infrastructure.repositories.premium_banner_repo import PremiumBannerRep
 from app.infrastructure.storage.object_store import ObjectMediaStore
 from app.models.premium_banner import SponsoredBannerModel
 
-# 1 Bozor Coin = 10_000 UZS (merchant CRM billing)
-COIN_UZS_RATE = 10_000
+# 1 Bozor Coin = 1 000 UZS — startup bosqichi (O'zbekiston bozori)
+COIN_UZS_RATE = 1_000
 
 
 def uzs_to_coins(amount_uzs: Decimal | float) -> int:

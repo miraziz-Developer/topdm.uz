@@ -246,3 +246,27 @@ async def sandbox_click_simulate(
 
     service = OrderPaymentService(db)
     return await service.process_click_callback(payload)
+
+
+@router.post("/sandbox/click/refund")
+async def sandbox_click_refund(
+    order_id: UUID,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Sandbox Click qaytarish — PAYMENT_SANDBOX_MODE + admin kalit."""
+    settings = get_settings()
+    if not settings.payment_sandbox_mode:
+        raise HTTPException(status_code=403, detail="payment_sandbox_mode_disabled")
+
+    from app.application.payments.order_refund_service import OrderRefundService
+    from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
+
+    repo = MarketplaceRepository(db)
+    order = await repo.get_order_by_id(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="order_not_found")
+
+    result = await OrderRefundService(db).refund_cancelled_order(order)
+    await db.commit()
+    return {"status": "ok", "refund": result}

@@ -14,5 +14,6 @@ export function useProducts(params: SearchParams, options?: { enabled?: boolean 
     },
     staleTime: 15000,
     enabled: options?.enabled ?? true,
+    retry: 1,
   });
 }

@@ -74,6 +74,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
                 "📸 Rasm yuboring — izohda narx yozing (150000)\n"
                 "✍️ «Mahsulot qo'lda» — nom va narxni o'zingiz kiriting\n"
                 "📱 CRM Panel — buyurtma, chat, statistika\n"
+                "📷 QR Skaner — mijoz kelganda tez skaner qiling\n"
                 "🗺 Xarita — rasta joylashuvi\n"
                 "🏷 /chegirma 10 — barcha narxga chegirma",
                 reply_markup=merchant_menu_keyboard(existing.id),
@@ -113,6 +114,7 @@ async def cmd_help(message: Message) -> None:
         "Rasm — mahsulot (AI + tasdiq)\n"
         "Mahsulot qo'lda — rasm + nom + narx\n"
         "Ombor yangilash — tugagan mahsulotga zaxira qo'shish\n"
+        "QR Skaner — mijoz QR ni skaner qiling, buyurtma yopiladi\n"
         "Ovoz — tovar tavsifi (keyin rasm yuboring)"
     )
 

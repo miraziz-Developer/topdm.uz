@@ -297,6 +297,6 @@ def evaluate_experience(signals: UserSignals) -> dict[str, Any]:
         "section_order": section_order,
         "catalog_hints": catalog_hints,
         "highlight": highlight,
-        "show_chat": matched_rule_id not in ("merchant_redirect",),
+        "show_chat": True,
         "show_visual_search_first": "visual_search" in section_order[:2],
     }

@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { CrmSection, CrmTip } from "@/components/crm/crm-section";
 import { ReferralPanel } from "@/components/growth/referral-panel";
-import { SalesReportShareCard } from "@/components/growth/sales-report-share-card";
 import { SupplierImportPanel } from "@/components/growth/supplier-import-panel";
 import { ShopShareKitPanel } from "@/components/shop-share-kit-panel";
 import { Input } from "@/components/ui/input";
@@ -41,7 +40,6 @@ export function ShareHubPanel() {
 
       <ShopShareKitPanel key={kitKey} />
 
-      <SalesReportShareCard />
       <ReferralPanel />
       <SupplierImportPanel />
 

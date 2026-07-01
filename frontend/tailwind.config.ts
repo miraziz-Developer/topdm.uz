@@ -9,7 +9,7 @@ export default {
         mono: ["var(--font-mono)", "DM Mono", "monospace"],
       },
       colors: {
-        canvas: "#f2f4f8",
+        canvas: "#f5f3ef",
         base: "#ffffff",
         surface: "#ffffff",
         elevated: "#e8ecf4",

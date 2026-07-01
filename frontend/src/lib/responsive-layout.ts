@@ -1,8 +1,10 @@
 /** Butun sayt uchun bir xil responsive klasslar. */
 
-/** Asosiy sahifa — pastki nav + safe-area hisobga olinadi */
+/** Butun sayt — Figma marketplace premium storefront */
 export const pageShell =
-  "page-shell min-h-dvh w-full max-w-[100vw] overflow-x-clip bg-canvas";
+  "page-shell min-h-dvh w-full max-w-[100vw] overflow-x-clip market-page-bg";
+
+export const pageShellCheckout = "page-shell min-h-dvh market-page-bg md:pb-8";
 
 /** Header ostidan kontent boshlanishi */
 export const pageContentTop = "page-content-top";

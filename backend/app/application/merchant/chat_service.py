@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.merchant.schemas import ChatMessageItem, ChatThreadItem, ChatThreadSummary
 from app.core.config import get_settings
 from app.domain.interfaces.notifier_gateway import NotifierGateway
-from app.infrastructure.cache.chat_pubsub import ChatPubSubGateway, chat_channel
+from app.infrastructure.cache.chat_pubsub import ChatPubSubGateway
 from app.infrastructure.repositories.chat_repo import ChatRepository
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 
@@ -56,20 +56,36 @@ class MerchantChatService:
         rows = await self._chat.list_threads_for_shop(shop_id, limit=limit)
         summaries: list[ChatThreadSummary] = []
         for row in rows:
-            preview = await self._chat.get_last_message_preview(row.id)
-            summaries.append(
-                ChatThreadSummary(
-                    id=row.id,
-                    shop_id=row.shop_id,
-                    customer_key=row.customer_key,
-                    customer_display_name=row.customer_display_name,
-                    status=row.status,
-                    updated_at=row.updated_at,
-                    last_message=preview.body[:200] if preview else None,
-                    last_sender_role=preview.sender_role if preview else None,
-                )
-            )
+            summaries.append(await self._thread_summary(row, viewer_role="merchant"))
         return summaries
+
+    async def thread_summary_for_role(self, thread_id: UUID, *, viewer_role: str) -> ChatThreadSummary | None:
+        thread = await self._chat.get_thread(thread_id)
+        if not thread:
+            return None
+        return await self._thread_summary(thread, viewer_role=viewer_role)
+
+    async def mark_thread_read(self, thread_id: UUID, *, viewer_role: str) -> None:
+        if viewer_role not in {"merchant", "customer"}:
+            raise ChatServiceError("invalid_role", "Invalid viewer role")
+        thread = await self._chat.get_thread(thread_id)
+        if not thread:
+            raise ChatServiceError("not_found", "Thread not found")
+        await self._chat.mark_read_for_role(thread_id, viewer_role=viewer_role)
+        await self._session.commit()
+        thread = await self._chat.get_thread(thread_id)
+        if not thread:
+            return
+        summary = await self._thread_summary(thread, viewer_role=viewer_role)
+        if viewer_role == "merchant":
+            await self._publish_inbox(thread.shop_id, summary)
+
+    async def total_unread_for_shop(self, shop_id: UUID) -> int:
+        rows = await self._chat.list_threads_for_shop(shop_id, limit=100)
+        total = 0
+        for row in rows:
+            total += await self._chat.count_unread_for_role(row.id, viewer_role="merchant")
+        return total
 
     async def list_messages(self, thread_id: UUID, *, limit: int = 100) -> list[ChatMessageItem]:
         thread = await self._chat.get_thread(thread_id)
@@ -113,6 +129,9 @@ class MerchantChatService:
         except Exception:
             logger.warning("chat_pubsub_publish_failed", thread_id=str(thread_id))
 
+        summary = await self._thread_summary(thread, viewer_role="merchant")
+        await self._publish_inbox(thread.shop_id, summary)
+
         if sender_role == "customer":
             await self._forward_to_telegram_if_offline(thread.shop_id, thread, item)
 
@@ -147,6 +166,35 @@ class MerchantChatService:
             )
         except Exception:
             logger.warning("chat_telegram_forward_failed", shop_id=str(shop_id))
+
+    async def _thread_summary(self, row, *, viewer_role: str) -> ChatThreadSummary:
+        preview = await self._chat.get_last_message_preview(row.id)
+        unread = await self._chat.count_unread_for_role(row.id, viewer_role=viewer_role)
+        return ChatThreadSummary(
+            id=row.id,
+            shop_id=row.shop_id,
+            customer_key=row.customer_key,
+            customer_display_name=row.customer_display_name,
+            status=row.status,
+            updated_at=row.updated_at,
+            last_message=preview.body[:200] if preview else None,
+            last_sender_role=preview.sender_role if preview else None,
+            unread_count=unread,
+        )
+
+    async def _publish_inbox(self, shop_id: UUID, summary: ChatThreadSummary) -> None:
+        try:
+            total_unread = await self.total_unread_for_shop(shop_id)
+            await self._pubsub.publish_inbox_update(
+                str(shop_id),
+                {
+                    "type": "inbox_update",
+                    "thread": summary.model_dump(mode="json"),
+                    "total_unread": total_unread,
+                },
+            )
+        except Exception:
+            logger.warning("chat_inbox_publish_failed", shop_id=str(shop_id))
 
     @staticmethod
     def _thread_item(row) -> ChatThreadItem:

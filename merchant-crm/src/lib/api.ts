@@ -1,11 +1,29 @@
 import { authHeaders } from "@/lib/auth";
 import { resolveApiBase } from "@/lib/http-client";
+import { redirectToMerchantLogin } from "@/lib/merchant-session";
 
 function apiUrl(path: string): string {
   return `${resolveApiBase()}${path}`;
 }
 
+function handleUnauthorized(response: Response): void {
+  if (response.status !== 401 || typeof window === "undefined") return;
+  void (async () => {
+    const { refreshMerchantSessionFromTelegram } = await import("@/lib/merchant-session");
+    const refreshed = await refreshMerchantSessionFromTelegram();
+    if (refreshed) {
+      window.location.reload();
+      return;
+    }
+    redirectToMerchantLogin();
+  })();
+}
+
 async function parseError(response: Response): Promise<string> {
+  if (response.status === 401) {
+    handleUnauthorized(response);
+    return "Sessiya tugadi — qayta kiring";
+  }
   const detail = await response.text().catch(() => "");
   if (!detail) return `API error: ${response.status}`;
   try {
@@ -25,12 +43,17 @@ async function parseError(response: Response): Promise<string> {
   return `API error: ${response.status} — ${detail.slice(0, 200)}`;
 }
 
-export async function postJson<TResponse>(path: string, body: unknown, auth = false): Promise<TResponse> {
+export async function postJson<TResponse>(path: string, body: unknown, auth?: boolean): Promise<TResponse> {
+  const useAuth =
+    auth ??
+    (path.startsWith("/merchant/") ||
+      path.startsWith("/reels/merchant/") ||
+      path.startsWith("/auth/me"));
   const response = await fetch(apiUrl(path), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(auth ? authHeaders() : {}),
+      ...(useAuth ? authHeaders() : {}),
     },
     body: JSON.stringify(body),
   });
@@ -85,13 +108,35 @@ export type MerchantShopProfile = {
   name: string;
   slug: string;
   description?: string | null;
+  owner_display_name?: string | null;
+  owner_phone?: string | null;
   logo_url?: string | null;
   storefront_image_url?: string | null;
   floor?: string | null;
+  floor_level?: number | null;
   section?: string | null;
+  block_id?: string | null;
+  block_sector?: string | null;
+  stall_number?: string | null;
+  location_comment?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   is_verified?: boolean;
   shop_type?: string | null;
 };
+
+export type MerchantShopProfilePatch = {
+  name?: string;
+  description?: string | null;
+  owner_display_name?: string | null;
+  shop_type?: string | null;
+  owner_phone?: string | null;
+};
+
+export function notifyMerchantShopUpdated(shop: MerchantShopProfile) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("merchant-shop-updated", { detail: shop }));
+}
 
 export async function getMerchantMe() {
   return getJson<{
@@ -101,7 +146,7 @@ export async function getMerchantMe() {
   }>("/merchant/me");
 }
 
-export async function patchMerchantShopProfile(body: { description?: string | null }) {
+export async function patchMerchantShopProfile(body: MerchantShopProfilePatch) {
   return patchJson<{ shop: MerchantShopProfile }>("/merchant/shop/profile", body);
 }
 
@@ -454,6 +499,7 @@ export type ChatThreadSummary = {
   updated_at: string;
   last_message?: string | null;
   last_sender_role?: string | null;
+  unread_count?: number;
 };
 
 export type ChatMessageItem = {
@@ -466,11 +512,18 @@ export type ChatMessageItem = {
 };
 
 export async function listMerchantChatThreads() {
-  return getJson<{ items: ChatThreadSummary[] }>("/merchant/chat/threads");
+  return getJson<{ items: ChatThreadSummary[]; total_unread: number }>("/merchant/chat/threads");
 }
 
 export async function getMerchantChatMessages(threadId: string) {
   return getJson<{ items: ChatMessageItem[] }>(`/merchant/chat/threads/${threadId}/messages`);
+}
+
+export async function markMerchantChatThreadRead(threadId: string) {
+  return postJson<{ ok: boolean; thread: ChatThreadSummary | null }>(
+    `/merchant/chat/threads/${threadId}/read`,
+    {},
+  );
 }
 
 export async function updateMerchantOrder(orderId: string, status: string) {
@@ -670,6 +723,8 @@ export async function getMerchantToday() {
   return getJson<{
     generated_at: string;
     shop_verified: boolean;
+    verification_status?: string;
+    verification_reason?: string | null;
     counts: Record<string, number>;
     tasks: TodayTask[];
     alerts: Array<{ type: string; title: string; body: string; at?: string }>;
@@ -900,13 +955,27 @@ export async function scanMerchantPickupQr(token: string) {
     order_id: string;
     status: string;
     already_completed: boolean;
+    headline: string;
+    customer_name?: string | null;
+    customer_label: string;
+    customer_phone: string;
     quantity: number;
     total_price: number;
-    customer_phone: string;
+    unit_price?: number;
     payment_method?: string | null;
+    payment_label?: string | null;
     pickup_date?: string | null;
     pickup_time?: string | null;
-    product: { id: string; name: string; price: number };
+    completed_at?: string | null;
+    product: { id: string; name: string; price: number; image_url?: string | null };
+    items?: Array<{
+      product_id: string;
+      name: string;
+      quantity: number;
+      unit_price: number;
+      line_total: number;
+      image_url?: string | null;
+    }>;
     shop: { id: string; name: string };
   }>("/merchant/pickup/scan", { token });
 }
@@ -914,6 +983,7 @@ export async function scanMerchantPickupQr(token: string) {
 export type CrmReviewRow = {
   id: string;
   product_id: string;
+  product_name?: string | null;
   author_name: string;
   rating: number;
   body?: string | null;
@@ -923,12 +993,93 @@ export type CrmReviewRow = {
   created_at?: string | null;
 };
 
-export async function getCrmReviews(status = "pending_moderation") {
-  return getJson<{ items: CrmReviewRow[]; status: string }>(
-    `/crm/reviews?status=${encodeURIComponent(status)}`,
-  );
+export type CrmReviewCounts = {
+  all: number;
+  pending_moderation: number;
+  approved: number;
+  rejected: number;
+};
+
+export type CrmReviewsQuery = {
+  status?: string;
+  product_id?: string;
+  rating?: number;
+  rating_min?: number;
+  date_from?: string;
+  date_to?: string;
+  q?: string;
+  verified_only?: boolean;
+};
+
+export async function getCrmReviews(params: CrmReviewsQuery = {}) {
+  const qs = new URLSearchParams();
+  qs.set("status", params.status ?? "all");
+  if (params.product_id) qs.set("product_id", params.product_id);
+  if (params.rating) qs.set("rating", String(params.rating));
+  if (params.rating_min) qs.set("rating_min", String(params.rating_min));
+  if (params.date_from) qs.set("date_from", params.date_from);
+  if (params.date_to) qs.set("date_to", params.date_to);
+  if (params.q?.trim()) qs.set("q", params.q.trim());
+  if (params.verified_only) qs.set("verified_only", "true");
+  return getJson<{
+    items: CrmReviewRow[];
+    status: string;
+    counts: CrmReviewCounts;
+    total: number;
+  }>(`/crm/reviews?${qs.toString()}`);
 }
 
 export async function moderateCrmReview(reviewId: string, action: "approve" | "reject", note?: string) {
   return postJson<{ review: CrmReviewRow }>(`/crm/reviews/${reviewId}/action`, { action, note });
+}
+
+export type MerchantSupportTicket = {
+  id: string;
+  shop_id: string;
+  category: string;
+  category_label: string;
+  message: string;
+  status: string;
+  status_label: string;
+  admin_note: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export async function listMerchantSupportTickets() {
+  return getJson<{ items: MerchantSupportTicket[] }>("/merchant/support/tickets");
+}
+
+export async function createMerchantSupportTicket(body: { category: string; message: string }) {
+  return postJson<{ item: MerchantSupportTicket; message?: string }>("/merchant/support/tickets", body);
+}
+
+export type SupportAiConfig = {
+  greeting: string;
+  admin_telegram: string | null;
+  admin_telegram_url: string | null;
+  ai_enabled: boolean;
+};
+
+export type SupportAiChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type SupportAiChatResponse = {
+  reply: string;
+  escalated: boolean;
+  admin_telegram: string | null;
+  admin_telegram_url: string | null;
+};
+
+export async function getMerchantSupportAiConfig() {
+  return getJson<SupportAiConfig>("/merchant/support/ai/config");
+}
+
+export async function sendMerchantSupportAiChat(body: {
+  message: string;
+  history: SupportAiChatMessage[];
+}) {
+  return postJson<SupportAiChatResponse>("/merchant/support/ai/chat", body);
 }

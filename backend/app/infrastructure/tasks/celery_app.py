@@ -40,6 +40,10 @@ celery_app.conf.update(
             "task": "orders.expire_unpaid_reservations",
             "schedule": schedule(run_every=timedelta(minutes=15)),
         },
+        "bozorliii-expire-pickup-no-shows": {
+            "task": "orders.expire_pickup_no_shows",
+            "schedule": crontab(hour=2, minute=15),
+        },
         "merchant-monthly-debt-block": {
             "task": "billing.run_monthly_merchant_debt_block",
             "schedule": crontab(day_of_month=1, hour=0, minute=0),

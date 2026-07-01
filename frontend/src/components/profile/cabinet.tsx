@@ -21,16 +21,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { MerchantCrmLauncher } from "@/components/merchant/merchant-crm-launcher";
 import { LiveOrders } from "@/components/profile/live-orders";
 import { ProfileAvatarUpload } from "@/components/profile/profile-avatar-upload";
+import { SALES } from "@/components/brand/sales-ui";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { getMyOrders, lookupOrdersByPhone, patchAuthMePhone } from "@/lib/api";
-import { filterOrdersByScope, sortOrdersNewestFirst } from "@/lib/order-filters";
-import { readGuestLookupToken, readGuestPhone } from "@/lib/guest-phone";
-import { allowDevMocks } from "@/lib/runtime-flags";
+import { useMyOrdersList } from "@/hooks/useMyOrdersList";
+import { patchAuthMePhone } from "@/lib/api";
+import { COIN_UZS_RATE } from "@/lib/loyalty";
 import { ApiError } from "@/lib/http-client";
 import { cn } from "@/lib/utils";
 import { useUserStore } from "@/stores/user-store";
-import type { AuthMeResponse, Order } from "@/types";
+import type { AuthMeResponse } from "@/types";
 
 const STYLIST_PREFS_KEY = "bozor_ai_cabinet_stylist_prefs";
 
@@ -109,16 +109,20 @@ function selectClassName() {
 
 export type PremiumCabinetProps = {
   profile: AuthMeResponse;
-  coins: number;
   onLogout: () => void | Promise<void>;
 };
 
-export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps) {
+export function PremiumCabinet({ profile, onLogout }: PremiumCabinetProps) {
   const { push } = useToast();
   const refreshProfile = useUserStore((s) => s.refresh);
   const [prefs, setPrefs] = useState<StylistPrefs>(DEFAULT_PREFS);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(true);
+  const { orders: activeOrders, loading: ordersLoading } = useMyOrdersList({
+    enabled: true,
+    isLoggedIn: true,
+    apiScope: "active",
+    profilePhone: profile.phone,
+  });
+  const orders = useMemo(() => activeOrders.slice(0, 3), [activeOrders]);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [phoneEditBuffer, setPhoneEditBuffer] = useState("");
   const [phoneSaving, setPhoneSaving] = useState(false);
@@ -129,7 +133,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
     (profile.telegram_id ? `Telegram · ${profile.telegram_id}` : "Foydalanuvchi");
 
   const roleUz = profile.role === "merchant" ? "Sotuvchi" : "Xaridor";
-  const showDemoCoins = allowDevMocks();
+  const coins = profile.coins_balance ?? 0;
   const tier = tierLabel(coins);
 
   useEffect(() => {
@@ -152,41 +156,6 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
       /* ignore */
     }
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const hasPhone = Boolean(profile.phone?.trim());
-        const mine = await getMyOrders("active");
-        let items = sortOrdersNewestFirst(mine.items ?? []);
-        const savedPhone = readGuestPhone();
-        if (savedPhone && UZ_PHONE_CANONICAL.test(savedPhone)) {
-          const token = readGuestLookupToken(savedPhone);
-          if (token) {
-            try {
-              const guest = await lookupOrdersByPhone(savedPhone, token);
-              const guestActive = filterOrdersByScope(guest.items ?? [], "active");
-              const byId = new Map<string, Order>();
-              for (const o of items) byId.set(o.id, o);
-              for (const o of guestActive) byId.set(o.id, o);
-              items = sortOrdersNewestFirst(Array.from(byId.values()));
-            } catch {
-              // ignore fallback errors
-            }
-          }
-        }
-        if (!cancelled) setOrders(items.slice(0, 3));
-      } catch {
-        if (!cancelled) setOrders([]);
-      } finally {
-        if (!cancelled) setOrdersLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [profile.phone, profile.role]);
 
   const shortId = useMemo(() => {
     const raw = profile.id.replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -234,8 +203,10 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
 
       <header className="relative border-b border-border-subtle/80 pb-8">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-electric-500">Hisob</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink-900 md:text-[2rem]">Shaxsiy kabinet</h1>
+          <p className={SALES.eyebrowGold}>Hisob</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink-900 md:text-[2rem]">
+            Shaxsiy <span className="text-gradient-gold">sotuv</span> kabineti
+          </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-500">
             Bozorliii.uz profilingiz, Bozor Coin va AI Stilist uchun shaxsiy sozlamalar — barchasi bir panelda.
           </p>
@@ -247,7 +218,6 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
       <div className="relative mx-auto mt-10 grid max-w-7xl grid-cols-1 gap-8 lg:grid-cols-12">
         {/* Left: coin card + identity */}
         <div className="space-y-6 lg:col-span-4">
-          {showDemoCoins ? (
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -263,12 +233,18 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
                   {coins}
                   <span className="ml-2 text-lg font-medium text-white/50">Coin</span>
                 </p>
+                <p className="mt-2 text-xs text-white/50">
+                  ≈ {(coins * COIN_UZS_RATE).toLocaleString("uz-UZ")} so&apos;m chegirma
+                </p>
               </div>
               <span className="shrink-0 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur-md">
                 {tier}
               </span>
             </div>
-            <div className="relative mt-12 flex items-center justify-between border-t border-white/10 pt-5">
+            <p className="relative mt-4 text-[11px] leading-relaxed text-white/45">
+              Yakunlangan xariddan Coin yig&apos;iladi. Checkoutda 30% gacha chegirma uchun ishlatishingiz mumkin.
+            </p>
+            <div className="relative mt-8 flex items-center justify-between border-t border-white/10 pt-5">
               <span className="price-mono text-[10px] tracking-[0.18em] text-white/40">BOZORLIII PASS</span>
               <Link
                 href="/checkout"
@@ -279,13 +255,12 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
               </Link>
             </div>
           </motion.div>
-          ) : null}
 
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: showDemoCoins ? 0.1 : 0.05 }}
-            className="glass-panel-strong rounded-[1.75rem] p-6 ring-1 ring-black/[0.04]"
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="glass-panel-strong rounded-[1.75rem] p-6 ring-1 ring-border-default shadow-card"
           >
             <div className="flex items-center gap-4">
               <ProfileAvatarUpload userId={profile.id} displayName={displayName} />
@@ -384,7 +359,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <Link
               href="/search"
-              className="glass-panel group flex items-center gap-3 rounded-2xl p-4 ring-1 ring-border-subtle transition hover:-translate-y-0.5 hover:shadow-hover"
+              className="glass-panel group flex items-center gap-3 rounded-2xl p-4 ring-1 ring-border-default transition hover:-translate-y-0.5 hover:shadow-hover"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-electric-500/10 text-electric-500">
                 <Search className="h-5 w-5" aria-hidden />
@@ -398,7 +373,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
             {profile.shop?.slug ? (
               <Link
                 href={`/shop/${profile.shop.slug}`}
-                className="glass-panel group flex items-center gap-3 rounded-2xl p-4 ring-1 ring-border-subtle transition hover:-translate-y-0.5 hover:shadow-hover"
+                className="glass-panel group flex items-center gap-3 rounded-2xl p-4 ring-1 ring-border-default transition hover:-translate-y-0.5 hover:shadow-hover"
               >
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-neon-500/10 text-neon-500">
                   <Store className="h-5 w-5" aria-hidden />
@@ -419,7 +394,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.08 }}
-            className="relative overflow-hidden rounded-[1.75rem] glass-panel-strong p-6 md:p-8 ring-1 ring-black/[0.04] shadow-card"
+            className="relative overflow-hidden rounded-[1.75rem] glass-panel-strong p-6 md:p-8 ring-1 ring-border-default shadow-card"
           >
             <Sparkles
               className="pointer-events-none absolute -right-4 -top-4 h-36 w-36 text-electric-500/[0.07]"
@@ -436,7 +411,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
             </p>
 
             <div className="relative mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="rounded-2xl border border-border-subtle bg-elevated/50 p-4 backdrop-blur-sm">
+              <label className="rounded-2xl border border-border-default bg-white p-4 shadow-sm">
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
                   <Settings2 className="h-3 w-3" aria-hidden />
                   O&apos;lcham
@@ -453,7 +428,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
                   ))}
                 </select>
               </label>
-              <label className="rounded-2xl border border-border-subtle bg-elevated/50 p-4 backdrop-blur-sm">
+              <label className="rounded-2xl border border-border-default bg-white p-4 shadow-sm">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">Uslub</span>
                 <select
                   className={selectClassName()}
@@ -467,7 +442,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
                   ))}
                 </select>
               </label>
-              <label className="rounded-2xl border border-border-subtle bg-elevated/50 p-4 backdrop-blur-sm sm:col-span-2 lg:col-span-1">
+              <label className="rounded-2xl border border-border-default bg-white p-4 shadow-sm sm:col-span-2 lg:col-span-1">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">Bozor sektori</span>
                 <select
                   className={selectClassName()}
@@ -488,11 +463,11 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.12 }}
-            className="rounded-[1.75rem] glass-panel-strong p-6 md:p-8 ring-1 ring-black/[0.04] shadow-card"
+            className="rounded-[1.75rem] glass-panel-strong p-6 md:p-8 ring-1 ring-border-default shadow-card"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink-900/5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink-900/8 ring-1 ring-border-default">
                   <Package className="h-4 w-4 text-ink-700" aria-hidden />
                 </div>
                 <h2 className="text-lg font-bold tracking-tight text-ink-900">Jonli buyurtmalar</h2>
@@ -506,7 +481,7 @@ export function PremiumCabinet({ profile, coins, onLogout }: PremiumCabinetProps
               </Link>
             </div>
 
-            <div className="mt-6 space-y-4">
+            <div className={cn("mt-6 space-y-4", SALES.pageStack)}>
               <LiveOrders
                 orders={orders}
                 loading={ordersLoading}

@@ -47,7 +47,9 @@ export function OnlinePaymentBridge({ provider, checkoutId, orderId, amount, lab
         }
       } catch {
         if (!cancelled) {
-          setMessage("To'lov havolasini yuklab bo'lmadi. Do'konda naqd yoki terminal orqali to'lang.");
+          setMessage(
+            "To'lov havolasini yuklab bo'lmadi. «Buyurtmalarim» bo'limidan qayta urinib ko'ring yoki do'konda naqd to'lang.",
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);

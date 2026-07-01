@@ -24,15 +24,19 @@ from app.application.visual_search.bbox_refine import (
     _skin_ratio_in_bbox,
     build_body_part_detections,
     clamp_bbox_in_frame,
+    estimate_foreground_product_bbox,
     estimate_person_silhouette_bbox,
     filter_sky_detections,
     has_wearable_person,
+    is_horizontal_strip_bbox,
     is_invalid_outfit_bbox,
     is_outfit_portrait_photo,
+    looks_like_studio_product_backdrop,
     merge_fashion_slots,
     merge_groq_metadata,
     person_heuristic_zones,
     refine_outfit_detections,
+    tighten_bbox_to_content,
 )
 from app.application.visual_search.image_panels import (
     ImagePanel,
@@ -117,8 +121,10 @@ def _looks_like_outfit_photo(pil: Image.Image) -> bool:
 
 def _looks_like_product_photo(pil: Image.Image) -> bool:
     """Tovar foto: bitta buyum, odam emas — portret yoki landshaft."""
-    if _looks_like_outfit_photo(pil) or has_wearable_person(pil):
+    if _looks_like_outfit_photo(pil):
         return False
+    if looks_like_studio_product_backdrop(pil):
+        return True
     w, h = pil.size
     if w <= 0 or h <= 0:
         return False
@@ -130,7 +136,9 @@ def _looks_like_product_photo(pil: Image.Image) -> bool:
         return True
     if not _silhouette_looks_like_standing_person(person):
         return True
-    return _skin_ratio_in_bbox(pil, person) < 0.025
+    if _skin_ratio_in_bbox(pil, person) < 0.025:
+        return True
+    return not has_wearable_person(pil)
 
 
 def _should_collapse_product_fragments(pil: Image.Image, detections: list[dict[str, Any]]) -> bool:
@@ -145,6 +153,13 @@ def _should_collapse_product_fragments(pil: Image.Image, detections: list[dict[s
         for d in detections
     ]
     return bool(areas) and max(areas) < 0.40
+
+
+def _looks_like_default_body_slots(detections: list[dict[str, Any]]) -> bool:
+    if len(detections) < 2:
+        return False
+    ids = {str(d.get("id") or d.get("slot") or "") for d in detections}
+    return ids <= {"top", "pants", "shoes", "jacket"}
 
 
 def _is_default_outfit_heuristic(items: list[dict[str, Any]]) -> bool:
@@ -338,9 +353,90 @@ async def _detect_collage_items(
     return merged
 
 
+def _collapse_strip_detections(detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Gorizontal qator kesishlari — bitta eng katta bbox qoldirish."""
+    if len(detections) < 2:
+        return detections
+    strips = [d for d in detections if is_horizontal_strip_bbox(d.get("bbox"))]
+    if len(strips) >= 2 and len(strips) == len(detections):
+        best = max(detections, key=lambda d: _bbox_area(d.get("bbox") or {}))
+        return [best]
+    return [d for d in detections if not is_horizontal_strip_bbox(d.get("bbox"))] or detections
+
+
+def _tight_product_bbox(pil: Image.Image) -> dict[str, float]:
+    inner = estimate_foreground_product_bbox(pil)
+    return clamp_bbox_in_frame(tighten_bbox_to_content(pil, inner))
+
+
+async def _detect_product_photo_items(raw: bytes, pil: Image.Image) -> list[dict[str, Any]]:
+    """Bitta tovar foto — YOLOS yoki siluet bbox, gorizontal chiziqlar emas."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    fallback = _local_fallback_from_bytes(raw, pil)
+    color_raw = str(fallback.get("color") or "")
+    color = (
+        normalize_color_uz(color_raw.replace("#", ""))
+        if color_raw.startswith("#")
+        else normalize_color_uz(color_raw)
+    )
+    bbox = _tight_product_bbox(pil)
+    category = "shoes"
+    label = "Mahsulot"
+
+    detections: list[dict[str, Any]] = []
+    if (settings.fashion_detect_backend or "yolos").lower() == "yolos":
+        from app.infrastructure.ai_clients.yolos_fashion_detect import detect_fashion_garments
+
+        yolos_slots = await detect_fashion_garments(raw)
+        detections = _collapse_strip_detections(
+            [d for d in yolos_slots if not is_invalid_outfit_bbox(d.get("bbox"))]
+        )
+        if _should_collapse_product_fragments(pil, detections):
+            detections = []
+
+    if detections:
+        for item in detections:
+            item["label_uz"] = "visual"
+            item["color"] = item.get("color") or color
+        return detections[:3]
+
+    try:
+        vision = await GeminiClient().extract_attributes(raw)
+        cat_hint = str(vision.get("category") or "")
+        category = normalize_visual_category(label_uz=cat_hint, category=cat_hint)
+        label = _category_label_uz(category)
+        vision_color = normalize_color_uz(str(vision.get("color") or ""))
+        if vision_color:
+            color = vision_color
+    except Exception as exc:
+        logger.warning("product_photo_vision_failed", error=str(exc))
+
+    search_query = f"{color or ''} {label}".strip() or label
+    return [
+        {
+            "id": "product",
+            "label_uz": "visual",
+            "category": category,
+            "color": color or None,
+            "material": fallback.get("material"),
+            "search_query": search_query,
+            "bbox": bbox,
+            "product_panel": True,
+        }
+    ]
+
+
 async def detect_outfit_items(raw: bytes) -> list[dict[str, Any]]:
     """Taobao-style detection for outfit photos and single product shots."""
     pil = Image.open(io.BytesIO(raw)).convert("RGB")
+
+    if _looks_like_product_photo(pil):
+        product_items = await _detect_product_photo_items(raw, pil)
+        if product_items:
+            return product_items
+
     panels = find_vertical_panels(pil)
     if len(panels) >= 2:
         collage_items = await _detect_collage_items(raw, pil, panels)
@@ -501,7 +597,7 @@ async def _heuristic_single_product_detection(raw: bytes, pil: Image.Image) -> l
             "color": color,
             "material": fallback.get("material"),
             "search_query": search_query,
-            "bbox": {"x": 0.05, "y": 0.05, "w": 0.9, "h": 0.9},
+            "bbox": _tight_product_bbox(pil),
         }
     ]
 
@@ -1425,10 +1521,10 @@ async def search_outfit_from_image(
 
     pil = Image.open(io.BytesIO(raw)).convert("RGB")
     collage_panels = find_vertical_panels(pil)
-    is_collage = len(collage_panels) >= 2
+    is_collage = len(collage_panels) >= 2 and not _looks_like_product_photo(pil)
     product_repo = ProductRepo(session)
     marketplace_repo = MarketplaceRepository(session)
-    if _looks_like_product_photo(pil) and not is_collage:
+    if not is_collage and (_looks_like_product_photo(pil) or not has_wearable_person(pil)):
         products = await taobao_search_by_crop(
             product_repo,
             marketplace_repo,
@@ -1466,10 +1562,19 @@ async def search_outfit_from_image(
         or str(d.get("id") or d.get("slot") or "") in outfit_slots
     ][:max_items]
     if not detections:
-        detections = _heuristic_zone_detections(raw)[:3]
+        if has_wearable_person(pil) and not _looks_like_product_photo(pil):
+            detections = _heuristic_zone_detections(raw)[:3]
+        else:
+            detections = await _detect_product_photo_items(raw, pil)
+    elif _looks_like_default_body_slots(detections) and (
+        _looks_like_product_photo(pil) or not has_wearable_person(pil)
+    ):
+        detections = await _detect_product_photo_items(raw, pil)
 
-    if not is_collage and not has_wearable_person(pil) and (
-        _looks_like_product_photo(pil) or _should_collapse_product_fragments(pil, detections)
+    if not is_collage and (
+        _looks_like_product_photo(pil)
+        or _should_collapse_product_fragments(pil, detections)
+        or (_looks_like_default_body_slots(detections) and not has_wearable_person(pil))
     ):
         products = await taobao_search_by_crop(
             product_repo,

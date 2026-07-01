@@ -4,13 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getMerchantChatMessages,
-  listMerchantChatThreads,
+  markMerchantChatThreadRead,
   type ChatMessageItem,
   type ChatThreadSummary,
 } from "@/lib/api";
 import type { ChatConnectionState } from "@/components/ui/connection-status";
 import { getAccessToken } from "@/lib/auth";
+import {
+  getMerchantChatInboxState,
+  patchMerchantChatInboxThread,
+  refreshMerchantChatInbox,
+  subscribeMerchantChatInbox,
+} from "@/lib/merchant-chat-inbox-bus";
 import { wsBaseUrl } from "@/lib/http-client";
+import { resolveMerchantSession } from "@/lib/merchant-session";
 
 const MAX_RECONNECT_DELAY_MS = 12_000;
 
@@ -28,7 +35,8 @@ function deriveConnectionState(
 }
 
 export function useMerchantShopChat() {
-  const [threads, setThreads] = useState<ChatThreadSummary[]>([]);
+  const [threads, setThreads] = useState<ChatThreadSummary[]>(() => getMerchantChatInboxState().threads);
+  const [totalUnread, setTotalUnread] = useState(() => getMerchantChatInboxState().totalUnread);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [connected, setConnected] = useState(false);
@@ -47,6 +55,15 @@ export function useMerchantShopChat() {
     activeThreadRef.current = activeThreadId;
   }, [activeThreadId]);
 
+  useEffect(
+    () =>
+      subscribeMerchantChatInbox((inbox) => {
+        setThreads(inbox.threads);
+        setTotalUnread(inbox.totalUnread);
+      }),
+    [],
+  );
+
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
@@ -55,14 +72,26 @@ export function useMerchantShopChat() {
   }, []);
 
   const refreshThreads = useCallback(async () => {
-    const res = await listMerchantChatThreads();
-    setThreads(res.items);
-    return res.items;
+    await refreshMerchantChatInbox();
+    return getMerchantChatInboxState().threads;
+  }, []);
+
+  const markActiveThreadRead = useCallback(async (threadId: string) => {
+    try {
+      const res = await markMerchantChatThreadRead(threadId);
+      if (res.thread) {
+        patchMerchantChatInboxThread(threadId, { unread_count: 0, ...res.thread });
+      } else {
+        patchMerchantChatInboxThread(threadId, { unread_count: 0 });
+      }
+    } catch {
+      patchMerchantChatInboxThread(threadId, { unread_count: 0 });
+    }
   }, []);
 
   const openSocket = useCallback(
-    (threadId: string) => {
-      const token = getAccessToken();
+    async (threadId: string) => {
+      const token = (await resolveMerchantSession()) ?? getAccessToken();
       if (!token) return;
       if (socketRef.current?.readyState === WebSocket.OPEN) {
         socketRef.current.close();
@@ -97,7 +126,7 @@ export function useMerchantShopChat() {
         const delay = Math.min(MAX_RECONNECT_DELAY_MS, 800 * 2 ** attempt);
         clearReconnectTimer();
         reconnectTimerRef.current = setTimeout(() => {
-          if (activeThreadRef.current === threadId) openSocket(threadId);
+          if (activeThreadRef.current === threadId) void openSocket(threadId);
         }, delay);
       };
 
@@ -113,34 +142,43 @@ export function useMerchantShopChat() {
             thread_id?: string;
             message?: string;
           };
+          if (payload.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong" }));
+            return;
+          }
           if (payload.type === "error") {
             setError(String(payload.message || "Xatolik"));
             return;
           }
-          if (payload.body && payload.sender_role) {
-            const role = payload.sender_role as ChatMessageItem["sender_role"];
-            setMessages((prev) => {
-              if (payload.id && prev.some((m) => m.id === payload.id)) return prev;
-              return [
-                ...prev,
-                {
-                  id: payload.id || crypto.randomUUID(),
-                  thread_id: threadId,
-                  sender_role: role,
-                  body: payload.body!,
-                  created_at: new Date().toISOString(),
-                  metadata: {},
-                },
-              ];
-            });
-            void refreshThreads();
+          const isChatMessage =
+            payload.type === "message" || (Boolean(payload.body) && Boolean(payload.sender_role));
+          if (!isChatMessage) return;
+
+          const role = payload.sender_role as ChatMessageItem["sender_role"];
+          setMessages((prev) => {
+            if (payload.id && prev.some((m) => m.id === payload.id)) return prev;
+            return [
+              ...prev,
+              {
+                id: payload.id || crypto.randomUUID(),
+                thread_id: threadId,
+                sender_role: role,
+                body: payload.body!,
+                created_at: new Date().toISOString(),
+                metadata: {},
+              },
+            ];
+          });
+
+          if (role === "customer" && activeThreadRef.current === threadId) {
+            void markActiveThreadRead(threadId);
           }
         } catch {
           /* ignore */
         }
       };
     },
-    [clearReconnectTimer, refreshThreads],
+    [clearReconnectTimer, markActiveThreadRead],
   );
 
   const selectThread = useCallback(
@@ -151,7 +189,8 @@ export function useMerchantShopChat() {
       setError(null);
       const history = await getMerchantChatMessages(threadId);
       setMessages(history.items);
-      openSocket(threadId);
+      patchMerchantChatInboxThread(threadId, { unread_count: 0 });
+      void openSocket(threadId);
     },
     [openSocket],
   );
@@ -177,7 +216,7 @@ export function useMerchantShopChat() {
     if (!threadId) return;
     intentionalCloseRef.current = false;
     clearReconnectTimer();
-    openSocket(threadId);
+    void openSocket(threadId);
   }, [clearReconnectTimer, openSocket]);
 
   useEffect(() => {
@@ -204,6 +243,7 @@ export function useMerchantShopChat() {
 
   return {
     threads,
+    totalUnread,
     activeThreadId,
     messages,
     connected,

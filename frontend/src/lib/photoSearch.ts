@@ -1,6 +1,6 @@
 import type { DetectedOutfitItem, PhotoSearchResponse, Product, ShopSummary } from "@/types";
 
-export const PHOTO_SEARCH_STORAGE_KEY = "bozor-photo-search-v21";
+export const PHOTO_SEARCH_STORAGE_KEY = "bozor-photo-search-v22";
 export const PHOTO_SEARCH_UPDATED_EVENT = "bozor-photo-search-updated";
 
 export type PhotoSearchVision = PhotoSearchResponse["vision"];
@@ -126,6 +126,21 @@ export function isProductPhotoSearch(payload: PhotoSearchPayload | null): boolea
   if (!payload) return false;
   if (payload.mode === "product_photo_fast") return true;
   return Boolean(payload.detected_items?.some((b) => b.id === "product"));
+}
+
+/** Noto'g'ri 3 zonali fallback (top/pants/shoes) — tovar fotosuratida ko'rsatilmaydi. */
+export function isDefaultBodySlotSearch(payload: PhotoSearchPayload | null): boolean {
+  if (!payload?.detected_items?.length) return false;
+  const ids = new Set(payload.detected_items.map((item) => item.id));
+  return ids.has("top") && ids.has("pants") && ids.has("shoes") && ids.size <= 4;
+}
+
+export function shouldShowPhotoSegmentPicker(payload: PhotoSearchPayload | null): boolean {
+  if (!payload) return false;
+  if (isProductPhotoSearch(payload) || isDefaultBodySlotSearch(payload)) return false;
+  const blocks = getDetectedItems(payload);
+  if (blocks.length <= 1) return false;
+  return payload.mode === "outfit_multi" || payload.mode === "outfit_multi_fast";
 }
 
 export function getDetectedItems(payload: PhotoSearchPayload | null): DetectedOutfitItem[] {

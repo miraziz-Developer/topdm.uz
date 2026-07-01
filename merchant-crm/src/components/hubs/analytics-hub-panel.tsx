@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AnalyticsLineChart, type DailyPoint } from "@/components/charts/analytics-line-chart";
 import { CrmSection, CrmTip } from "@/components/crm/crm-section";
+import { SalesReportShareCard } from "@/components/growth/sales-report-share-card";
 import { getMerchantAnalyticsSummary } from "@/lib/api";
 import {
   ANALYTICS_PERIODS,
@@ -153,6 +154,8 @@ export function AnalyticsHubPanel() {
               <p className="text-sm leading-relaxed text-text-400">{data.conversion_hint}</p>
             </div>
           ) : null}
+
+          <SalesReportShareCard />
 
           <CrmSection title="Eng ko'p qiziqish uyg'otgan mahsulotlar" icon={BarChart3}>
             <ul className="divide-y divide-border-subtle/80">

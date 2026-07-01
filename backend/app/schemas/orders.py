@@ -69,6 +69,7 @@ class OrderReserveRequest(BaseModel):
     ref_token: str | None = Field(default=None, max_length=50)
     # Mehmon (login'siz) buyurtma uchun telefon OTP tasdiq tokeni
     verification_token: str | None = Field(default=None, min_length=8, max_length=64)
+    coins_to_redeem: int = Field(default=0, ge=0, le=10_000)
 
     @field_validator("user_phone")
     @classmethod

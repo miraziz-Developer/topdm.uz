@@ -33,11 +33,22 @@ def get_groq_api_key(settings: Settings | None = None) -> str:
     return (settings or get_settings()).groq_api_key.strip()
 
 
+def iter_groq_api_keys(settings: Settings | None = None) -> list[str]:
+    """Primary + backup kalitlar (takrorlarsiz)."""
+    cfg = settings or get_settings()
+    keys: list[str] = []
+    for raw in (cfg.groq_api_key, getattr(cfg, "groq_api_key_backup", "")):
+        key = (raw or "").strip()
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
 def require_groq_api_key(settings: Settings | None = None) -> str:
-    key = get_groq_api_key(settings)
-    if not key:
+    keys = iter_groq_api_keys(settings)
+    if not keys:
         raise ValueError("Missing GROQ_API_KEY — Bozorliii stylist requires Groq Cloud.")
-    return key
+    return keys[0]
 
 
 def resolve_groq_chat_model(settings: Settings | None = None) -> str:

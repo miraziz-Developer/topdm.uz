@@ -129,7 +129,7 @@ function BannerCard({ slide, onNavigate }: BannerCardProps) {
           fill
           priority
           onError={() => setImgFailed(true)}
-          className="object-cover transition duration-700 group-hover:scale-[1.03]"
+          className="object-contain bg-ink-900/20 transition duration-700 group-hover:scale-[1.02]"
           sizes="(max-width: 768px) 100vw, 720px"
         />
       )}

@@ -1,8 +1,7 @@
 "use client";
 
-import { ImagePlus, Plus, Trash2, X } from "lucide-react";
-import Image from "next/image";
-import { useRef } from "react";
+import { ImagePlus, Package, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   DEFAULT_SIZES,
@@ -18,6 +17,44 @@ type Props = {
   catalog: VariantCatalog;
   onChange: (next: VariantCatalog) => void;
 };
+
+function VariantImageThumb({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  const resolved = resolveMediaUrl(src) || src;
+  if (!resolved || failed) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-canvas text-text-400">
+        <Package className="h-5 w-5 opacity-40" />
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={resolved}
+      alt={alt}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function FilePreviewThumb({ file }: { file: File }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  if (!preview) {
+    return <div className="h-full w-full animate-pulse bg-canvas" />;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={preview} alt="" className="h-full w-full object-cover" />
+  );
+}
 
 export function ProductVariantsEditor({ catalog, onChange }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -246,11 +283,14 @@ export function ProductVariantsEditor({ catalog, onChange }: Props) {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 {color.imageUrls.map((url, i) => (
-                  <div key={url} className="relative h-14 w-14 overflow-hidden rounded-lg ring-1 ring-border-subtle">
-                    <Image src={resolveMediaUrl(url) ?? url} alt="" fill className="object-cover" unoptimized />
+                  <div
+                    key={`${url}-${i}`}
+                    className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-canvas ring-1 ring-border-subtle"
+                  >
+                    <VariantImageThumb src={url} alt={color.name || "Rang rasmi"} />
                     <button
                       type="button"
-                      className="absolute right-0.5 top-0.5 rounded bg-black/50 p-0.5 text-white"
+                      className="absolute right-0.5 top-0.5 rounded bg-black/55 p-0.5 text-white"
                       onClick={() =>
                         updateColor(color.id, {
                           imageUrls: color.imageUrls.filter((_, idx) => idx !== i),
@@ -262,15 +302,17 @@ export function ProductVariantsEditor({ catalog, onChange }: Props) {
                   </div>
                 ))}
                 {color.imageFiles.map((file, i) => (
-                  <div key={`${file.name}-${i}`} className="relative h-14 w-14 overflow-hidden rounded-lg ring-1 ring-electric-500/30">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={URL.createObjectURL(file)} alt="" className="h-full w-full object-cover" />
+                  <div
+                    key={`${file.name}-${i}`}
+                    className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-canvas ring-1 ring-electric-500/30"
+                  >
+                    <FilePreviewThumb file={file} />
                   </div>
                 ))}
                 <button
                   type="button"
                   onClick={() => pickImages(color.id)}
-                  className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-border-subtle text-text-400 hover:border-electric-500/50"
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-border-subtle bg-surface text-text-400 hover:border-electric-500/50"
                 >
                   <ImagePlus className="h-5 w-5" />
                 </button>

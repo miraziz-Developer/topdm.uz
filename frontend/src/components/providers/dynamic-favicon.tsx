@@ -12,35 +12,28 @@ function drawFavicon(badge: boolean) {
   link.rel = "icon";
   if (!link.parentElement) document.head.appendChild(link);
 
-  const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  const img = new window.Image();
+  img.crossOrigin = "anonymous";
+  img.src = BRAND.assets.icon;
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-  const grad = ctx.createLinearGradient(0, 0, 64, 64);
-  grad.addColorStop(0, BRAND.colors.electric);
-  grad.addColorStop(1, BRAND.colors.accent);
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.roundRect(8, 8, 48, 48, 14);
-  ctx.fill();
+    ctx.clearRect(0, 0, 64, 64);
+    ctx.drawImage(img, 0, 0, 64, 64);
 
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(20, 16, 24, 5);
-  ctx.fillRect(28, 21, 5, 14);
-  ctx.beginPath();
-  ctx.arc(32, 46, 5, 0, Math.PI * 2);
-  ctx.fill();
+    if (badge) {
+      ctx.fillStyle = BRAND.colors.accent;
+      ctx.beginPath();
+      ctx.arc(50, 14, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-  if (badge) {
-    ctx.fillStyle = BRAND.colors.accent;
-    ctx.beginPath();
-    ctx.arc(50, 14, 10, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  link.href = canvas.toDataURL("image/png");
+    link.href = canvas.toDataURL("image/png");
+  };
 }
 
 export function DynamicFavicon() {

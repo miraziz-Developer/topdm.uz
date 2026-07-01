@@ -236,7 +236,7 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <button type="button" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-label="Yopish" />
-      <aside className="relative flex h-full w-full max-w-2xl flex-col bg-surface shadow-2xl ring-1 ring-border-subtle">
+      <aside className="relative flex h-full max-h-[100dvh] w-full max-w-2xl flex-col bg-surface shadow-2xl ring-1 ring-border-subtle">
         <header className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-electric-600">
@@ -255,7 +255,7 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
           </button>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-5 pb-8">
           {loadingDetail ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-electric-500" />
@@ -370,7 +370,7 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
           )}
         </div>
 
-        <footer className="flex gap-2 border-t border-border-subtle p-5">
+        <footer className="shrink-0 flex gap-2 border-t border-border-subtle bg-surface p-5">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose} disabled={busy}>
             Bekor
           </Button>

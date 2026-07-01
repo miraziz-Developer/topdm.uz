@@ -35,6 +35,12 @@ from app.schemas.orders import OrderStatus
 
 
 class OrderPaymentService:
+    @staticmethod
+    def checkout_url(*, checkout_id: UUID, amount_uzs: int, settings: Settings | None = None) -> str:
+        cfg = settings or get_settings()
+        base = (cfg.payment_checkout_base_url or cfg.site_url or "https://bozorliii.online").rstrip("/")
+        return f"{base}/checkout/click?checkout_id={checkout_id}&amount={int(amount_uzs)}"
+
     def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
         self._session = session
         self._settings = settings or get_settings()
@@ -259,15 +265,80 @@ class OrderPaymentService:
                 row = await self._checkout_repo.get_checkout_for_update(tx_id)
                 if row and row.status == "pending":
                     await self._checkout_repo.mark_failed(row)
-                    await cancel_checkout_reserved_orders(
+                    released = await cancel_checkout_reserved_orders(
                         self._session,
                         row,
                         reason="Click to'lov bekor qilindi",
                     )
+                    if released:
+                        await self._notify_merchant_checkout_cancelled(row, "Click to'lov bekor qilindi")
             await self._session.commit()
         except Exception:
             await self._session.rollback()
             raise
+
+    async def _notify_merchant_checkout_paid(self, checkout: OrderCheckoutPaymentModel, order_ids: list[UUID]) -> None:
+        from app.application.merchant.merchant_order_notify import notify_merchant_payment_received
+        from app.infrastructure.db.models import ProductModel, ShopModel
+        from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
+
+        notifier = TelegramNotifierGateway(self._settings.telegram_bot_token)
+        for oid in order_ids:
+            order = await self._marketplace.get_order_by_id(oid)
+            if not order:
+                continue
+            product = await self._session.get(ProductModel, order.product_id)
+            shop = await self._session.get(ShopModel, order.shop_id)
+            if not shop or not product:
+                continue
+            pickup = ""
+            if order.pickup_date:
+                pickup = f"Olib ketish · {order.pickup_date.isoformat()}"
+                if order.pickup_time:
+                    pickup += f" {order.pickup_time}"
+            try:
+                await notify_merchant_payment_received(
+                    notifier,
+                    shop=shop,
+                    order=order,
+                    product_name=product.name,
+                    fulfillment_label=pickup or "Olib ketish",
+                )
+            except Exception:
+                logger.exception("merchant_payment_notify_failed order_id={}", oid)
+
+    async def _notify_merchant_checkout_cancelled(
+        self,
+        checkout: OrderCheckoutPaymentModel,
+        reason: str,
+    ) -> None:
+        from app.application.merchant.merchant_order_notify import notify_merchant_order_cancelled
+        from app.infrastructure.db.models import ProductModel, ShopModel
+        from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
+
+        notifier = TelegramNotifierGateway(self._settings.telegram_bot_token)
+        for oid_raw in checkout.order_ids or []:
+            try:
+                oid = UUID(str(oid_raw))
+            except ValueError:
+                continue
+            order = await self._marketplace.get_order_by_id(oid)
+            if not order:
+                continue
+            product = await self._session.get(ProductModel, order.product_id)
+            shop = await self._session.get(ShopModel, order.shop_id)
+            if not shop or not product:
+                continue
+            try:
+                await notify_merchant_order_cancelled(
+                    notifier,
+                    shop=shop,
+                    order=order,
+                    product_name=product.name,
+                    reason=reason,
+                )
+            except Exception:
+                logger.exception("merchant_cancel_notify_failed order_id={}", oid)
 
     async def _fulfill_checkout_click(
         self,
@@ -367,6 +438,8 @@ class OrderPaymentService:
                 await DeliveryDispatchService(self._session).activate_courier_after_payment(dispatch_order_id)
             except Exception:
                 logger.bind(order_id=str(dispatch_order_id)).warning("bts_dispatch_after_payment_failed")
+
+        await self._notify_merchant_checkout_paid(checkout, order_ids)
 
     async def _fulfill_single_order(self, order: OrderModel, *, billing: dict[str, Any]) -> None:
         await self._confirm_order_paid(order, billing)
@@ -472,9 +545,22 @@ class OrderPaymentService:
             merchant_base_unit_uzs=int(product.price),
         )
 
+        prev_status = locked.status
         if locked.status == OrderStatus.reserved.value:
             locked.status = OrderStatus.confirmed.value
             await self._session.flush()
+            from app.application.marketplace.customer_order_notifications import (
+                CustomerOrderNotificationService,
+            )
+
+            await CustomerOrderNotificationService().push_order_status_change(
+                order_id=locked.id,
+                user_id=getattr(locked, "customer_user_id", None),
+                phone=locked.customer_phone,
+                product_name=product.name,
+                new_status=OrderStatus.confirmed.value,
+                prev_status=prev_status,
+            )
 
         await self._splitter.process_order_payment_success(locked.id, billing)
 

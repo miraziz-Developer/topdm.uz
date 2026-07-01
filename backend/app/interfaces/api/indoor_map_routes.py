@@ -52,9 +52,7 @@ async def check_market_geofence(market_slug: str, payload: GeofenceCheckRequest)
     return {
         **status,
         "pin": pin,
-        "message": None
-        if status["inside"]
-        else "Siz bozor hududida emassiz, iltimos do'koningizda turib joylashuvni aniqlang.",
+        "message": None,
     }
 
 

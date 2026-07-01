@@ -32,7 +32,7 @@ export function SectionHeader({
           <p
             className={
               descriptionClassName ??
-              "mt-2.5 max-w-2xl text-sm font-medium leading-relaxed text-neutral-600 md:text-base"
+              "mt-2.5 max-w-2xl text-sm font-medium leading-relaxed text-ink-500 md:text-base"
             }
           >
             {description}

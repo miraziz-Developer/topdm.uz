@@ -4,6 +4,7 @@ import { MessageCircle, Shield, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { useT } from "@/i18n/locale-provider";
+import { SALES } from "@/components/brand/sales-ui";
 import type { HomeMessageKey } from "@/i18n/home-messages";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +35,10 @@ const ANCHORS: TrustAnchor[] = [
 ];
 
 const cardBase =
-  "group relative overflow-hidden rounded-2xl border border-neutral-200/50 bg-white/40 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.02)] backdrop-blur-xl transition-all duration-500 ease-out hover:-translate-y-1 hover:border-neutral-300 hover:bg-white/80 hover:shadow-[0_30px_60px_rgba(0,0,0,0.06)]";
+  cn(
+    SALES.panel,
+    "group relative overflow-hidden p-6 transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-hover",
+  );
 
 export function PremiumTrustAnchors() {
   const t = useT();
@@ -81,10 +85,10 @@ export function PremiumTrustAnchors() {
               >
                 <Icon className="h-5 w-5" aria-hidden />
               </span>
-              <h3 className="mb-2 text-base font-semibold tracking-tight text-neutral-900">
+              <h3 className="mb-2 text-base font-semibold tracking-tight text-ink-900">
                 {t(anchor.titleKey)}
               </h3>
-              <p className="text-xs font-medium leading-relaxed text-neutral-500 md:text-sm">
+              <p className="text-xs font-medium leading-relaxed text-ink-500 md:text-sm">
                 {t(anchor.descKey)}
               </p>
               {interactive ? (

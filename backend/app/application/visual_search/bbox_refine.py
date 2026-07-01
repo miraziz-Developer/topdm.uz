@@ -38,8 +38,24 @@ def is_outfit_portrait_photo(pil: Image.Image) -> bool:
     return h / w >= 1.12
 
 
+def looks_like_studio_product_backdrop(pil: Image.Image) -> bool:
+    """Yashil/katalog fon + markazda buyum (tufli, quti) — odam emas."""
+    w, h = pil.size
+    if w <= 0 or h <= 0:
+        return False
+    top = pil.crop((0, 0, w, max(1, int(h * 0.32))))
+    if _green_ratio(top) < 0.48:
+        return False
+    if _green_ratio(pil) < 0.32:
+        return False
+    person = estimate_person_silhouette_bbox(pil)
+    return float(person["y"]) > 0.18
+
+
 def has_wearable_person(pil: Image.Image) -> bool:
     """Tik turgan odam silueti — portret/landshaft farqi qilmaydi."""
+    if looks_like_studio_product_backdrop(pil):
+        return False
     w, h = pil.size
     if w <= 0 or h <= 0:
         return False
@@ -52,7 +68,31 @@ def has_wearable_person(pil: Image.Image) -> bool:
     cx = person["x"] + person["w"] / 2
     if cx < 0.12 or cx > 0.88:
         return False
+    # Yuz/terisi bo'lmasa — tovar foto (tufli, quti) noto'g'ri odam deb qolmasin
+    upper = {
+        "x": float(person["x"]),
+        "y": float(person["y"]),
+        "w": float(person["w"]),
+        "h": min(float(person["h"]) * 0.38, 0.34),
+    }
+    if _skin_ratio_in_bbox(pil, upper) < 0.008:
+        return False
     return True
+
+
+def estimate_foreground_product_bbox(pil: Image.Image) -> dict[str, float]:
+    """Mahsulot (tufli, sumka) — fon emas, markazdagi obyekt silueti."""
+    return estimate_person_silhouette_bbox(pil)
+
+
+def is_horizontal_strip_bbox(bbox: dict[str, Any] | None) -> bool:
+    """Noto'g'ri kesish: butun kenglikdagi ingichka qator."""
+    if not bbox:
+        return False
+    w = float(bbox.get("w", 0))
+    h = float(bbox.get("h", 0))
+    x = float(bbox.get("x", 0))
+    return w >= 0.85 and x <= 0.08 and h <= 0.45
 
 
 def is_invalid_outfit_bbox(bbox: dict[str, Any] | None) -> bool:

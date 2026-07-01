@@ -34,7 +34,7 @@ async def _expire_async() -> dict:
         result = await session.execute(
             select(OrderModel)
             .where(
-                OrderModel.status.in_(tuple(ACTIVE_RESERVED_STATUSES)),
+                OrderModel.status == "reserved",
                 OrderModel.payment_method.in_(tuple(ONLINE_PAYMENT_METHODS)),
                 OrderModel.created_at < cutoff,
             )

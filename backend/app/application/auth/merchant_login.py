@@ -29,11 +29,20 @@ async def login_merchant_with_password(
     if shop is None or not shop.is_active:
         raise HTTPException(status_code=403, detail="Do'kon faol emas")
 
+    owner_phone = (shop.owner_phone or "").strip()
+    if not owner_phone:
+        raise HTTPException(status_code=400, detail="Do'kon telefoni topilmadi — bot orqali ro'yxatdan o'ting")
+
     auth_repo = UserAuthRepository(session)
-    user = await auth_repo.upsert_phone_user(
-        phone=shop.owner_phone,
-        display_name=shop.owner_display_name or shop.name,
-    )
+    try:
+        user = await auth_repo.upsert_phone_user(
+            phone=owner_phone,
+            display_name=shop.owner_display_name or shop.name,
+        )
+    except ValueError as exc:
+        if str(exc) == "phone_required":
+            raise HTTPException(status_code=400, detail="Do'kon telefoni topilmadi") from exc
+        raise
     token = build_auth_token(user=user, role="merchant", shop_id=shop.id)
     await session.commit()
     return {"status": "ok", "token": token, **user_public_dict(user, role="merchant", shop_id=shop.id)}

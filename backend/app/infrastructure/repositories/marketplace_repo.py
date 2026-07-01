@@ -11,6 +11,7 @@ from sqlalchemy import Date, String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.phone import normalize_uz_phone_e164, phone_digits_key
+from app.core.slug import slugify
 from app.infrastructure.db.models import (
     CategoryModel,
     LeadModel,
@@ -65,6 +66,41 @@ class MarketplaceRepository:
         if tag:
             clauses.append(cast(ProductModel.attributes["hashtags"], String).ilike(f"%{tag}%"))
         return or_(*clauses)
+
+    @staticmethod
+    def _root_category_clause(root_category: str):
+        """attributes JSON yoki categories jadvali (sub → root) bo'yicha filtrlash."""
+        from sqlalchemy import and_, exists
+        from sqlalchemy.orm import aliased
+
+        rc = (root_category or "").strip()
+        if not rc:
+            return None
+        pat = f"%{rc}%"
+        cat = aliased(CategoryModel)
+        parent = aliased(CategoryModel)
+        grandparent = aliased(CategoryModel)
+        return or_(
+            cast(ProductModel.attributes["root_category"], String).ilike(pat),
+            exists().where(
+                ProductModel.category_id == cat.id,
+                or_(
+                    cat.name.ilike(pat),
+                    and_(
+                        cat.parent_id.isnot(None),
+                        exists().where(parent.id == cat.parent_id, parent.name.ilike(pat)),
+                    ),
+                    and_(
+                        cat.parent_id.isnot(None),
+                        exists().where(
+                            parent.id == cat.parent_id,
+                            parent.parent_id.isnot(None),
+                            exists().where(grandparent.id == parent.parent_id, grandparent.name.ilike(pat)),
+                        ),
+                    ),
+                ),
+            ),
+        )
 
     async def create_product(
         self,
@@ -307,7 +343,6 @@ class MarketplaceRepository:
         return result.scalar_one_or_none()
 
     async def list_featured_products(self, limit: int = 12) -> Sequence[ProductModel]:
-        from sqlalchemy import exists
         from sqlalchemy.orm import selectinload
 
         result = await self._db.execute(
@@ -321,7 +356,18 @@ class MarketplaceRepository:
             .order_by(ProductModel.view_count.desc(), ProductModel.id.desc())
             .limit(limit)
         )
-        return result.scalars().all()
+        featured = list(result.scalars().all())
+        if len(featured) >= min(4, limit):
+            return featured[:limit]
+        seen = {p.id for p in featured}
+        for product in await self.list_trending_products(limit=limit):
+            if product.id in seen:
+                continue
+            featured.append(product)
+            seen.add(product.id)
+            if len(featured) >= limit:
+                break
+        return featured[:limit]
 
     async def list_lightning_deal_products(self, limit: int = 16) -> Sequence[ProductModel]:
         """Faol lightning_deals jadvalidan; bo'sh bo'lsa trending."""
@@ -957,8 +1003,9 @@ class MarketplaceRepository:
         sale_type: str | None = None,
         market_zone: str | None = None,
         block_sector: str | None = None,
+        root_category: str | None = None,
     ) -> Sequence[ProductModel]:
-        from sqlalchemy import exists, or_
+        from sqlalchemy import String, cast, exists, or_
         from sqlalchemy.orm import selectinload
 
         stmt = (
@@ -1006,6 +1053,10 @@ class MarketplaceRepository:
                     ),
                 )
             )
+        if root_category:
+            clause = self._root_category_clause(root_category)
+            if clause is not None:
+                stmt = stmt.where(clause)
         stmt = stmt.order_by(ProductModel.id.desc()).limit(limit).offset(offset)
         result = await self._db.execute(stmt)
         return result.scalars().all()
@@ -1021,8 +1072,9 @@ class MarketplaceRepository:
         sale_type: str | None = None,
         market_zone: str | None = None,
         block_sector: str | None = None,
+        root_category: str | None = None,
     ) -> int:
-        from sqlalchemy import exists, func, or_
+        from sqlalchemy import String, cast, exists, func, or_
 
         stmt = select(func.count(ProductModel.id)).where(
             ProductModel.is_available == True,
@@ -1065,6 +1117,10 @@ class MarketplaceRepository:
                     ),
                 )
             )
+        if root_category:
+            clause = self._root_category_clause(root_category)
+            if clause is not None:
+                stmt = stmt.where(clause)
         result = await self._db.execute(stmt)
         return int(result.scalar() or 0)
 

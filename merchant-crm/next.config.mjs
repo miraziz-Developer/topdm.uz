@@ -18,6 +18,10 @@ const nextConfig = {
       { protocol: "https", hostname: "*.supabase.co", pathname: "/**" },
       { protocol: "https", hostname: "bozorliii.uz", pathname: "/**" },
       { protocol: "https", hostname: "api.bozorliii.uz", pathname: "/**" },
+      { protocol: "https", hostname: "bozorliii.online", pathname: "/**" },
+      { protocol: "https", hostname: "api.bozorliii.online", pathname: "/**" },
+      { protocol: "https", hostname: "crm.bozorliii.online", pathname: "/**" },
+      { protocol: "https", hostname: "media.bozorliii.online", pathname: "/**" },
       ...(isProd
         ? []
         : [

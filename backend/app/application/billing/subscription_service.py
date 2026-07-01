@@ -144,7 +144,9 @@ class SubscriptionService:
         if price <= 0:
             raise ValueError("Reja narxi noto'g'ri")
 
-        coin_cost = max(1, round(price / 10_000))
+        from app.application.crm_banners.service import COIN_UZS_RATE
+
+        coin_cost = max(1, round(price / COIN_UZS_RATE))
         days = 30 if period == "monthly" else 365
 
         # Coindan yechib olish

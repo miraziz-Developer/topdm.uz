@@ -1,15 +1,17 @@
 "use client";
 
-import { ExternalLink, ImagePlus, Store } from "lucide-react";
+import { ExternalLink, ImagePlus, Phone, Store, UserRound } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CrmSection, CrmTip } from "@/components/crm/crm-section";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   getMerchantMe,
+  notifyMerchantShopUpdated,
   patchMerchantShopProfile,
   uploadMerchantShopCover,
   uploadMerchantShopLogo,
@@ -21,6 +23,21 @@ import { cn } from "@/lib/utils";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.uz").replace(/\/$/, "");
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPT = ["image/jpeg", "image/png", "image/webp"];
+const PHONE_REGEX = /^\+998\d{9}$/;
+
+const SHOP_TYPE_OPTIONS = [
+  { value: "chakana", label: "Chakana do'kon" },
+  { value: "optom", label: "Optomchi (pachka)" },
+  { value: "hybrid", label: "Chakana + optom" },
+] as const;
+
+type ProfileForm = {
+  name: string;
+  ownerDisplayName: string;
+  ownerPhone: string;
+  shopType: string;
+  description: string;
+};
 
 function pickImage(file: File | null): boolean {
   if (!file) return false;
@@ -35,20 +52,47 @@ function pickImage(file: File | null): boolean {
   return true;
 }
 
+function formFromShop(shop: MerchantShopProfile, phoneFallback?: string | null): ProfileForm {
+  return {
+    name: shop.name ?? "",
+    ownerDisplayName: shop.owner_display_name ?? "",
+    ownerPhone: shop.owner_phone ?? phoneFallback ?? "+998",
+    shopType: shop.shop_type ?? "chakana",
+    description: shop.description ?? "",
+  };
+}
+
+function normalizePhoneInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "+998";
+  if (digits.startsWith("998")) return `+${digits.slice(0, 12)}`;
+  if (digits.length <= 9) return `+998${digits.slice(0, 9)}`;
+  return `+998${digits.slice(-9)}`;
+}
+
 export function ShopBrandingPanel() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [shop, setShop] = useState<MerchantShopProfile | null>(null);
-  const [description, setDescription] = useState("");
+  const [form, setForm] = useState<ProfileForm>({
+    name: "",
+    ownerDisplayName: "",
+    ownerPhone: "+998",
+    shopType: "chakana",
+    description: "",
+  });
+  const [savedForm, setSavedForm] = useState<ProfileForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [logoBusy, setLogoBusy] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
-  const [descBusy, setDescBusy] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     const me = await getMerchantMe();
+    const nextForm = formFromShop(me.shop, me.phone);
     setShop(me.shop);
-    setDescription(me.shop.description ?? "");
+    setForm(nextForm);
+    setSavedForm(nextForm);
   }, []);
 
   useEffect(() => {
@@ -57,12 +101,28 @@ export function ShopBrandingPanel() {
       .finally(() => setLoading(false));
   }, [refresh]);
 
+  const dirty = useMemo(() => {
+    if (!savedForm) return false;
+    return (
+      form.name.trim() !== savedForm.name.trim() ||
+      form.ownerDisplayName.trim() !== savedForm.ownerDisplayName.trim() ||
+      form.ownerPhone.trim() !== savedForm.ownerPhone.trim() ||
+      form.shopType !== savedForm.shopType ||
+      form.description.trim() !== savedForm.description.trim()
+    );
+  }, [form, savedForm]);
+
+  const applyShop = (next: MerchantShopProfile) => {
+    setShop(next);
+    notifyMerchantShopUpdated(next);
+  };
+
   const onLogo = async (file: File | null) => {
     if (!file || !pickImage(file)) return;
     setLogoBusy(true);
     try {
       const res = await uploadMerchantShopLogo(file);
-      setShop(res.shop);
+      applyShop(res.shop);
       toast.success("Logo saqlandi — mijozlar saytida ko'rinadi");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Logo yuklanmadi");
@@ -76,7 +136,7 @@ export function ShopBrandingPanel() {
     setCoverBusy(true);
     try {
       const res = await uploadMerchantShopCover(file);
-      setShop(res.shop);
+      applyShop(res.shop);
       toast.success("Muqova saqlandi");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Muqova yuklanmadi");
@@ -85,16 +145,36 @@ export function ShopBrandingPanel() {
     }
   };
 
-  const saveDescription = async () => {
-    setDescBusy(true);
+  const saveProfile = async () => {
+    const name = form.name.trim();
+    if (name.length < 2) {
+      toast.error("Do'kon nomi kamida 2 ta belgi bo'lsin");
+      return;
+    }
+    const phone = normalizePhoneInput(form.ownerPhone);
+    if (!PHONE_REGEX.test(phone)) {
+      toast.error("Telefon +998XXXXXXXXX formatida bo'lsin");
+      return;
+    }
+
+    setProfileBusy(true);
     try {
-      const res = await patchMerchantShopProfile({ description: description.trim() || null });
-      setShop(res.shop);
-      toast.success("Tavsif saqlandi");
+      const res = await patchMerchantShopProfile({
+        name,
+        owner_display_name: form.ownerDisplayName.trim() || null,
+        owner_phone: phone,
+        shop_type: form.shopType,
+        description: form.description.trim() || null,
+      });
+      const nextForm = formFromShop(res.shop, phone);
+      setForm(nextForm);
+      setSavedForm(nextForm);
+      applyShop(res.shop);
+      toast.success("Do'kon ma'lumotlari saqlandi");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Saqlab bo'lmadi");
     } finally {
-      setDescBusy(false);
+      setProfileBusy(false);
     }
   };
 
@@ -117,9 +197,9 @@ export function ShopBrandingPanel() {
   return (
     <div className="space-y-4">
       <CrmTip>
-        <strong className="font-semibold text-text-100">Logo va muqova</strong> mijozlar{" "}
+        <strong className="font-semibold text-text-100">Profil va brend</strong> mijozlar{" "}
         <strong className="text-text-200">bozorliii.uz/shop/{shop.slug}</strong> sahifasida, xaritada va mahsulot
-        kartalarida chiqadi.
+        kartalarida chiqadi. Havola (slug) o&apos;zgarmaydi — SEO va QR xavfsiz.
       </CrmTip>
 
       <div className="crm-surface-card overflow-hidden">
@@ -158,7 +238,7 @@ export function ShopBrandingPanel() {
             </button>
           </div>
           <div className="min-w-0 flex-1 pt-1 sm:pt-0">
-            <h2 className="text-xl font-bold text-text-100">{shop.name}</h2>
+            <h2 className="text-xl font-bold text-text-100">{form.name.trim() || shop.name}</h2>
             <p className="mt-0.5 text-sm text-text-400">/{shop.slug}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="secondary" disabled={logoBusy} onClick={() => logoInputRef.current?.click()}>
@@ -202,10 +282,80 @@ export function ShopBrandingPanel() {
         }}
       />
 
+      <CrmSection title="Asosiy ma'lumotlar" description="Nom, telefon va do'kon turi" icon={Store}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block sm:col-span-2">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-400">
+              Do&apos;kon nomi *
+            </span>
+            <Input
+              value={form.name}
+              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              maxLength={200}
+              placeholder="Masalan: Gulnora Fashion"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-400">
+              <UserRound className="h-3.5 w-3.5" />
+              Egasi ismi
+            </span>
+            <Input
+              value={form.ownerDisplayName}
+              onChange={(e) => setForm((prev) => ({ ...prev, ownerDisplayName: e.target.value }))}
+              maxLength={120}
+              placeholder="Masalan: Gulnora"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-400">
+              <Phone className="h-3.5 w-3.5" />
+              Telefon *
+            </span>
+            <Input
+              value={form.ownerPhone}
+              onChange={(e) => setForm((prev) => ({ ...prev, ownerPhone: normalizePhoneInput(e.target.value) }))}
+              inputMode="tel"
+              placeholder="+998901234567"
+            />
+          </label>
+
+          <label className="block sm:col-span-2">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-text-400">
+              Do&apos;kon turi
+            </span>
+            <select
+              value={form.shopType}
+              onChange={(e) => setForm((prev) => ({ ...prev, shopType: e.target.value }))}
+              className={cn(
+                "h-10 w-full rounded-lg border border-border-subtle bg-canvas px-3 text-sm text-text-100",
+                "focus:border-electric-500/40 focus:outline-none focus:ring-2 focus:ring-electric-500/15",
+              )}
+            >
+              {SHOP_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="sm:col-span-2">
+            <p className="rounded-xl border border-border-subtle bg-canvas/60 px-3 py-2 text-xs text-text-400">
+              Do&apos;kon havolasi:{" "}
+              <span className="font-mono font-semibold text-text-200">/{shop.slug}</span> — o&apos;zgartirish uchun
+              qo&apos;llab-quvvatlashga murojaat qiling.
+            </p>
+          </div>
+        </div>
+      </CrmSection>
+
       <CrmSection title="Do'kon haqida" description="Mijozlar vitrinada o'qiydi" icon={Store}>
         <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          value={form.description}
+          onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
           rows={4}
           maxLength={2000}
           placeholder="Masalan: Ayollar kiyimi va aksessuarlar — yangi kolleksiya har hafta"
@@ -214,11 +364,29 @@ export function ShopBrandingPanel() {
             "placeholder:text-text-400 focus:border-electric-500/40 focus:outline-none focus:ring-2 focus:ring-electric-500/15",
           )}
         />
-        <p className="mt-1 text-xs text-text-400">{description.length}/2000</p>
-        <Button type="button" className="mt-3 border-0 bg-electric-500 text-white hover:bg-electric-600" disabled={descBusy} onClick={() => void saveDescription()}>
-          {descBusy ? "Saqlanmoqda…" : "Tavsifni saqlash"}
-        </Button>
+        <p className="mt-1 text-xs text-text-400">{form.description.length}/2000</p>
       </CrmSection>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          className="border-0 bg-electric-500 text-white hover:bg-electric-600"
+          disabled={profileBusy || !dirty}
+          onClick={() => void saveProfile()}
+        >
+          {profileBusy ? "Saqlanmoqda…" : "O'zgarishlarni saqlash"}
+        </Button>
+        {dirty ? (
+          <button
+            type="button"
+            className="text-sm font-medium text-text-400 hover:text-text-200"
+            disabled={profileBusy}
+            onClick={() => savedForm && setForm(savedForm)}
+          >
+            Bekor qilish
+          </button>
+        ) : null}
+      </div>
 
       <p className="text-center text-xs text-text-400">
         Keyingi qadam:{" "}

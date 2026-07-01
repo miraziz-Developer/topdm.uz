@@ -3,8 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/components/ui/toast";
-import { createChatThread, getChatMessages, type ChatMessageItem, type ChatThreadItem } from "@/lib/api";
-import { getSessionId } from "@/lib/utils";
+import {
+  createChatThread,
+  getChatMessages,
+  markChatThreadRead,
+  sendChatMessage,
+  type ChatMessageItem,
+  type ChatThreadItem,
+} from "@/lib/api";
+import { getChatCustomerKey } from "@/lib/utils";
 
 const MAX_RECONNECT_DELAY_MS = 12_000;
 
@@ -17,6 +24,44 @@ function wsBaseUrl(): string {
   return `${protocol}//${url.host}`;
 }
 
+function normalizeChatMessage(raw: Record<string, unknown>, fallbackThreadId: string): ChatMessageItem | null {
+  const nested =
+    raw.message && typeof raw.message === "object" && !Array.isArray(raw.message)
+      ? (raw.message as Record<string, unknown>)
+      : raw;
+  const body = String(nested.body ?? "").trim();
+  const senderRole = nested.sender_role;
+  if (!body || (senderRole !== "customer" && senderRole !== "merchant" && senderRole !== "system")) {
+    return null;
+  }
+  return {
+    id: String(nested.id ?? crypto.randomUUID()),
+    thread_id: String(nested.thread_id ?? fallbackThreadId),
+    sender_role: senderRole,
+    body,
+    created_at: String(nested.created_at ?? new Date().toISOString()),
+    metadata: (nested.metadata as Record<string, unknown>) ?? {},
+  };
+}
+
+function upsertChatMessage(prev: ChatMessageItem[], incoming: ChatMessageItem): ChatMessageItem[] {
+  if (prev.some((m) => m.id === incoming.id)) return prev;
+
+  const pendingIdx = prev.findIndex(
+    (m) =>
+      m.id.startsWith("pending-") &&
+      m.sender_role === incoming.sender_role &&
+      m.body === incoming.body,
+  );
+  if (pendingIdx >= 0) {
+    const next = [...prev];
+    next[pendingIdx] = incoming;
+    return next;
+  }
+
+  return [...prev, incoming];
+}
+
 export function useShopChat(shopId: string | undefined, shopName?: string) {
   const { push } = useToast();
   const [thread, setThread] = useState<ChatThreadItem | null>(null);
@@ -24,16 +69,23 @@ export function useShopChat(shopId: string | undefined, shopName?: string) {
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
   const intentionalCloseRef = useRef(false);
   const threadRef = useRef<ChatThreadItem | null>(null);
   const reconnectToastShownRef = useRef(false);
+  const chatOpenRef = useRef(false);
 
   useEffect(() => {
     threadRef.current = thread;
   }, [thread]);
+
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+  }, [chatOpen]);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -42,13 +94,22 @@ export function useShopChat(shopId: string | undefined, shopName?: string) {
     }
   }, []);
 
+  const markRead = useCallback(async (threadId: string) => {
+    try {
+      await markChatThreadRead(threadId);
+    } catch {
+      /* ignore */
+    }
+    setUnreadCount(0);
+  }, []);
+
   const openSocket = useCallback(
     (activeThread: ChatThreadItem) => {
       if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
-      const sessionId = getSessionId();
+      const customerKey = getChatCustomerKey();
       const ws = new WebSocket(
-        `${wsBaseUrl()}/ws/chat/${activeThread.id}?role=customer&session_id=${encodeURIComponent(sessionId)}`,
+        `${wsBaseUrl()}/ws/chat/${activeThread.id}?role=customer&session_id=${encodeURIComponent(customerKey)}`,
       );
       socketRef.current = ws;
 
@@ -85,15 +146,7 @@ export function useShopChat(shopId: string | undefined, shopName?: string) {
 
       ws.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data) as {
-            type?: string;
-            body?: string;
-            sender_role?: string;
-            id?: string;
-            message?: string;
-            code?: string;
-            metadata?: Record<string, unknown>;
-          };
+          const payload = JSON.parse(event.data) as Record<string, unknown>;
 
           if (payload.type === "ping") {
             ws.send(JSON.stringify({ type: "pong" }));
@@ -109,43 +162,36 @@ export function useShopChat(shopId: string | undefined, shopName?: string) {
             setError(String(payload.message || "Xatolik"));
             return;
           }
-          const isChatMessage =
-            payload.type === "message" || (Boolean(payload.body) && Boolean(payload.sender_role));
-          if (isChatMessage) {
-            const role = payload.sender_role as ChatMessageItem["sender_role"];
-            setMessages((prev) => {
-              if (payload.id && prev.some((m) => m.id === payload.id)) return prev;
-              return [
-                ...prev,
-                {
-                  id: payload.id || crypto.randomUUID(),
-                  thread_id: activeThread.id,
-                  sender_role: role,
-                  body: payload.body!,
-                  created_at: new Date().toISOString(),
-                  metadata: payload.metadata ?? {},
-                },
-              ];
-            });
+
+          const parsed = normalizeChatMessage(payload, activeThread.id);
+          if (!parsed) return;
+
+          setMessages((prev) => upsertChatMessage(prev, parsed));
+          if (parsed.sender_role === "merchant") {
+            if (chatOpenRef.current) {
+              void markRead(activeThread.id);
+            } else {
+              setUnreadCount((n) => n + 1);
+            }
           }
         } catch {
           /* ignore non-json */
         }
       };
     },
-    [clearReconnectTimer, push],
+    [clearReconnectTimer, markRead, push],
   );
 
-  const connect = useCallback(async () => {
-    if (!shopId) return;
+  const ensureThread = useCallback(async () => {
+    if (!shopId) return null;
     intentionalCloseRef.current = false;
     setError(null);
-    const sessionId = getSessionId();
+    const customerKey = getChatCustomerKey();
     let activeThread = threadRef.current;
     if (!activeThread) {
       const res = await createChatThread({
         shop_id: shopId,
-        customer_key: sessionId,
+        customer_key: customerKey,
         customer_display_name: shopName ? `Mijoz · ${shopName}` : "Mijoz",
       });
       activeThread = res.thread;
@@ -153,15 +199,109 @@ export function useShopChat(shopId: string | undefined, shopName?: string) {
       threadRef.current = activeThread;
       const history = await getChatMessages(activeThread.id);
       setMessages(history.items);
+      setUnreadCount(history.unread_count ?? 0);
     }
-    openSocket(activeThread);
-  }, [shopId, shopName, openSocket]);
+    return activeThread;
+  }, [shopId, shopName]);
 
-  const send = useCallback((text: string) => {
-    const body = text.trim();
-    if (!body || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
-    socketRef.current.send(JSON.stringify({ body }));
-  }, []);
+  const connect = useCallback(async () => {
+    try {
+      const activeThread = await ensureThread();
+      if (activeThread) openSocket(activeThread);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Chat ochib bo'lmadi";
+      setError(message);
+      push(message, "error");
+    }
+  }, [ensureThread, openSocket, push]);
+
+  const setPanelOpen = useCallback(
+    async (open: boolean) => {
+      setChatOpen(open);
+      chatOpenRef.current = open;
+      if (open) {
+        try {
+          const activeThread = await ensureThread();
+          if (activeThread) {
+            await markRead(activeThread.id);
+            openSocket(activeThread);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Chat ochib bo'lmadi";
+          setError(message);
+        }
+      }
+    },
+    [ensureThread, markRead, openSocket],
+  );
+
+  useEffect(() => {
+    if (!shopId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const activeThread = await ensureThread();
+        if (!cancelled && activeThread) {
+          openSocket(activeThread);
+        }
+      } catch {
+        /* background connect optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shopId, ensureThread, openSocket]);
+
+  const send = useCallback(
+    async (text: string) => {
+      const body = text.trim();
+      const activeThread = threadRef.current;
+      if (!body || !activeThread) return;
+
+      const optimisticId = `pending-${crypto.randomUUID()}`;
+      const optimistic: ChatMessageItem = {
+        id: optimisticId,
+        thread_id: activeThread.id,
+        sender_role: "customer",
+        body,
+        created_at: new Date().toISOString(),
+        metadata: {},
+      };
+      setMessages((prev) => [...prev, optimistic]);
+      setError(null);
+
+      const ws = socketRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ body }));
+          return;
+        } catch {
+          /* HTTP fallback below */
+        }
+      }
+
+      try {
+        const res = await sendChatMessage(activeThread.id, body);
+        const saved = normalizeChatMessage(res.message as unknown as Record<string, unknown>, activeThread.id);
+        if (!saved) {
+          setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+          setError("Xabar yuborilmadi");
+          return;
+        }
+        setMessages((prev) => {
+          const withoutPending = prev.filter((m) => m.id !== optimisticId);
+          return upsertChatMessage(withoutPending, saved);
+        });
+      } catch (err) {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        const message = err instanceof Error ? err.message : "Xabar yuborilmadi";
+        setError(message);
+        push(message, "error");
+      }
+    },
+    [push],
+  );
 
   const disconnect = useCallback(() => {
     intentionalCloseRef.current = true;
@@ -181,5 +321,16 @@ export function useShopChat(shopId: string | undefined, shopName?: string) {
     [clearReconnectTimer],
   );
 
-  return { thread, messages, connected, reconnecting, error, connect, send, disconnect };
+  return {
+    thread,
+    messages,
+    connected,
+    reconnecting,
+    error,
+    unreadCount,
+    connect,
+    send,
+    disconnect,
+    setPanelOpen,
+  };
 }

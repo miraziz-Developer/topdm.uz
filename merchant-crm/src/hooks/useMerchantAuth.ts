@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { clearAccessToken, getAccessToken } from "@/lib/auth";
+import { clearAccessToken } from "@/lib/auth";
+import { redirectToMerchantLogin, resolveMerchantSession } from "@/lib/merchant-session";
 
 type AuthState = "loading" | "authenticated" | "unauthenticated";
 
@@ -10,13 +11,20 @@ export function useMerchantAuth() {
   const [state, setState] = useState<AuthState>("loading");
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      setState("unauthenticated");
-      window.location.replace("/login");
-      return;
-    }
-    setState("authenticated");
+    let cancelled = false;
+    void (async () => {
+      const token = await resolveMerchantSession();
+      if (cancelled) return;
+      if (!token) {
+        setState("unauthenticated");
+        redirectToMerchantLogin();
+        return;
+      }
+      setState("authenticated");
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const signOut = () => {

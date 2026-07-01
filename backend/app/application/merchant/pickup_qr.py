@@ -18,8 +18,8 @@ TOKEN_RE = re.compile(
     re.IGNORECASE,
 )
 
-CUSTOMER_QR_VISIBLE_STATUSES = frozenset({"pending", "reserved", "confirmed", "preparing", "ready"})
-QR_SCAN_ALLOWED_STATUSES = frozenset({"reserved", "confirmed", "preparing", "ready"})
+CUSTOMER_QR_VISIBLE_STATUSES = frozenset({"ready"})
+QR_SCAN_ALLOWED_STATUSES = frozenset({"ready"})
 
 
 def _signing_secret(settings: Settings | None = None) -> str:

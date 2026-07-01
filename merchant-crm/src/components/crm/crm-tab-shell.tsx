@@ -28,22 +28,27 @@ export function CrmTabShell({ tabs, activeTab, title, description, children }: P
   const active = tabs.find((t) => t.id === activeTab);
 
   return (
-    <div className="space-y-5">
-      <div className="crm-hero-card crm-mesh-bg p-5 md:p-7">
+    <div className="space-y-6">
+      <div className="crm-surface-card p-5 md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 max-w-2xl">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-electric-600">CRM</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-text-100 md:text-[1.75rem]">{title}</h1>
-            {description ? <p className="mt-2 text-sm leading-relaxed text-text-400">{description}</p> : null}
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary/80">CRM</p>
+            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight md:text-3xl">
+              <span className="text-gradient-hero">{title}</span>
+            </h1>
+            {description ? <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
             {active?.hint ? (
-              <p className="mt-3 inline-flex rounded-xl bg-canvas/80 px-3 py-1.5 text-xs font-medium text-text-300 ring-1 ring-border-subtle">
+              <p className="mt-3 inline-flex rounded-xl border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
                 {active.hint}
               </p>
             ) : null}
           </div>
         </div>
 
-        <div className="mt-5 flex gap-2" role="tablist">
+        <div
+          className="mt-5 inline-flex w-full flex-wrap gap-1 rounded-xl border border-border/60 bg-muted/50 p-1 backdrop-blur sm:w-auto"
+          role="tablist"
+        >
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const url = new URL(tab.href, "http://local");
@@ -59,13 +64,13 @@ export function CrmTabShell({ tabs, activeTab, title, description, children }: P
                 role="tab"
                 aria-selected={isActive}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold tracking-tight transition-all duration-200",
+                  "inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-200",
                   isActive
-                    ? "bg-text-100 text-white shadow-[0_6px_18px_rgba(10,12,18,0.15)]"
-                    : "bg-canvas/80 text-text-400 ring-1 ring-border-subtle hover:text-text-100",
+                    ? "bg-card text-foreground shadow-glow"
+                    : "text-muted-foreground hover:bg-card/60 hover:text-foreground",
                 )}
               >
-                {Icon ? <Icon className={cn("h-4 w-4", isActive ? "text-white/90" : "")} /> : null}
+                {Icon ? <Icon className="h-4 w-4" /> : null}
                 {tab.label}
               </Link>
             );

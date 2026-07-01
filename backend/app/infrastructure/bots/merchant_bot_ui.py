@@ -36,7 +36,11 @@ def merchant_menu_keyboard(shop_id: uuid.UUID) -> ReplyKeyboardMarkup:
             KeyboardButton(
                 text="CRM Panel",
                 web_app=WebAppInfo(url=crm_url("/telegram", shop_id)),
-            )
+            ),
+            KeyboardButton(
+                text="QR Skaner",
+                web_app=WebAppInfo(url=crm_url("/telegram", shop_id, next_path="/scan")),
+            ),
         ],
         [
             KeyboardButton(
@@ -64,6 +68,19 @@ def start_inline_keyboard(shop_id: uuid.UUID | None) -> InlineKeyboardMarkup:
         ],
     ]
     if shop_id:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="QR Skaner",
+                    web_app=WebAppInfo(url=crm_url("/telegram", shop_id, next_path="/scan")),
+                ),
+                InlineKeyboardButton(
+                    text="Xarita",
+                    web_app=WebAppInfo(url=crm_url("/mini", shop_id)),
+                ),
+            ]
+        )
+    else:
         rows.append(
             [
                 InlineKeyboardButton(

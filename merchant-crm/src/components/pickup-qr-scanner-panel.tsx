@@ -1,67 +1,84 @@
 "use client";
 
-import { CheckCircle2, ScanLine } from "lucide-react";
+import { ScanLine } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  PickupScanSuccessOverlay,
+  type PickupScanResult,
+} from "@/components/pickup-scan-success-overlay";
 import { scanMerchantPickupQr } from "@/lib/api";
-import { cn, formatPrice } from "@/lib/utils";
+import { getTelegramWebApp } from "@/lib/telegram-webapp";
+import { cn } from "@/lib/utils";
 
-type ScanResult = {
-  order_id: string;
-  status: string;
-  already_completed: boolean;
-  quantity: number;
-  total_price: number;
-  customer_phone: string;
-  payment_method?: string | null;
-  pickup_date?: string | null;
-  pickup_time?: string | null;
-  product: { id: string; name: string; price: number };
-  shop: { id: string; name: string };
-};
-
-export function PickupQrScannerPanel() {
+export function PickupQrScannerPanel({ autoStart = false }: { autoStart?: boolean }) {
   const readerId = useId().replace(/:/g, "");
   const [scanning, setScanning] = useState(false);
   const [manualToken, setManualToken] = useState("");
   const [busy, setBusy] = useState(false);
-  const [lastResult, setLastResult] = useState<ScanResult | null>(null);
+  const [lastResult, setLastResult] = useState<PickupScanResult | null>(null);
+  const [showOverlay, setShowOverlay] = useState(false);
   const scannerRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const busyRef = useRef(false);
 
-  const processToken = useCallback(async (token: string) => {
-    const trimmed = token.trim();
-    if (!trimmed || busy) return;
-    setBusy(true);
+  const hapticSuccess = useCallback(() => {
     try {
-      const res = await scanMerchantPickupQr(trimmed);
-      setLastResult(res);
-      if (res.already_completed) {
-        toast.info("Buyurtma allaqachon yakunlangan");
-      } else {
-        toast.success("Mahsulot berildi — buyurtma yopildi");
-      }
-      if (scannerRef.current) {
-        await scannerRef.current.stop().catch(() => undefined);
-        scannerRef.current = null;
-        setScanning(false);
-      }
+      getTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
     } catch {
-      toast.error("QR skaner xato — kod noto'g'ri yoki boshqa do'kon buyurtmasi");
-    } finally {
-      setBusy(false);
+      /* ignore */
     }
-  }, [busy]);
+  }, []);
+
+  const stopScanner = useCallback(async () => {
+    if (scannerRef.current) {
+      await scannerRef.current.stop().catch(() => undefined);
+      scannerRef.current = null;
+    }
+    setScanning(false);
+  }, []);
+
+  const processToken = useCallback(
+    async (token: string) => {
+      const trimmed = token.trim();
+      if (!trimmed || busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const res = await scanMerchantPickupQr(trimmed);
+        setLastResult(res);
+        setShowOverlay(true);
+        hapticSuccess();
+        if (res.already_completed) {
+          toast.info(res.headline);
+        } else {
+          toast.success(res.headline);
+        }
+        await stopScanner();
+      } catch {
+        toast.error("QR skaner xato — kod noto'g'ri yoki boshqa do'kon buyurtmasi");
+        try {
+          getTelegramWebApp()?.HapticFeedback?.notificationOccurred("error");
+        } catch {
+          /* ignore */
+        }
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    },
+    [hapticSuccess, stopScanner],
+  );
 
   const startScanner = useCallback(async () => {
     if (scanning) return;
+    setShowOverlay(false);
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       const scanner = new Html5Qrcode(readerId);
       scannerRef.current = scanner;
       setScanning(true);
-      setLastResult(null);
       await scanner.start(
         { facingMode: "environment" },
         { fps: 8, qrbox: { width: 260, height: 260 } },
@@ -77,19 +94,16 @@ export function PickupQrScannerPanel() {
     }
   }, [processToken, readerId, scanning]);
 
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      await scannerRef.current.stop().catch(() => undefined);
-      scannerRef.current = null;
-    }
-    setScanning(false);
-  }, []);
-
   useEffect(() => {
     return () => {
       void stopScanner();
     };
   }, [stopScanner]);
+
+  useEffect(() => {
+    if (!autoStart || scanning || busy) return;
+    void startScanner();
+  }, [autoStart, busy, scanning, startScanner]);
 
   return (
     <div className="space-y-4">
@@ -100,8 +114,8 @@ export function PickupQrScannerPanel() {
             <h2 className="text-base font-bold text-text-100">Olib ketish skaneri</h2>
           </div>
           <p className="mt-2 text-sm leading-relaxed text-text-400">
-            Mijoz telefonidagi QR ni skaner qiling — mahsulot, buyurtma va mijoz ma&apos;lumotlari chiqadi, buyurtma
-            avtomatik yakunlanadi.
+            Mijoz QR ni skaner qiling — kim qaysi mahsulotni olib ketgani ekranda chiqadi, buyurtma avtomatik
+            yopiladi.
           </p>
         </div>
 
@@ -148,65 +162,24 @@ export function PickupQrScannerPanel() {
         </div>
       </section>
 
-      {lastResult ? (
-        <section
-          className={cn(
-            "crm-surface-card p-4 sm:p-5",
-            lastResult.already_completed ? "ring-1 ring-amber-500/30" : "ring-2 ring-emerald-500/35",
-          )}
-        >
-          <div className="flex items-start gap-3">
-            <CheckCircle2
-              className={cn(
-                "h-6 w-6 shrink-0",
-                lastResult.already_completed ? "text-amber-500" : "text-emerald-500",
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-text-100">
-                {lastResult.already_completed ? "Allaqachon yakunlangan" : "Muvaffaqiyatli berildi"}
-              </p>
-              <p className="mt-1 text-lg font-bold text-text-100">{lastResult.product.name}</p>
-              <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-text-400">Buyurtma ID</dt>
-                  <dd className="font-mono font-semibold text-text-100">{lastResult.order_id.slice(0, 8).toUpperCase()}</dd>
-                </div>
-                <div>
-                  <dt className="text-text-400">Miqdor</dt>
-                  <dd className="font-semibold text-text-100">{lastResult.quantity} dona</dd>
-                </div>
-                <div>
-                  <dt className="text-text-400">Summa</dt>
-                  <dd className="font-semibold tabular-nums text-text-100">{formatPrice(lastResult.total_price)}</dd>
-                </div>
-                <div>
-                  <dt className="text-text-400">Mijoz</dt>
-                  <dd>
-                    <a href={`tel:${lastResult.customer_phone}`} className="font-semibold text-electric-600">
-                      {lastResult.customer_phone}
-                    </a>
-                  </dd>
-                </div>
-                {lastResult.pickup_date ? (
-                  <div>
-                    <dt className="text-text-400">Olib ketish</dt>
-                    <dd className="text-text-100">
-                      {lastResult.pickup_date}
-                      {lastResult.pickup_time ? ` · ${lastResult.pickup_time}` : ""}
-                    </dd>
-                  </div>
-                ) : null}
-                {lastResult.payment_method ? (
-                  <div>
-                    <dt className="text-text-400">To&apos;lov</dt>
-                    <dd className="text-text-100">{lastResult.payment_method}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            </div>
-          </div>
+      {lastResult && !showOverlay ? (
+        <section className="crm-surface-card p-4 text-center sm:p-5">
+          <p className="text-sm font-semibold text-text-100">{lastResult.headline}</p>
+          <Button type="button" className="mt-3" variant="secondary" onClick={() => setShowOverlay(true)}>
+            Tafsilotlarni ko&apos;rish
+          </Button>
         </section>
+      ) : null}
+
+      {showOverlay && lastResult ? (
+        <PickupScanSuccessOverlay
+          result={lastResult}
+          onDismiss={() => setShowOverlay(false)}
+          onScanAgain={() => {
+            setShowOverlay(false);
+            void startScanner();
+          }}
+        />
       ) : null}
     </div>
   );

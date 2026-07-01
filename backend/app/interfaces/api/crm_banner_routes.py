@@ -83,7 +83,7 @@ async def crm_list_my_banners(
 @router.post("/create")
 async def crm_create_banner(
     tariff_code: str = Form(..., pattern="^(bronze|silver|gold)$"),
-    duration_days: int = Form(30, ge=7, le=90),
+    duration_days: int = Form(7, ge=1, le=30),
     title: str | None = Form(None),
     image_url: str | None = Form(None),
     product_id: UUID | None = Form(None),
@@ -172,7 +172,7 @@ async def crm_verify_payment(
 class RenewBannerBody(BaseModel):
     banner_id: UUID
     tariff_code: str | None = Field(None, pattern="^(bronze|silver|gold)$")
-    duration_days: int | None = Field(None, ge=7, le=90)
+    duration_days: int | None = Field(None, ge=1, le=30)
 
 
 @router.post("/renew")
@@ -229,7 +229,7 @@ async def _purchase_banner_handler(
 @router.post("/purchase")
 async def crm_purchase_banner(
     tariff_code: str = Form(..., pattern="^(bronze|silver|gold)$"),
-    duration_days: int = Form(30, ge=7, le=90),
+    duration_days: int = Form(7, ge=1, le=30),
     title: str | None = Form(None),
     image_url: str | None = Form(None),
     product_id: UUID | None = Form(None),
@@ -254,7 +254,7 @@ async def crm_purchase_banner(
 @router.post("/buy-with-coins")
 async def crm_buy_banner_with_coins(
     tariff_code: str = Form(..., pattern="^(bronze|silver|gold)$"),
-    duration_days: int = Form(30, ge=7, le=90),
+    duration_days: int = Form(7, ge=1, le=30),
     title: str | None = Form(None),
     image_url: str | None = Form(None),
     product_id: UUID | None = Form(None),

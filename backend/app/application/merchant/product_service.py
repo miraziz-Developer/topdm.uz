@@ -138,6 +138,15 @@ class MerchantProductService:
 
         image_url = image_urls[0]
 
+        shop = await self._repo.get_shop(shop_id)
+        if not shop:
+            raise PublishPendingProductError("not_found", "Do'kon topilmadi")
+        if not shop.is_verified:
+            raise PublishPendingProductError(
+                "shop_not_verified",
+                "Do'kon hali AI tasdiqlanmagan. Telegram botda do'kon ro'yxatini tasdiqlang yoki qayta tekshirishni bosing.",
+            )
+
         from app.application.merchant.category_resolver import enrich_attrs_with_category
 
         attrs["product_name"] = name
@@ -169,6 +178,40 @@ class MerchantProductService:
 
         visual_vector: list[float] | None = None
         img_bytes = await fetch_image_bytes(image_url)
+        if not img_bytes and row.telegram_file_id:
+            try:
+                data, _mime = await self._media.download_telegram_file(row.telegram_file_id)
+                img_bytes = data
+            except Exception:
+                logger.warning("publish_image_telegram_fallback_failed", pending_id=str(pending_id))
+
+        if not img_bytes:
+            raise PublishPendingProductError(
+                "image_failed",
+                "Mahsulot rasmini yuklab bo'lmadi — qayta rasm yuboring.",
+            )
+
+        from app.application.merchant.ai_moderator import ShopAiModeratorService
+
+        category_label = str(attrs.get("category_label") or attrs.get("category") or "")
+        moderator = ShopAiModeratorService(self._session)
+        ai_verdict = await moderator.review_product_publish(
+            shop=shop,
+            name=name,
+            price_uzs=price,
+            category_label=category_label or None,
+            image_bytes=img_bytes,
+            description=payload.description,
+        )
+        if not ai_verdict.approved:
+            await self._repo.update_pending_product(
+                row,
+                status="rejected",
+                moderation_reason=ai_verdict.reason,
+            )
+            await self._session.commit()
+            raise PublishPendingProductError("ai_rejected", ai_verdict.reason)
+
         variant_attrs, _total_stock = build_attributes_from_catalog(
             catalog_payload,
             existing={k: v for k, v in attrs.items() if k not in {"transcription", "variant_draft"}},
@@ -227,10 +270,6 @@ class MerchantProductService:
             status="published",
             published_product_id=product.id,
         )
-
-        shop = await self._repo.get_shop(shop_id)
-        if shop and not shop.is_verified:
-            shop.is_verified = True
 
         await self._session.commit()
         await self._notify_published(shop_id=shop_id, product_name=name)

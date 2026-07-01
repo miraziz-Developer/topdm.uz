@@ -10,9 +10,11 @@ import {
   type BazaarCatalogFilters,
   type CatalogOrigin,
   MARKET_ZONES,
+  normalizeFilterPrices,
   ROOT_CATEGORIES,
   type SaleMode,
 } from "@/lib/home-catalog-filters";
+import { formatUzPriceInput } from "@/lib/price-input";
 import { isChinaMarketEnabled } from "@/lib/runtime-flags";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +61,16 @@ export function BazaarCatalogToolbar({ filters, onChange, className }: BazaarCat
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   const set = (patch: Partial<BazaarCatalogFilters>) => onChange({ ...filters, ...patch });
+
+  const commitPrices = () => {
+    onChange(
+      normalizeFilterPrices({
+        ...filters,
+        minPrice: filters.minPrice ? formatUzPriceInput(filters.minPrice) : "",
+        maxPrice: filters.maxPrice ? formatUzPriceInput(filters.maxPrice) : "",
+      }),
+    );
+  };
 
   const marketOptions = MARKET_ZONES.map((z) =>
     z.id === "all" ? { ...z, label: t("home.filter.allZones") } : z,
@@ -207,7 +219,8 @@ export function BazaarCatalogToolbar({ filters, onChange, className }: BazaarCat
                 inputMode="numeric"
                 placeholder="50 000"
                 value={filters.minPrice}
-                onChange={(e) => set({ minPrice: e.target.value })}
+                onChange={(e) => set({ minPrice: formatUzPriceInput(e.target.value) })}
+                onBlur={commitPrices}
                 className="rounded-xl border border-border-subtle bg-white px-3 py-2 text-[13px] font-medium outline-none focus:border-electric-500 focus:ring-2 focus:ring-electric-500/20"
               />
             </label>
@@ -220,7 +233,8 @@ export function BazaarCatalogToolbar({ filters, onChange, className }: BazaarCat
                 inputMode="numeric"
                 placeholder="2 000 000"
                 value={filters.maxPrice}
-                onChange={(e) => set({ maxPrice: e.target.value })}
+                onChange={(e) => set({ maxPrice: formatUzPriceInput(e.target.value) })}
+                onBlur={commitPrices}
                 className="rounded-xl border border-border-subtle bg-white px-3 py-2 text-[13px] font-medium outline-none focus:border-electric-500 focus:ring-2 focus:ring-electric-500/20"
               />
             </label>

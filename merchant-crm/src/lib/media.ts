@@ -29,8 +29,15 @@ function rewriteToMediaCdn(url: string): string {
   return url;
 }
 
+function prodMediaApiOrigin(): string | null {
+  const crm = (process.env.NEXT_PUBLIC_MERCHANT_CRM_URL ?? "").trim();
+  if (crm.includes("bozorliii.online")) return "https://api.bozorliii.online";
+  if (crm.includes("bozorliii.uz")) return "https://api.bozorliii.uz";
+  return null;
+}
+
 function mediaApiOriginForBrowser(): string | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") return prodMediaApiOrigin();
   const host = window.location.hostname;
   if (host === "localhost" || host === "127.0.0.1") return null;
   if (host === "crm.bozorliii.online" || host.endsWith(".bozorliii.online")) {
@@ -42,33 +49,6 @@ function mediaApiOriginForBrowser(): string | null {
   return null;
 }
 
-/** API media paths (stories, reels, products) for browser playback. */
-export function resolveMediaUrl(url?: string | null): string {
-  const raw = (url ?? "").trim();
-  if (!raw) return "";
-  if (raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
-  if (raw.startsWith("/")) {
-    if (raw.startsWith("/api/")) {
-      if (!API_BASE.startsWith("http")) return raw;
-      return rewriteToMediaCdn(`${API_ORIGIN}${raw}`);
-    }
-    return raw;
-  }
-  if (raw.startsWith("http://") || raw.startsWith("https://")) {
-    try {
-      const parsed = new URL(raw);
-      if (parsed.pathname.startsWith("/api/v1/media/") && PROD_MEDIA_HOSTS.has(parsed.hostname)) {
-        if (!API_BASE.startsWith("http")) return rewriteToMediaCdn(parsed.pathname);
-        return rewriteToMediaCdn(`${API_ORIGIN}${parsed.pathname}`);
-      }
-    } catch {
-      /* keep */
-    }
-    return raw;
-  }
-  return `${API_ORIGIN}/${raw.replace(/^\//, "")}`;
-}
-
 function resolveApiMediaForBrowser(resolved: string): string {
   if (!resolved.startsWith("/api/v1/media/")) return resolved;
   const apiOrigin = mediaApiOriginForBrowser();
@@ -76,15 +56,44 @@ function resolveApiMediaForBrowser(resolved: string): string {
   return resolved;
 }
 
+/** API media paths (banners, stories, reels, products) for browser display. */
+export function resolveMediaUrl(url?: string | null): string {
+  const raw = (url ?? "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
+  if (raw.startsWith("/")) {
+    if (raw.startsWith("/api/")) {
+      const absolute = API_BASE.startsWith("http") ? `${API_ORIGIN}${raw}` : raw;
+      return rewriteToMediaCdn(resolveApiMediaForBrowser(absolute));
+    }
+    return raw;
+  }
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    try {
+      const parsed = new URL(raw);
+      if (parsed.pathname.startsWith("/api/v1/media/") && PROD_MEDIA_HOSTS.has(parsed.hostname)) {
+        const absolute = API_BASE.startsWith("http")
+          ? `${API_ORIGIN}${parsed.pathname}`
+          : parsed.pathname;
+        return rewriteToMediaCdn(resolveApiMediaForBrowser(absolute));
+      }
+    } catch {
+      /* keep */
+    }
+    return raw;
+  }
+  return rewriteToMediaCdn(resolveApiMediaForBrowser(`${API_ORIGIN}/${raw.replace(/^\//, "")}`));
+}
+
 /** Reels — Telegram WebView uchun to‘g‘ridan-to‘g‘ri API host (Range). */
 export function resolveReelVideoUrl(url?: string | null): string {
   const resolved = resolveMediaUrl(url);
   if (!resolved) return "";
-  return resolveApiMediaForBrowser(resolved);
+  return resolved;
 }
 
 export function resolveReelPosterUrl(url?: string | null): string {
   const resolved = resolveMediaUrl(url);
   if (!resolved) return "";
-  return resolveApiMediaForBrowser(resolved);
+  return resolved;
 }

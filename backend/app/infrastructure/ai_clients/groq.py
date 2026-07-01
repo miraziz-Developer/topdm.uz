@@ -11,6 +11,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from app.ai.config import (
     default_chat_payload,
     groq_chat_completions_url,
+    iter_groq_api_keys,
     require_groq_api_key,
     resolve_groq_chat_model,
     resolve_groq_vision_model,
@@ -28,7 +29,7 @@ class GroqClient:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
-        retry=retry_if_exception_type((TimeoutError, httpx.HTTPError, ValueError)),
+        retry=retry_if_exception_type((TimeoutError, httpx.TimeoutException, httpx.ConnectError, ValueError)),
         reraise=True,
     )
     async def chat_completion(
@@ -41,7 +42,9 @@ class GroqClient:
         temperature: float = 0.1,
         response_format: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        require_groq_api_key(self._settings)
+        keys = iter_groq_api_keys(self._settings)
+        if not keys:
+            raise ValueError("Missing GROQ_API_KEY — Bozorliii stylist requires Groq Cloud.")
         resolved = resolve_groq_vision_model(self._settings) if vision else (model or resolve_groq_chat_model(self._settings))
         payload = default_chat_payload(
             model=resolved,
@@ -50,18 +53,30 @@ class GroqClient:
             temperature=temperature,
             response_format=response_format,
         )
-        headers = {
-            "Authorization": f"Bearer {require_groq_api_key(self._settings)}",
-            "Content-Type": "application/json",
-        }
         timeout = self._settings.external_api_timeout_seconds
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await asyncio.wait_for(
-                client.post(self._url, headers=headers, json=payload),
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            return response.json()
+        last_auth_error: httpx.HTTPStatusError | None = None
+        for api_key in keys:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await asyncio.wait_for(
+                    client.post(self._url, headers=headers, json=payload),
+                    timeout=timeout,
+                )
+                if response.status_code in {401, 403}:
+                    last_auth_error = httpx.HTTPStatusError(
+                        "groq_auth_failed",
+                        request=response.request,
+                        response=response,
+                    )
+                    continue
+                response.raise_for_status()
+                return response.json()
+        if last_auth_error is not None:
+            raise last_auth_error
+        raise ValueError("Missing GROQ_API_KEY — Bozorliii stylist requires Groq Cloud.")
 
     async def stream_completion(
         self,

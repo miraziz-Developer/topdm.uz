@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
 from app.infrastructure.db.models import ShopModel
 
@@ -20,7 +21,12 @@ class WalletRepository:
         self._session = session
 
     async def lock_shop(self, shop_id: UUID) -> ShopModel:
-        stmt = select(ShopModel).where(ShopModel.id == shop_id).with_for_update()
+        stmt = (
+            select(ShopModel)
+            .where(ShopModel.id == shop_id)
+            .options(noload(ShopModel.ipadrom))
+            .with_for_update()
+        )
         result = await self._session.execute(stmt)
         shop = result.scalar_one_or_none()
         if not shop:

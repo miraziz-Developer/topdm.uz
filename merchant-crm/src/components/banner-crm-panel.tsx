@@ -21,12 +21,16 @@ import {
 } from "@/lib/api";
 import {
   BANNER_DAY_OPTIONS,
+  bannerDayLabel,
   bannerPriceForDays,
   bannerPricePerDay,
+  bannerTierPrices,
+  bannerTierUpsell,
   formatUzs,
 } from "@/lib/banner-pricing";
 import { canAffordSom, formatSom, walletBalanceUzs } from "@/lib/money";
 import { resolveMediaUrl } from "@/lib/media";
+import { prepareBannerImageFile } from "@/lib/prepare-banner-image";
 import { cn, formatNumber } from "@/lib/utils";
 
 const STATUS_UZ: Record<string, { label: string; variant: "default" | "success" | "warning" | "danger" }> = {
@@ -74,7 +78,7 @@ function BannerJournalRow({
 
         <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-2xl bg-canvas ring-1 ring-border-subtle sm:h-24 sm:w-40">
           {img ? (
-            <Image src={img} alt="" fill className="object-cover" sizes="160px" unoptimized />
+            <Image src={img} alt="" fill className="object-contain p-0.5" sizes="160px" unoptimized />
           ) : (
             <div className="flex h-full items-center justify-center text-text-400/50">
               <ImagePlus className="h-8 w-8" />
@@ -121,12 +125,13 @@ export function BannerCrmPanel() {
   const [tariffs, setTariffs] = useState<CrmTariff[]>([]);
   const [banners, setBanners] = useState<CrmBannerCampaign[]>([]);
   const [tariffCode, setTariffCode] = useState("gold");
-  const [bannerDays, setBannerDays] = useState<number>(30);
+  const [bannerDays, setBannerDays] = useState<number>(7);
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [preparingImage, setPreparingImage] = useState(false);
 
   const refresh = useCallback(async () => {
     const [w, t, b] = await Promise.all([
@@ -171,22 +176,31 @@ export function BannerCrmPanel() {
   const canAfford = canAffordSom(balanceUzs, amountUzs);
   const dayOptions =
     selectedTariff?.day_options?.length ? selectedTariff.day_options : [...BANNER_DAY_OPTIONS];
+  const tierPrices = selectedTariff ? bannerTierPrices(selectedTariff) : null;
+  const upsell = selectedTariff ? bannerTierUpsell(selectedTariff, bannerDays) : null;
 
-  const pickFile = (next: File | null) => {
+  const pickFile = async (next: File | null) => {
     if (!next) return;
     if (!next.type.startsWith("image/")) {
       toast.error("Faqat rasm (JPG, PNG)");
       return;
     }
-    if (next.size > 10 * 1024 * 1024) {
-      toast.error("Rasm 10 MB dan kichik bo'lsin");
-      return;
+    setPreparingImage(true);
+    try {
+      const prepared = await prepareBannerImageFile(next);
+      setFile(prepared);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(prepared);
+      });
+      if (prepared.size < next.size) {
+        toast.success("Rasm avtomatik siqildi — yuklash mumkin");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Rasmni tayyorlab bo'lmadi");
+    } finally {
+      setPreparingImage(false);
     }
-    setFile(next);
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(next);
-    });
   };
 
   const clearFile = () => {
@@ -267,7 +281,7 @@ export function BannerCrmPanel() {
           </div>
         </div>
         <Link
-          href="/dashboard/billing?topup=1"
+          href="/dashboard/billing?tab=ads&topup=1"
           className="inline-flex h-9 items-center rounded-xl border border-border-subtle bg-canvas px-4 text-sm font-semibold text-text-100 hover:bg-surface"
         >
           Balans to&apos;ldirish
@@ -289,7 +303,13 @@ export function BannerCrmPanel() {
             {quote ? formatSom(amountUzs) : "—"}
           </p>
           <p className="text-sm text-text-400">
-            {quote ? `${quote.days} kun karuselda` : "Tarif va kun tanlang"}
+            {quote ? `${bannerDayLabel(quote.days)} karuselda` : "Tarif va muddat tanlang"}
+            {quote && quote.effectivePerDay > 0 ? (
+              <span className="text-text-500">
+                {" "}
+                · kuniga ~{formatUzs(quote.effectivePerDay)} so&apos;m
+              </span>
+            ) : null}
           </p>
         </div>
       </div>
@@ -321,24 +341,63 @@ export function BannerCrmPanel() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <p className="text-xs font-semibold text-text-400">Necha kun ko&apos;rinsin?</p>
+              <p className="text-xs font-semibold text-text-400">Qancha vaqt ko&apos;rinsin?</p>
+              <p className="mt-0.5 text-[11px] text-text-500">
+                Har keyingi paket oldingisiga ozgina qo&apos;shiladi — uzoqroq tanlasangiz, kunlik narx
+                sezilarli arzonlashadi.
+              </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {dayOptions.map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setBannerDays(d)}
-                    className={cn(
-                      "rounded-full px-3.5 py-1.5 text-sm font-semibold transition",
-                      bannerDays === d
-                        ? "bg-electric-500 text-white"
-                        : "border border-border-subtle bg-canvas text-text-400 hover:text-text-100",
-                    )}
-                  >
-                    {d} kun
-                  </button>
-                ))}
+                {dayOptions.map((d) => {
+                  const price = tierPrices?.[d as keyof typeof tierPrices];
+                  const stepUpsell = selectedTariff ? bannerTierUpsell(selectedTariff, d) : null;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setBannerDays(d)}
+                      className={cn(
+                        "flex min-w-[5.5rem] flex-col items-center rounded-2xl px-3.5 py-2 text-center transition",
+                        bannerDays === d
+                          ? "bg-electric-500 text-white shadow-md shadow-electric-500/25"
+                          : "border border-border-subtle bg-canvas text-text-400 hover:text-text-100",
+                      )}
+                    >
+                      <span className="text-sm font-bold">{bannerDayLabel(d)}</span>
+                      {price ? (
+                        <span
+                          className={cn(
+                            "mt-0.5 text-[10px] font-semibold tabular-nums",
+                            bannerDays === d ? "text-white/90" : "text-text-500",
+                          )}
+                        >
+                          {formatUzs(price)} so&apos;m
+                        </span>
+                      ) : null}
+                      {stepUpsell && bannerDays !== d ? (
+                        <span className="mt-0.5 text-[9px] font-medium text-emerald-600">
+                          +{formatUzs(stepUpsell.deltaUzs)} dan
+                        </span>
+                      ) : null}
+                      {d === 30 ? (
+                        <span
+                          className={cn(
+                            "mt-1 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide",
+                            bannerDays === d ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-700",
+                          )}
+                        >
+                          Eng foydali
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
+              {upsell ? (
+                <p className="mt-2 text-xs text-emerald-700">
+                  {bannerDayLabel(bannerDays)} uchun {upsell.prevLabel} ga nisbatan atigi{" "}
+                  <strong>+{formatUzs(upsell.deltaUzs)} so&apos;m</strong> — qolgan kunlar deyarli bepul.
+                </p>
+              ) : null}
             </div>
             <Input
               label="Sarlavha (ixtiyoriy)"
@@ -353,31 +412,40 @@ export function BannerCrmPanel() {
             type="file"
             accept="image/jpeg,image/png,image/webp"
             className="sr-only"
-            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
           />
 
           {!previewUrl ? (
             <button
               type="button"
+              disabled={preparingImage}
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border-subtle bg-canvas/50 px-4 py-12 transition hover:border-electric-500/35 hover:bg-electric-500/[0.03]"
+              className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border-subtle bg-canvas/50 px-4 py-12 transition hover:border-electric-500/35 hover:bg-electric-500/[0.03] disabled:opacity-60"
             >
               <ImagePlus className="h-10 w-10 text-electric-500/70" />
-              <p className="mt-3 text-sm font-semibold text-text-100">Reklama rasmini tanlash</p>
-              <p className="mt-1 text-xs text-text-400">JPG yoki PNG · gorizontal rasm yaxshiroq</p>
+              <p className="mt-3 text-sm font-semibold text-text-100">
+                {preparingImage ? "Rasm tayyorlanmoqda…" : "Reklama rasmini tanlash"}
+              </p>
+              <p className="mt-1 text-xs text-text-400">Har qanday rasm · telefon fotosi ham bo&apos;ladi</p>
             </button>
           ) : (
-            <div className="relative overflow-hidden rounded-2xl ring-1 ring-border-subtle">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewUrl} alt="Tanlangan reklama" className="max-h-64 w-full object-cover" />
-              <button
-                type="button"
-                onClick={clearFile}
-                className="absolute right-2 top-2 rounded-full bg-black/50 p-1.5 text-white backdrop-blur-sm hover:bg-black/70"
-                aria-label="Rasmni olib tashlash"
-              >
-                <X className="h-4 w-4" />
-              </button>
+            <div className="overflow-hidden rounded-2xl bg-ink-900/[0.04] ring-1 ring-border-subtle">
+              <div className="relative flex w-full items-center justify-center p-2 sm:p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl}
+                  alt="Tanlangan reklama"
+                  className="max-h-[min(70vh,520px)] w-auto max-w-full object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  className="absolute right-3 top-3 rounded-full bg-black/50 p-1.5 text-white backdrop-blur-sm hover:bg-black/70"
+                  aria-label="Rasmni olib tashlash"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
               <p className="border-t border-border-subtle bg-canvas/80 px-3 py-2 text-xs text-text-400 truncate">
                 {file?.name}
               </p>
@@ -397,7 +465,7 @@ export function BannerCrmPanel() {
               {!canAfford ? (
                 <p className="mt-2 text-amber-800">
                   Balans yetarli emas ({formatSom(balanceUzs)} / {formatSom(amountUzs)}) —{" "}
-                  <Link href="/dashboard/billing?topup=1" className="font-semibold text-electric-600 underline">
+                  <Link href="/dashboard/billing?tab=ads&topup=1" className="font-semibold text-electric-600 underline">
                     balans to&apos;ldiring
                   </Link>
                 </p>
@@ -408,7 +476,7 @@ export function BannerCrmPanel() {
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              disabled={submitting || !file || !canAfford}
+              disabled={submitting || preparingImage || !file || !canAfford}
               className="border-0 bg-electric-500 text-white hover:bg-electric-600 disabled:opacity-50"
               onClick={() => void purchase()}
             >

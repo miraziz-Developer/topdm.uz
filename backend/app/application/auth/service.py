@@ -39,6 +39,7 @@ def build_auth_token(
 
 
 def user_public_dict(user: AppUserModel, *, role: str, shop_id: UUID | None) -> dict:
+    coins = int(getattr(user, "coins_balance", 0) or 0)
     return {
         "id": str(user.id),
         "email": user.email,
@@ -49,4 +50,6 @@ def user_public_dict(user: AppUserModel, *, role: str, shop_id: UUID | None) -> 
         "shop_id": str(shop_id) if shop_id else None,
         "has_email": bool(user.email),
         "has_telegram": bool(user.telegram_id),
+        "coins_balance": coins,
+        "coins_balance_uzs": coins * 1000,
     }

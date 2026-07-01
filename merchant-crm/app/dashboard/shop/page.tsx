@@ -10,18 +10,22 @@ import { CrmTip } from "@/components/crm/crm-section";
 import { IncomingVisitorsPanel } from "@/components/incoming-visitors-panel";
 import { PrecisionLocationWorkspace } from "@/components/precision-location-workspace";
 import { ShopBrandingPanel } from "@/components/shop-branding-panel";
+import { AdvertisingBillingPanel } from "@/components/billing/advertising-billing-panel";
+import { MerchantFinancePanel } from "@/components/billing/merchant-finance-panel";
 import { CRM_SHOP_TABS } from "@/lib/crm-nav";
-import BillingPage from "@/app/dashboard/billing/page";
 
 function ShopHubContent() {
   const tabParam = useSearchParams().get("tab");
+  const normalized =
+    tabParam === "billing" ? "ads" : tabParam;
   const tab =
-    tabParam === "profile" ||
-    tabParam === "share" ||
-    tabParam === "map" ||
-    tabParam === "analytics" ||
-    tabParam === "billing"
-      ? tabParam
+    normalized === "profile" ||
+    normalized === "share" ||
+    normalized === "map" ||
+    normalized === "analytics" ||
+    normalized === "ads" ||
+    normalized === "finance"
+      ? normalized
       : "profile";
 
   return (
@@ -44,7 +48,8 @@ function ShopHubContent() {
         </div>
       ) : null}
       {tab === "analytics" ? <AnalyticsHubPanel /> : null}
-      {tab === "billing" ? <BillingPage searchParams={{ embedded: "true" }} /> : null}
+      {tab === "ads" ? <AdvertisingBillingPanel /> : null}
+      {tab === "finance" ? <MerchantFinancePanel /> : null}
     </CrmTabShell>
   );
 }

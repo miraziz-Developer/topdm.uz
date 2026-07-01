@@ -38,7 +38,14 @@ async def fetch_image_bytes(url: str, *, timeout: float = 12.0) -> bytes | None:
     if local:
         return local
 
-    if not url or not url.startswith(("http://", "https://")):
+    raw = (url or "").strip()
+    if raw.startswith("/api/"):
+        from app.core.config import get_settings
+
+        base = get_settings().site_url.rstrip("/")
+        raw = f"{base}{raw}"
+
+    if not raw or not raw.startswith(("http://", "https://")):
         return None
     try:
         async with httpx.AsyncClient(
@@ -46,7 +53,7 @@ async def fetch_image_bytes(url: str, *, timeout: float = 12.0) -> bytes | None:
             follow_redirects=True,
             headers={"User-Agent": "BozorAI/1.0 visual-index"},
         ) as client:
-            response = await client.get(url)
+            response = await client.get(raw)
             if response.status_code == 200 and response.content:
                 return response.content
     except Exception:

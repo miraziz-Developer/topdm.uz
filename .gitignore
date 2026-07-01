@@ -14,6 +14,12 @@ __pycache__/
 out/
 dist/
 .DS_Store
+**/.DS_Store
 *.egg-info/
 .claude/
+.cursor/
 *.tsbuildinfo
+frontend/.env.local
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/reels/.gitkeep

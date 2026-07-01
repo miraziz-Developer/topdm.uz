@@ -1,6 +1,6 @@
 /** Merchant CRM — faqat so'm (ichki coin konvertatsiya yashirin). */
 
-export const BALANCE_UZS_PER_COIN = 10_000;
+export const BALANCE_UZS_PER_COIN = 1_000;
 
 export type MerchantWalletLike = {
   balance_uzs?: number;

@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.phone import normalize_uz_phone_e164, phone_digits_key
 from app.infrastructure.db.models import OrderModel, ProductModel
@@ -101,22 +103,83 @@ class ProductReviewService:
         status: str = _PENDING,
         limit: int = 50,
         offset: int = 0,
+        product_id: UUID | None = None,
+        rating: int | None = None,
+        rating_min: int | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        q: str | None = None,
+        verified_only: bool = False,
     ) -> dict:
         limit = max(1, min(limit, 100))
         offset = max(0, offset)
-        allowed = {_PENDING, _APPROVED, _REJECTED}
+        allowed = {_PENDING, _APPROVED, _REJECTED, "all"}
         if status not in allowed:
             raise ValueError("invalid_status")
 
-        result = await self._session.execute(
-            select(ProductReviewModel)
-            .where(ProductReviewModel.shop_id == shop_id, ProductReviewModel.status == status)
-            .order_by(ProductReviewModel.created_at.desc())
-            .limit(limit)
-            .offset(offset)
+        stmt = (
+            select(ProductReviewModel, ProductModel.name.label("product_name"))
+            .join(ProductModel, ProductModel.id == ProductReviewModel.product_id)
+            .where(ProductReviewModel.shop_id == shop_id)
         )
-        items = [self._to_dict(row, include_status=True) for row in result.scalars().all()]
-        return {"items": items, "status": status, "limit": limit, "offset": offset}
+        if status != "all":
+            stmt = stmt.where(ProductReviewModel.status == status)
+        if product_id is not None:
+            stmt = stmt.where(ProductReviewModel.product_id == product_id)
+        if rating is not None:
+            stmt = stmt.where(ProductReviewModel.rating == rating)
+        elif rating_min is not None:
+            stmt = stmt.where(ProductReviewModel.rating >= max(1, min(5, rating_min)))
+        if date_from is not None:
+            stmt = stmt.where(ProductReviewModel.created_at >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(ProductReviewModel.created_at <= date_to)
+        if verified_only:
+            stmt = stmt.where(ProductReviewModel.is_verified_purchase.is_(True))
+        needle = (q or "").strip()
+        if needle:
+            pattern = f"%{needle}%"
+            stmt = stmt.where(
+                or_(
+                    ProductReviewModel.author_name.ilike(pattern),
+                    ProductReviewModel.body.ilike(pattern),
+                    ProductModel.name.ilike(pattern),
+                )
+            )
+
+        result = await self._session.execute(
+            stmt.order_by(ProductReviewModel.created_at.desc()).limit(limit).offset(offset)
+        )
+        items = [
+            self._to_dict(row, include_status=True, product_name=product_name)
+            for row, product_name in result.all()
+        ]
+        counts = await self.crm_status_counts(shop_id)
+        return {
+            "items": items,
+            "status": status,
+            "limit": limit,
+            "offset": offset,
+            "counts": counts,
+            "total": counts.get(status if status != "all" else "all", len(items)),
+        }
+
+    async def crm_status_counts(self, shop_id: UUID) -> dict[str, int]:
+        result = await self._session.execute(
+            select(ProductReviewModel.status, func.count())
+            .where(ProductReviewModel.shop_id == shop_id)
+            .group_by(ProductReviewModel.status)
+        )
+        by_status = {str(status): int(count) for status, count in result.all()}
+        pending = by_status.get(_PENDING, 0)
+        approved = by_status.get(_APPROVED, 0)
+        rejected = by_status.get(_REJECTED, 0)
+        return {
+            "all": pending + approved + rejected,
+            _PENDING: pending,
+            _APPROVED: approved,
+            _REJECTED: rejected,
+        }
 
     async def moderate_review(
         self,
@@ -261,10 +324,16 @@ class ProductReviewService:
         return urls
 
     @staticmethod
-    def _to_dict(row: ProductReviewModel, *, include_status: bool = False) -> dict:
+    def _to_dict(
+        row: ProductReviewModel,
+        *,
+        include_status: bool = False,
+        product_name: str | None = None,
+    ) -> dict:
         payload = {
             "id": str(row.id),
             "product_id": str(row.product_id),
+            "product_name": product_name,
             "author_name": row.author_name,
             "rating": int(row.rating),
             "body": row.body,

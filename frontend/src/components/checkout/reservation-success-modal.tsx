@@ -3,7 +3,8 @@
 import { Building2, CheckCircle2, Layers, MapPin, Phone, Sparkles, Store, X } from "lucide-react";
 import Link from "next/link";
 
-import { PickupQrCard } from "@/components/orders/pickup-qr-card";
+import { PickupQrPendingBanner } from "@/components/orders/pickup-qr-pending-banner";
+import { MARKET } from "@/components/brand/premium-market-ui";
 import type { PickupReservationResponse } from "@/lib/api";
 import { allowOnlineCheckout } from "@/lib/runtime-flags";
 import { formatPhoneHotline } from "@/utils/phone-mask";
@@ -42,6 +43,8 @@ function MetaRow({
 export function ReservationSuccessModal({ data, onClose }: ReservationSuccessModalProps) {
   const addr = data.store_address;
   const hotline = formatPhoneHotline(data.merchant_phone);
+  const isClickPending =
+    data.payment_method === "click" && Boolean(data.online_checkout_url);
   const showOnlinePay = allowOnlineCheckout() && Boolean(data.online_checkout_url);
   const primaryOrderId = data.reservations[0]?.order_id;
 
@@ -58,8 +61,8 @@ export function ReservationSuccessModal({ data, onClose }: ReservationSuccessMod
         className="relative max-h-[92dvh] w-full max-w-md animate-in fade-in slide-in-from-bottom-6 overflow-y-auto duration-300 sm:zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="overflow-hidden rounded-t-[1.75rem] border border-white/25 bg-white/90 shadow-2xl backdrop-blur-xl sm:rounded-[1.75rem]">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-electric-500/20 to-transparent" />
+        <div className={cn(MARKET.bronSuccess, "relative overflow-hidden rounded-t-[1.75rem] sm:rounded-[1.75rem]")}>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-electric-500/15 via-neon-500/5 to-transparent" />
 
           <div className="relative p-6 pb-5">
             <button
@@ -80,15 +83,25 @@ export function ReservationSuccessModal({ data, onClose }: ReservationSuccessMod
               </div>
               <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-electric-500">
                 <Sparkles size={12} />
-                Tasdiqlangan bron
+                {isClickPending ? "Bron yaratildi — to'lov kutilmoqda" : "Tasdiqlangan bron"}
               </div>
               <h3 id="reservation-success-title" className="text-xl font-bold tracking-tight text-ink-900">
-                Tayyor — kelishingiz mumkin!
+                {isClickPending ? "Click orqali to'lovni yakunlang" : "Tayyor — kelishingiz mumkin!"}
               </h3>
               <p className="mt-2 max-w-xs text-xs leading-relaxed text-ink-500">
-                <span className="font-semibold text-ink-800">
-                  {data.pickup_date} · {data.pickup_window_label}
-                </span>
+                {isClickPending ? (
+                  <>
+                    Bron saqlandi. To&apos;lov amalga oshmasa, 45 daqiqadan keyin avtomatik bekor qilinadi.
+                    {" "}
+                    <span className="font-semibold text-ink-800">
+                      {data.pickup_date} · {data.pickup_window_label}
+                    </span>
+                  </>
+                ) : (
+                  <span className="font-semibold text-ink-800">
+                    {data.pickup_date} · {data.pickup_window_label}
+                  </span>
+                )}
               </p>
               {data.payment_method_label ? (
                 <span className="mt-3 inline-flex rounded-full border border-electric-500/25 bg-electric-500/8 px-3 py-1 text-[10px] font-semibold text-electric-600">
@@ -97,14 +110,12 @@ export function ReservationSuccessModal({ data, onClose }: ReservationSuccessMod
               ) : null}
             </div>
 
-            {primaryOrderId ? (
+            {primaryOrderId && !isClickPending ? (
               <div className="mt-5">
-                <PickupQrCard
-                  orderId={primaryOrderId}
-                  fulfillmentType="pickup"
-                  status={data.status || "reserved"}
-                  variant="boarding"
-                />
+                <PickupQrPendingBanner status={data.status || "reserved"} />
+                <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-500">
+                  Holat o&apos;zgarganda bildirishnoma keladi — QR «Olib ketishga tayyor» bo&apos;lganda ochiladi.
+                </p>
               </div>
             ) : null}
 

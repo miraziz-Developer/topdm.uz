@@ -203,9 +203,11 @@ async def execute_pickup_reservation(
 
     product_ids = [item.product_id for item in request.items]
     shop_rows = await db.execute(
-        select(ProductModel.id, ProductModel.shop_id).where(ProductModel.id.in_(product_ids))
+        select(ProductModel.id, ProductModel.shop_id, ProductModel.price).where(ProductModel.id.in_(product_ids))
     )
-    shop_map = {row.id: row.shop_id for row in shop_rows.all()}
+    product_rows = shop_rows.all()
+    shop_map = {row.id: row.shop_id for row in product_rows}
+    price_map = {row.id: int(row.price) for row in product_rows}
     if len(shop_map) != len(product_ids):
         raise HTTPException(status_code=400, detail="Ba'zi mahsulotlar topilmadi")
     unique_shops = set(shop_map.values())
@@ -215,6 +217,25 @@ async def execute_pickup_reservation(
             detail="Bir bron uchun faqat bitta do'kondan mahsulot tanlang",
         )
 
+    cart_total = sum(price_map[item.product_id] * item.quantity for item in request.items)
+    coins_used = 0
+    discount_uzs = 0
+    if user is not None and int(request.coins_to_redeem or 0) > 0:
+        from app.application.loyalty.customer_coin_service import (
+            CustomerCoinService,
+            InsufficientCustomerCoinsError,
+        )
+
+        try:
+            coins_used, discount_uzs = await CustomerCoinService(db).redeem_for_order(
+                user.id,
+                order_total_uzs=cart_total,
+                coins_requested=int(request.coins_to_redeem),
+            )
+        except InsufficientCustomerCoinsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    discount_applied = False
     try:
         for item in request.items:
             note_parts = [
@@ -248,6 +269,14 @@ async def execute_pickup_reservation(
                 variant_size=item.size.strip() if item.size else None,
                 customer_user_id=user.id if user is not None else None,
             )
+
+            if discount_uzs > 0 and not discount_applied:
+                line.order.total_price = max(0, int(line.order.total_price) - discount_uzs)
+                line.order.loyalty_coins_redeemed = coins_used
+                discount_applied = True
+                if coins_used > 0:
+                    line_note = f"{line_note} | Coin: -{discount_uzs:,} so'm ({coins_used} coin)".replace(",", " ")
+                    line.order.note = line_note
 
             if primary_shop is None:
                 primary_shop = line.shop
@@ -341,8 +370,12 @@ async def execute_pickup_reservation(
         raise HTTPException(status_code=400, detail="Buyurtma yaratib bo'lmadi")
 
     dispatcher = ReservationCrmDispatcher(db, notifier)
+    click_pending = (
+        request.payment_method in ONLINE_PAYMENT_METHODS
+        and checkout_id is not None
+    )
     try:
-        await dispatcher.dispatch_after_commit(dispatch_payloads)
+        await dispatcher.dispatch_after_commit(dispatch_payloads, payment_pending=click_pending)
     except SQLAlchemyError:
         logger.exception("pickup_reservation_crm_error")
     except Exception:

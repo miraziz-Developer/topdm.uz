@@ -147,16 +147,15 @@ class MerchantRegistrationService:
             telegram_chat_id=draft.telegram_chat_id,
             is_verified=False,
         )
+        shop.verification_status = "pending_ai"
 
         if draft.storefront_file_id:
             media = TelegramMediaStore()
-            settings = get_settings()
-            placeholder = f"{settings.site_url.rstrip('/')}/placeholder.svg"
             try:
                 url = await media.resolve_permanent_url(
                     shop_id=shop.id,
                     telegram_file_id=draft.storefront_file_id,
-                    fallback_placeholder=placeholder,
+                    fallback_placeholder=None,
                 )
                 shop.logo_url = url
                 shop.storefront_image_url = url
@@ -169,6 +168,9 @@ class MerchantRegistrationService:
                     draft.storefront_file_id,
                     exc_info=True,
                 )
+                raise ValueError(
+                    "Do'kon rasmini saqlab bo'lmadi. Internetni tekshirib, rasmni qayta yuboring."
+                ) from None
 
         login_code = await self._unique_login_code(draft.name)
         password_plain = generate_password()
@@ -187,6 +189,43 @@ class MerchantRegistrationService:
         await self._session.commit()
         await self._session.refresh(shop)
         return MerchantRegistrationResult(shop=shop, login_code=login_code, password_plain=password_plain)
+
+    async def resolve_storefront_image_bytes(
+        self,
+        *,
+        storefront_file_id: str | None,
+        storefront_image_url: str | None = None,
+    ) -> bytes | None:
+        from app.application.merchant.ai_moderator import ShopAiModeratorService
+
+        if storefront_file_id:
+            try:
+                data, _mime = await TelegramMediaStore().download_telegram_file(storefront_file_id)
+                if data:
+                    return data
+            except Exception:
+                logger.warning("storefront_telegram_download_failed", exc_info=True)
+
+        if storefront_image_url and not ShopAiModeratorService.is_placeholder_image_url(storefront_image_url):
+            from app.application.visual_search.image_fetch import fetch_image_bytes
+
+            return await fetch_image_bytes(storefront_image_url)
+        return None
+
+    async def run_ai_shop_verification(
+        self,
+        shop: ShopModel,
+        *,
+        storefront_image_bytes: bytes | None = None,
+    ):
+        from app.application.merchant.ai_moderator import ShopAiModeratorService
+
+        moderator = ShopAiModeratorService(self._session)
+        verdict = await moderator.review_shop(shop, image_bytes=storefront_image_bytes)
+        moderator.apply_shop_verdict(shop, verdict)
+        await self._session.commit()
+        await self._session.refresh(shop)
+        return verdict
 
     async def _unique_login_code(self, shop_name: str) -> str:
         for _ in range(12):

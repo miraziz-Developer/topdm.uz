@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, time, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,17 +28,65 @@ async def _shop_id(user: AuthUser, db: AsyncSession) -> UUID:
     return shop.id
 
 
+def _parse_date_start(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        day = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if day.tzinfo is None:
+            day = day.replace(tzinfo=timezone.utc)
+        return datetime.combine(day.date(), time.min, tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _parse_date_end(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        day = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if day.tzinfo is None:
+            day = day.replace(tzinfo=timezone.utc)
+        return datetime.combine(day.date(), time.max, tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 @router.get("")
 async def list_shop_reviews_for_moderation(
-    status: str = "pending_moderation",
-    limit: int = 50,
-    offset: int = 0,
+    status: str = Query(default="all"),
+    product_id: UUID | None = None,
+    rating: int | None = Query(default=None, ge=1, le=5),
+    rating_min: int | None = Query(default=None, ge=1, le=5),
+    date_from: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
+    date_to: str | None = Query(default=None, description="ISO date YYYY-MM-DD"),
+    q: str | None = Query(default=None, max_length=120),
+    verified_only: bool = False,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     user: AuthUser = Depends(require_merchant),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     shop_id = await _shop_id(user, db)
     svc = ProductReviewService(db)
-    return await svc.list_for_moderation(shop_id, status=status, limit=limit, offset=offset)
+    try:
+        return await svc.list_for_moderation(
+            shop_id,
+            status=status,
+            limit=limit,
+            offset=offset,
+            product_id=product_id,
+            rating=rating,
+            rating_min=rating_min,
+            date_from=_parse_date_start(date_from),
+            date_to=_parse_date_end(date_to),
+            q=q,
+            verified_only=verified_only,
+        )
+    except ValueError as exc:
+        if str(exc) == "invalid_status":
+            raise HTTPException(status_code=400, detail="invalid_status") from exc
+        raise
 
 
 @router.post("/{review_id}/action")

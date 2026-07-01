@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
 import { UnifiedAuthPanel } from "@/components/auth/unified-auth-panel";
 import { Navigation } from "@/components/Navigation";
+import { pageShell, pageContentTop, pageWithBottomNav } from "@/lib/responsive-layout";
 
 function AuthBody() {
   const searchParams = useSearchParams();
@@ -17,9 +18,9 @@ function AuthBody() {
 
 export default function AuthPage() {
   return (
-    <main className="page-shell min-h-dvh bg-canvas md:pb-8">
+    <main className={`${pageShell} ${pageWithBottomNav}`}>
       <Navigation />
-      <div className="page-content-top flex min-h-[80vh] items-center justify-center px-4 sm:px-5">
+      <div className={`${pageContentTop} flex min-h-[80vh] items-center justify-center px-4 sm:px-5`}>
         <Suspense fallback={<div className="h-40 w-full max-w-md animate-pulse rounded-2xl bg-elevated" />}>
           <AuthBody />
         </Suspense>

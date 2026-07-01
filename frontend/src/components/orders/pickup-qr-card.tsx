@@ -31,7 +31,7 @@ type Props = {
   defaultOpen?: boolean;
 };
 
-const ACTIVE = new Set(["pending", "reserved", "confirmed", "preparing", "ready"]);
+const QR_READY_STATUS = "ready";
 
 export function PickupQrCard({
   orderId,
@@ -50,7 +50,7 @@ export function PickupQrCard({
   const [open, setOpen] = useState(defaultOpen ?? isBoarding);
 
   const isPickup = (fulfillmentType || "pickup") !== "delivery";
-  const canShow = isPickup && ACTIVE.has(status);
+  const canShow = isPickup && status === QR_READY_STATUS;
 
   const load = useCallback(async () => {
     if (!canShow) return;
@@ -83,7 +83,7 @@ export function PickupQrCard({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "mt-4 flex w-full items-center gap-3 rounded-2xl border border-electric-500/20 bg-electric-500/[0.06] px-4 py-3.5 text-left transition hover:border-electric-500/35 hover:bg-electric-500/[0.1] active:scale-[0.99]",
+          "mt-4 flex w-full items-center gap-3 rounded-2xl border border-electric-500/35 bg-gradient-to-r from-electric-500/12 to-electric-500/[0.06] px-4 py-3.5 text-left shadow-sm transition hover:border-electric-500/50 hover:from-electric-500/16 active:scale-[0.99]",
           className,
         )}
       >
@@ -104,7 +104,7 @@ export function PickupQrCard({
   return (
     <div
       className={cn(
-        "relative mt-4 overflow-hidden rounded-2xl border border-electric-500/20 bg-white p-4 shadow-sm",
+        "relative mt-4 overflow-hidden rounded-2xl border border-electric-500/35 bg-gradient-to-br from-electric-500/10 via-white to-white p-4 shadow-card",
         isBoarding &&
           "rounded-[1.35rem] border-electric-500/25 bg-gradient-to-br from-electric-500/[0.08] via-white to-amber-50/40 p-5 shadow-[0_20px_50px_-24px_rgba(0,102,255,0.45)] ring-1 ring-white/60",
         className,

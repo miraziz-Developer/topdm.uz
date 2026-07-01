@@ -128,16 +128,40 @@ class PremiumBannerService:
         return fallback
 
     async def _fallback_from_featured_shops(self) -> dict[str, Any]:
+        from sqlalchemy import select
+
+        from app.infrastructure.db.models import ProductModel
+
         shops = await self._marketplace.list_featured_shops(limit=8)
         if not shops:
             return {"source": "empty", "rotation_interval_ms": 4500, "items": [], "slides": []}
+
+        async def _hero_image(shop_id: UUID) -> str | None:
+            row = (
+                await self._session.execute(
+                    select(ProductModel)
+                    .where(
+                        ProductModel.shop_id == shop_id,
+                        ProductModel.is_available.is_(True),
+                    )
+                    .order_by(ProductModel.is_featured.desc(), ProductModel.view_count.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if row and row.images:
+                first = str(row.images[0] or "").strip()
+                return first or None
+            return None
 
         tiers = ["gold", "silver", "bronze", "bronze"]
         slides: list[dict[str, Any]] = []
         for idx, shop in enumerate(shops):
             code = tiers[idx % len(tiers)]
             weight = {"gold": 3, "silver": 2, "bronze": 1}[code]
-            image = shop.logo_url or "/brand/bozorliii-product-placeholder.svg"
+            hero = await _hero_image(shop.id)
+            image = (shop.storefront_image_url or shop.logo_url or hero or "").strip()
+            if not image:
+                image = "/brand/bozorliii-product-placeholder.svg"
             base = {
                 "id": f"fallback-{shop.id}",
                 "shop_id": str(shop.id),

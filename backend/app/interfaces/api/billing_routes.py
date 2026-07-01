@@ -159,7 +159,12 @@ async def boost_product(
 @router.get("/banners/tariffs")
 async def list_banner_tariffs() -> dict:
     """Banner reklama — bosh sahifa karusel, kun bo'yicha narx."""
-    from app.application.crm_banners.pricing import BANNER_DAY_OPTIONS, banner_price_for_days, banner_price_per_day_uzs
+    from app.application.crm_banners.pricing import (
+        BANNER_DAY_LABELS_UZ,
+        BANNER_DAY_OPTIONS,
+        banner_price_for_days,
+        banner_price_per_day_uzs,
+    )
 
     class _Tariff:
         def __init__(self, t: BannerTariff) -> None:
@@ -173,6 +178,7 @@ async def list_banner_tariffs() -> dict:
     return {
         "placement": "bozorliii.uz bosh sahifasidagi premium karusel (aylanma banner)",
         "day_options": list(BANNER_DAY_OPTIONS),
+        "day_labels": {str(d): BANNER_DAY_LABELS_UZ[d] for d in BANNER_DAY_OPTIONS},
         "tariffs": [
             {
                 "code": t.code,
@@ -186,9 +192,12 @@ async def list_banner_tariffs() -> dict:
                 "carousel_slot": t.priority,
                 "display_seconds": t.display_seconds,
                 "badge": t.badge,
+                "tier_prices_uzs": {
+                    str(d): banner_price_for_days(_Tariff(t), d)[0] for d in BANNER_DAY_OPTIONS
+                },
                 "description": (
-                    f"Karusel {t.priority}-o'rin · ~{banner_price_per_day_uzs(_Tariff(t)):,} so'm/kun "
-                    f"(30 kun ≈ {t.price_uzs:,} so'm)"
+                    f"Karusel {t.priority}-o'rin · 1 kun {banner_price_for_days(_Tariff(t), 1)[0]:,} so'm · "
+                    f"1 oy {banner_price_for_days(_Tariff(t), 30)[0]:,} so'm"
                 ).replace(",", " "),
             }
             for t in ALL_BANNER_TARIFFS

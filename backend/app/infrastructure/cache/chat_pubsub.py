@@ -14,6 +14,10 @@ def chat_channel(thread_id: str) -> str:
     return f"chat:thread:{thread_id}"
 
 
+def shop_inbox_channel(shop_id: str) -> str:
+    return f"chat:shop_inbox:{shop_id}"
+
+
 def merchant_online_key(shop_id: str) -> str:
     return f"chat:merchant_online:{shop_id}"
 
@@ -32,6 +36,17 @@ class ChatPubSubGateway:
             return receivers >= 0
         except RedisError:
             logger.exception("chat_pubsub_publish_failed", thread_id=thread_id)
+            return False
+
+    async def publish_inbox_update(self, shop_id: str, payload: dict[str, Any]) -> bool:
+        try:
+            receivers = await self._redis.publish(
+                shop_inbox_channel(shop_id),
+                json.dumps(payload, ensure_ascii=True),
+            )
+            return receivers >= 0
+        except RedisError:
+            logger.exception("chat_inbox_pubsub_publish_failed", shop_id=shop_id)
             return False
 
     async def set_merchant_online(self, shop_id: str, *, ttl_seconds: int = 90) -> bool:

@@ -7,8 +7,9 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConnectionStatus } from "@/components/ui/connection-status";
 import { ChatProductPreviewCard, parseChatProducts } from "@/components/chat/chat-product-preview";
+import { useFabDockItem, useFabDockPanel } from "@/components/ui/action-fab-dock";
 import { useShopChat } from "@/hooks/useShopChat";
-import { FAB_SHOP_CHAT } from "@/lib/fab-positions";
+import { setShopChatOpen } from "@/lib/shop-chat-bus";
 import { cn } from "@/lib/utils";
 
 type ShopLiveChatProps = {
@@ -20,15 +21,19 @@ export function ShopLiveChat({ shopId, shopName }: ShopLiveChatProps) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
-  const { messages, connected, reconnecting, error, connect, send, disconnect } = useShopChat(
+  const { messages, connected, reconnecting, error, unreadCount, send, setPanelOpen } = useShopChat(
     shopId,
     shopName,
   );
 
   useEffect(() => {
-    if (open) void connect();
-    else disconnect();
-  }, [open, connect, disconnect]);
+    void setPanelOpen(open);
+  }, [open, setPanelOpen]);
+
+  useEffect(() => {
+    setShopChatOpen(open);
+    return () => setShopChatOpen(false);
+  }, [open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,38 +41,38 @@ export function ShopLiveChat({ shopId, shopName }: ShopLiveChatProps) {
 
   const handleSend = () => {
     if (!text.trim()) return;
-    send(text);
+    void send(text);
     setText("");
   };
 
+  useFabDockItem({
+    id: "shop-chat",
+    order: 20,
+    label: "Do'kon bilan chat",
+    shortLabel: "Do'kon",
+    icon: <MessageCircle className="h-5 w-5" />,
+    badge: unreadCount,
+    variant: "dark",
+    hidden: open,
+    onClick: () => setOpen(true),
+  });
+
+  useFabDockPanel("shop-chat", open);
+
   return (
     <>
-      {!open ? (
-        <button
-          type="button"
-          className={cn(
-            FAB_SHOP_CHAT,
-            "flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full bg-ink-900 px-3 py-2.5 text-xs font-semibold text-white shadow-lg transition active:scale-[0.97] sm:px-4 sm:py-3 sm:text-sm",
-          )}
-          onClick={() => setOpen(true)}
-        >
-          <MessageCircle className="h-5 w-5" />
-          Do&apos;kon bilan chat
-        </button>
-      ) : null}
-
       <AnimatePresence>
         {open ? (
           <>
             <motion.div
-              className="fixed inset-0 z-50 bg-black/40"
+              className="fixed inset-0 z-[75] bg-black/40"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setOpen(false)}
             />
             <motion.div
-              className="fixed bottom-0 right-0 z-50 flex h-[min(520px,85vh)] w-full max-w-md flex-col rounded-t-3xl border border-border-subtle bg-white shadow-2xl md:bottom-6 md:right-6 md:rounded-3xl"
+              className="fixed bottom-0 right-0 z-[80] flex h-[min(520px,85vh)] w-full max-w-md flex-col rounded-t-3xl border border-border-subtle bg-white shadow-2xl md:bottom-6 md:right-6 md:rounded-3xl"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 40, opacity: 0 }}
@@ -119,7 +124,7 @@ export function ShopLiveChat({ shopId, shopName }: ShopLiveChatProps) {
                     placeholder="Xabar yozing..."
                     className="flex-1 rounded-xl border border-border-subtle px-3 py-2 text-sm outline-none focus:border-gold-500/50"
                   />
-                  <Button type="button" onClick={handleSend} disabled={!connected}>
+                  <Button type="button" className="shrink-0" onClick={handleSend} disabled={!text.trim()}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>

@@ -10,6 +10,8 @@ SSH_OPTS=(-F /dev/null -o StrictHostKeyChecking=accept-new -o ServerAliveInterva
 
 cd "$ROOT"
 
+bash "$ROOT/scripts/sync-brand-assets.sh"
+
 if ! command -v sshpass >/dev/null 2>&1; then
   echo "Install: brew install hudochenkov/sshpass/sshpass" >&2
   exit 1

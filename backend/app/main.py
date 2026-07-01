@@ -175,10 +175,23 @@ async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:
             text_ai_ok = True
         elif settings.groq_api_key:
             try:
-                async with httpx.AsyncClient(timeout=3) as client:
-                    groq = client.get("https://api.groq.com/openai/v1/models")
-                    await asyncio.gather(groq)
-                text_ai_ok = True
+                from app.ai.config import iter_groq_api_keys
+
+                groq_ok = False
+                async with httpx.AsyncClient(timeout=5) as client:
+                    for key in iter_groq_api_keys(settings):
+                        resp = await client.get(
+                            "https://api.groq.com/openai/v1/models",
+                            headers={"Authorization": f"Bearer {key}"},
+                        )
+                        if resp.status_code == 200:
+                            groq_ok = True
+                            break
+                        if resp.status_code in {401, 403}:
+                            errors.append("groq:invalid_api_key")
+                text_ai_ok = groq_ok
+                if not groq_ok and "groq:invalid_api_key" not in errors:
+                    errors.append("groq:unreachable")
             except Exception as exc:
                 errors.append(f"groq:{type(exc).__name__}")
         else:

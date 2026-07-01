@@ -74,11 +74,14 @@ class ClickMerchantClient:
         return (self._settings.click_api_base_url or "https://api.click.uz/v2/merchant").rstrip("/")
 
     def _use_mock(self) -> bool:
-        if self._settings.is_production:
-            return False
+        """Haqiqiy Click faqat ENABLE_ONLINE_CHECKOUT + to'liq kalitlar + sandbox off bo'lganda."""
         if self._settings.payment_sandbox_mode:
             return True
-        return not (self._settings.click_merchant_user_id or "").strip()
+        if not self._settings.enable_online_checkout:
+            return True
+        service_id, secret = _merchant_credentials(self._settings)
+        user_id = (self._settings.click_merchant_user_id or "").strip()
+        return not (service_id and secret and user_id)
 
     def _auth_header(self) -> str:
         """Auth: merchant_user_id:sha1(timestamp+secret_key):timestamp."""
@@ -141,3 +144,27 @@ class ClickMerchantClient:
         if resp.status_code >= 400:
             raise ClickMerchantAPIError("click_invoice_status_http_error", payload=resp.text[:300])
         return resp.json()
+
+    async def refund_payment(self, *, payment_id: str | int) -> dict[str, Any]:
+        """To'langan Click tranzaksiyasini qaytarish (reversal). Sandbox/mock — darhol muvaffaqiyat."""
+        if self._use_mock():
+            return {
+                "error_code": 0,
+                "error_note": "Success (mock refund)",
+                "payment_id": str(payment_id),
+                "mock": True,
+            }
+        service_id = _merchant_credentials(self._settings)[0]
+        pid = str(payment_id).strip()
+        url = f"{self.base_url}/payment/reversal/{service_id}/{pid}"
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.delete(
+                url,
+                headers={"Auth": self._auth_header(), "Accept": "application/json"},
+            )
+        if resp.status_code >= 400:
+            raise ClickMerchantAPIError("click_refund_http_error", payload=resp.text[:300])
+        data = resp.json() if resp.content else {"error_code": 0}
+        if int(data.get("error_code", -1)) != 0:
+            raise ClickMerchantAPIError(str(data.get("error_note") or "click_refund_failed"), payload=data)
+        return data

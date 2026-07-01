@@ -25,6 +25,9 @@ export function getTelegramWebApp():
       close: () => void;
       initData: string;
       initDataUnsafe?: { user?: { id?: number; username?: string } };
+      HapticFeedback?: {
+        notificationOccurred: (style: "error" | "success" | "warning") => void;
+      };
     }
   | undefined {
   if (typeof window === "undefined") return undefined;
@@ -34,6 +37,9 @@ export function getTelegramWebApp():
       close: () => void;
       initData: string;
       initDataUnsafe?: { user?: { id?: number; username?: string } };
+      HapticFeedback?: {
+        notificationOccurred: (style: "error" | "success" | "warning") => void;
+      };
     } } }).Telegram?.WebApp;
 }
 

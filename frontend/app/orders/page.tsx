@@ -2,25 +2,24 @@
 
 import Link from "next/link";
 import { Phone } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { OrderFlowCard } from "@/components/profile/live-orders";
+import { MARKET } from "@/components/brand/premium-market-ui";
+import { PremiumPageHero } from "@/components/ui/premium-page-hero";
+import { PremiumTrustStrip } from "@/components/ui/premium-trust-strip";
 import { BottomNav } from "@/components/BottomNav";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { useMyOrdersList } from "@/hooks/useMyOrdersList";
 import {
-  getMyOrders,
   lookupOrdersByPhone,
   sendOrderLookupOtp,
   verifyOrderLookupOtp,
 } from "@/lib/api";
-import {
-  filterOrdersByScope,
-  sortOrdersNewestFirst,
-  type OrderListScope,
-} from "@/lib/order-filters";
+import { filterOrdersByScope, type OrderListScope } from "@/lib/order-filters";
 import {
   readGuestLookupToken,
   readGuestPhone,
@@ -35,9 +34,9 @@ import {
   UZ_PHONE_E164_REGEX,
 } from "@/utils/phone-mask";
 import { cn } from "@/lib/utils";
+import { pageShell, pageContentTop, pageWithBottomNav } from "@/lib/responsive-layout";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUserStore } from "@/stores/user-store";
-import type { Order } from "@/types";
 
 export default function OrdersPage() {
   const { push } = useToast();
@@ -46,86 +45,33 @@ export default function OrdersPage() {
   const userHydrated = useUserStore((state) => state.hydrated);
   const profile = useUserStore((state) => state.profile);
 
-  const [orders, setOrders] = useState<Order[]>([]);
   const [scope, setScope] = useState<OrderListScope>("active");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [guestPhone, setGuestPhone] = useState(() => {
     const saved = readGuestPhone();
     return saved ? formatUzbekPhoneParenDisplay(saved) : "+998 ";
+  });
+  const [guestVerificationToken, setGuestVerificationToken] = useState<string | undefined>(() => {
+    const saved = readGuestPhone();
+    if (!saved || !UZ_PHONE_E164_REGEX.test(saved)) return undefined;
+    return readGuestLookupToken(saved) ?? undefined;
   });
   const [guestLoading, setGuestLoading] = useState(false);
   const [otpStep, setOtpStep] = useState<"phone" | "code">("phone");
   const [otpCode, setOtpCode] = useState("");
 
-  useEffect(() => {
-    if (!authHydrated || !userHydrated) return;
+  const guestPhoneE164 = normalizeUzbekPhoneE164(guestPhone);
+  const ordersEnabled = authHydrated && userHydrated && (isLoggedIn || Boolean(guestVerificationToken));
 
-    if (isLoggedIn) {
-      void (async () => {
-        try {
-          const mine = await getMyOrders("all");
-          let items = sortOrdersNewestFirst(mine.items ?? []);
-          const saved = readGuestPhone();
-          if (saved && UZ_PHONE_E164_REGEX.test(saved)) {
-            const token = readGuestLookupToken(saved);
-            if (token) {
-              try {
-                const guest = await lookupOrdersByPhone(saved, token);
-                const byId = new Map<string, Order>();
-                for (const o of items) byId.set(o.id, o);
-                for (const o of guest.items ?? []) byId.set(o.id, o);
-                items = Array.from(byId.values());
-              } catch {
-                // ignore guest fallback errors for logged-in flow
-              }
-            }
-          }
-          setOrders(items);
-          if (!items.length) {
-            setError(
-              profile?.phone
-                ? "Buyurtma topilmadi. Checkout telefoni profil telefoni bilan bir xil ekanini tekshiring."
-                : "Profilga telefon qo'shing — buyurtmalar shu raqam bilan bog'lanadi.",
-            );
-          } else {
-            setError(null);
-          }
-        } catch {
-          setError("Buyurtmalarni yuklab bo'lmadi.");
-        } finally {
-          setLoading(false);
-        }
-      })();
-      return;
-    }
+  const { orders, setOrders, loading, error, setError, reload } = useMyOrdersList({
+    enabled: ordersEnabled,
+    isLoggedIn,
+    apiScope: "all",
+    guestPhone: guestVerificationToken ? guestPhoneE164 : undefined,
+    guestVerificationToken,
+    profilePhone: profile?.phone,
+  });
 
-    const saved = readGuestPhone();
-    const savedToken = saved ? readGuestLookupToken(saved) : null;
-    if (saved && UZ_PHONE_E164_REGEX.test(saved) && savedToken) {
-      setGuestLoading(true);
-      void lookupOrdersByPhone(saved, savedToken)
-        .then((response) => {
-          setOrders(response.items);
-          setError(response.items.length ? null : "Bu telefon uchun buyurtma topilmadi.");
-        })
-        .catch(() => {
-          setOrders([]);
-          setError("Sessiya tugagan. SMS kod bilan qayta tasdiqlang.");
-          setOtpStep("phone");
-        })
-        .finally(() => {
-          setGuestLoading(false);
-          setLoading(false);
-        });
-      return;
-    }
-
-    setLoading(false);
-    setError(null);
-  }, [authHydrated, userHydrated, isLoggedIn, profile?.phone]);
-
-  const scopedOrders = filterOrdersByScope(orders, scope);
+  const scopedOrders = useMemo(() => filterOrdersByScope(orders, scope), [orders, scope]);
 
   const scopeTabs: { key: OrderListScope; label: string }[] = [
     { key: "active", label: "Faol" },
@@ -175,6 +121,7 @@ export default function OrdersPage() {
     try {
       const verified = await verifyOrderLookupOtp(phoneE164, otpCode.trim());
       saveGuestLookupToken(phoneE164, verified.verification_token);
+      setGuestVerificationToken(verified.verification_token);
       const response = await lookupOrdersByPhone(phoneE164, verified.verification_token);
       setOrders(response.items);
       if (!response.items.length) {
@@ -191,24 +138,27 @@ export default function OrdersPage() {
   };
 
   const showGuestForm = !isLoggedIn && authHydrated && userHydrated;
-  const listLoading = loading || guestLoading;
-  const guestPhoneE164 = normalizeUzbekPhoneE164(guestPhone);
-  const guestVerificationToken =
-    !isLoggedIn && UZ_PHONE_E164_REGEX.test(guestPhoneE164)
-      ? readGuestLookupToken(guestPhoneE164) ?? undefined
-      : undefined;
+  const listLoading = !authHydrated || !userHydrated || loading || guestLoading;
 
   return (
-    <main className="page-shell min-h-dvh bg-canvas md:pb-6">
+    <main className={`${pageShell} ${pageWithBottomNav}`}>
       <Navigation />
-      <div className="page-content-top mx-auto max-w-3xl px-4 pb-8 sm:px-5">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-electric-500">Jonli kuzatuv</p>
-        <h1 className="mb-2 text-3xl font-bold tracking-tight text-text-100">Buyurtmalarim</h1>
-        <p className="mb-6 text-sm text-text-400">
-          {isLoggedIn
-            ? "Profil telefon raqamingiz va hisob bo'yicha barcha bronlar."
-            : "Telefon raqamingiz bilan bronlarni ko'ring yoki tizimga kiring."}
-        </p>
+      <div className={`${pageContentTop} mx-auto max-w-3xl px-4 pb-8 sm:px-5`}>
+        <PremiumTrustStrip compact className="mb-4" />
+        <PremiumPageHero
+          eyebrow="Jonli kuzatuv"
+          eyebrowVariant="electric"
+          title={
+            <>
+              Buyurtmalar<span className="text-gradient-electric">im</span>
+            </>
+          }
+          description={
+            isLoggedIn
+              ? "Profil telefon raqamingiz va hisob bo'yicha barcha bronlar."
+              : "Telefon raqamingiz bilan bronlarni ko'ring yoki tizimga kiring."
+          }
+        />
 
         {isLoggedIn && orders.length > 0 ? (
           <div className="mb-6 flex flex-wrap gap-2">
@@ -313,7 +263,7 @@ export default function OrdersPage() {
             )}
           </div>
         ) : scopedOrders.length ? (
-          <div className="space-y-4">
+          <div className={cn("space-y-4", MARKET.pageStack)}>
             {scopedOrders.map((order, index) => (
               <OrderFlowCard
                 key={order.id}
@@ -321,6 +271,7 @@ export default function OrdersPage() {
                 index={index}
                 guestPhone={guestVerificationToken ? guestPhoneE164 : undefined}
                 guestVerificationToken={guestVerificationToken}
+                onUpdated={() => void reload()}
               />
             ))}
           </div>

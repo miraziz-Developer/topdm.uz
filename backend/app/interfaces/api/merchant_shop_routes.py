@@ -33,7 +33,19 @@ async def _read_image(file: UploadFile) -> tuple[bytes, str]:
 
 
 class MerchantShopProfilePatch(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    owner_display_name: str | None = Field(default=None, max_length=120)
+    shop_type: str | None = Field(default=None, max_length=32)
+    owner_phone: str | None = Field(default=None, max_length=20)
+
+
+_PROFILE_ERROR_STATUS = {
+    "not_found": 404,
+    "invalid_name": 400,
+    "invalid_phone": 400,
+    "phone_taken": 409,
+}
 
 
 @router.patch("/merchant/shop/profile")
@@ -43,11 +55,15 @@ async def patch_merchant_shop_profile(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     shop = await _shop_or_404(db, user)
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="O'zgartirish uchun kamida bitta maydon yuboring")
     svc = MerchantShopBrandingService(db)
     try:
-        profile = await svc.update_description(shop.id, description=payload.description)
+        profile = await svc.update_profile(shop.id, user_id=user.id, **updates)
     except ShopBrandingError as exc:
-        raise HTTPException(status_code=404, detail=exc.code) from exc
+        status = _PROFILE_ERROR_STATUS.get(exc.code, 400)
+        raise HTTPException(status_code=status, detail=exc.message) from exc
     return {"shop": profile}
 
 

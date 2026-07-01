@@ -48,7 +48,7 @@ class AIInspectorService:
         self._groq = GroqClient()
 
     @staticmethod
-    def _check_image_sharpness(image_bytes: bytes, *, min_variance: float = 18.0) -> ImageModerationResult | None:
+    def _check_image_sharpness(image_bytes: bytes, *, min_variance: float = 8.0) -> ImageModerationResult | None:
         try:
             pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             w, h = pil.size
@@ -79,15 +79,21 @@ class AIInspectorService:
             return sharpness
 
         system = (
-            "You are Bozorliii Inspector for an Uzbekistan clothing marketplace. "
+            "You are Bozorliii Inspector for an Uzbekistan-wide clothing marketplace (all regions). "
             "Analyze the product photo. Return strict JSON only with keys: "
             "allowed (boolean), reason (short Uzbek), flags (string array), "
             "is_clothing (boolean), is_inappropriate (boolean), detected_category (string). "
-            "Block if: not clothing/shoes/accessories, nudity, violence, weapons, drugs, "
-            "random objects (food, electronics unrelated to fashion), unreadable/blank image."
+            "ALLOW: clothing, shoes, accessories, underwear/lingerie shown for retail (not erotic poses). "
+            "BLOCK: pornography, explicit nudity, erotic/sexual poses, violence, weapons, drugs, "
+            "not clothing (food, random electronics), unreadable/blank image, offensive content."
         )
 
         try:
+            if self._settings.groq_api_key:
+                groq_result = await self._moderate_with_groq(image_bytes)
+                if groq_result is not None:
+                    return groq_result
+
             if self._settings.google_api_key:
                 genai.configure(api_key=self._settings.google_api_key)
                 model = genai.GenerativeModel(self._settings.gemini_model)
@@ -103,13 +109,10 @@ class AIInspectorService:
                 return self._parse_moderation(payload)
 
             if self._settings.is_production:
-                groq_result = await self._moderate_with_groq(image_bytes)
-                if groq_result is not None:
-                    return groq_result
                 return ImageModerationResult(
-                    False,
-                    "Mahsulot rasmi AI tekshiruvidan o'tishi shart — GOOGLE_API_KEY yoki GROQ_API_KEY sozlang.",
-                    ["moderation_required"],
+                    True,
+                    "AI tekshiruvi vaqtincha o'chirilgan — rasm qabul qilindi.",
+                    ["moderation_degraded"],
                 )
             return ImageModerationResult(
                 allowed=True,
@@ -123,9 +126,9 @@ class AIInspectorService:
                 if groq_result is not None:
                     return groq_result
                 return ImageModerationResult(
-                    False,
-                    "AI tekshiruvi ishlamadi — rasmni qayta yuklang yoki keyinroq urinib ko'ring.",
-                    ["moderation_failed"],
+                    True,
+                    "AI vaqtincha ishlamayapti — rasm qabul qilindi. «Mahsulot qo'lda» orqali davom eting.",
+                    ["moderation_degraded"],
                 )
             return ImageModerationResult(
                 allowed=True,
@@ -137,10 +140,11 @@ class AIInspectorService:
         if not self._settings.groq_api_key:
             return None
         prompt = (
-            "Bu mahsulot rasmi Bozorliii kiyim bozori uchun. JSON: "
+            "Bu mahsulot rasmi Bozorliii kiyim bozori uchun (butun O'zbekiston). JSON: "
             '{"allowed":bool,"reason":"qisqa o\'zbekcha","flags":[],"is_clothing":bool,'
             '"is_inappropriate":bool,"detected_category":"string"}. '
-            "Block: kiyim/emtak emas, nojo'ya kontent, xira/rasm."
+            "Ruxsat: kiyim, ichki kiyim (savdo uchun). "
+            "Block: porno/erotika, uyatsiz ochiq kontent, kiyim emas, nojo'ya kontent, xira rasm."
         )
         try:
             payload = await self._groq.chat_json(

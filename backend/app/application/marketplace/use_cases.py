@@ -6,6 +6,8 @@ from uuid import UUID
 
 from app.core.phone import normalize_uz_phone_e164
 from app.application.marketplace.order_tracking import enrich_order_for_live_tracker
+from app.application.marketplace.customer_order_service import CustomerOrderService, CustomerOrderError
+from app.domain.interfaces.notifier_gateway import NotifierGateway
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.interfaces.api.serializers import _ipadrom_name
 
@@ -202,7 +204,12 @@ class MarketplaceUseCases:
             customer_email=customer_email,
             scope=scope,
         )
-        return [enrich_order_for_live_tracker(order) for order in orders]
+        svc = CustomerOrderService(self._repo._db, notifier=self._notifier)
+        enriched: list[dict] = []
+        for order in orders:
+            tracked = enrich_order_for_live_tracker(order)
+            enriched.append(await svc.enrich_order_dict(tracked))
+        return enriched
 
     async def get_customer_order(
         self,
@@ -222,6 +229,24 @@ class MarketplaceUseCases:
         if not order:
             raise ValueError("Order not found")
         return self._order_to_dict(order)
+
+    async def get_live_order(
+        self,
+        *,
+        user_id: UUID | None,
+        customer_phone: str | None,
+        customer_email: str | None,
+        order_id: UUID,
+    ) -> dict:
+        base = await self.get_customer_order(
+            user_id=user_id,
+            customer_phone=customer_phone,
+            customer_email=customer_email,
+            order_id=order_id,
+        )
+        svc = CustomerOrderService(self._repo._db, notifier=self._notifier)
+        tracked = enrich_order_for_live_tracker(base)
+        return await svc.enrich_order_dict(tracked)
 
     async def set_product_featured(self, *, shop_id: UUID, product_id: UUID, featured: bool) -> dict:
         product = await self._repo.set_product_featured(shop_id=shop_id, product_id=product_id, featured=featured)
@@ -257,11 +282,37 @@ class MarketplaceUseCases:
             raise ValueError("Order not found")
         prev_status = existing.status
 
+        if status == "completed":
+            fulfillment = (getattr(existing, "fulfillment_type", None) or "pickup").lower()
+            if fulfillment == "pickup":
+                raise ValueError(
+                    "pickup_requires_qr_scan: Olib ketish faqat QR skaner orqali tasdiqlanadi"
+                )
+
         if status == "cancelled" and prev_status in ACTIVE_RESERVED_STATUSES:
             try:
                 await release_order_reserved_stock(self._repo._db, order_id=order_id)
             except Exception:
                 logger.exception("order_stock_release_failed", extra={"order_id": str(order_id)})
+
+        if status == "cancelled" and prev_status != "cancelled":
+            try:
+                from app.application.loyalty.customer_coin_service import CustomerCoinService
+
+                await CustomerCoinService(self._repo._db).refund_redeemed(existing)
+            except Exception:
+                logger.exception("merchant_cancel_coin_refund_failed", extra={"order_id": str(order_id)})
+            try:
+                from app.application.payments.order_refund_service import OrderRefundService
+
+                refund = await OrderRefundService(self._repo._db).refund_cancelled_order(existing)
+                if refund.get("status") == "error":
+                    logger.error(
+                        "merchant_cancel_refund_failed",
+                        extra={"order_id": str(order_id), "detail": refund},
+                    )
+            except Exception:
+                logger.exception("merchant_cancel_refund_exception", extra={"order_id": str(order_id)})
 
         order = await self._repo.update_order_status(shop_id=shop_id, order_id=order_id, status=status)
         if not order:
@@ -286,6 +337,26 @@ class MarketplaceUseCases:
                 await MerchantGrowthService(self._repo._db).try_reward_referral(shop_id)
             except Exception:
                 logger.debug("referral_reward_skipped", exc_info=True)
+            try:
+                from app.application.loyalty.customer_coin_service import CustomerCoinService
+
+                await CustomerCoinService(self._repo._db).award_completed_order(order)
+            except Exception:
+                logger.exception("customer_coin_award_failed", extra={"order_id": str(order_id)})
+
+        if (status or "").lower() != (prev_status or "").lower():
+            product = await self._repo.get_product_by_id(existing.product_id)
+            from app.application.marketplace.customer_order_notify_dispatch import (
+                dispatch_customer_order_status_notify,
+            )
+
+            await dispatch_customer_order_status_notify(
+                self._repo._db,
+                order=order,
+                product_name=product.name if product else "Mahsulot",
+                new_status=status,
+                prev_status=prev_status,
+            )
 
         return {"order_id": str(order.id), "status": order.status}
 
@@ -304,6 +375,7 @@ class MarketplaceUseCases:
             "pickup_date": order.pickup_date.isoformat() if getattr(order, "pickup_date", None) else None,
             "pickup_time": getattr(order, "pickup_time", None),
             "pickup_window_label": PICKUP_TIME_LABELS.get(getattr(order, "pickup_time", None) or ""),
+            "payment_method": getattr(order, "payment_method", None) or "cash",
             "created_at": order.created_at.isoformat() if order.created_at else None,
             "updated_at": order.updated_at.isoformat() if order.updated_at else None,
             "product": {

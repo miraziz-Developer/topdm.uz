@@ -66,6 +66,22 @@ def test_click_merchant_invoice_mock():
     assert "invoice_id" in result
 
 
+def test_click_refund_mock_when_checkout_disabled():
+    settings = Settings(
+        enable_online_checkout=False,
+        payment_sandbox_mode=False,
+        click_service_id="SVC",
+        click_secret_key="sec",
+        click_merchant_user_id="UID1",
+        production=True,
+        app_debug=False,
+    )
+    client = ClickMerchantClient(settings)
+    assert client._use_mock() is True
+    result = asyncio.run(client.refund_payment(payment_id="pay-1"))
+    assert result["mock"] is True
+
+
 def test_click_auth_header_format():
     settings = _settings()
     client = ClickMerchantClient(settings)

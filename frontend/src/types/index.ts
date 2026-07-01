@@ -19,6 +19,8 @@ export interface StoryDockRing {
   preview_story: LiveStory;
   active_count: number;
   has_unseen?: boolean;
+  /** Do'kon story bo'lmaganda platforma reklamasi */
+  is_platform_ad?: boolean;
 }
 
 export interface ShopSummary {
@@ -124,6 +126,7 @@ export interface SearchParams {
   sale_type?: SaleType;
   market_zone?: string;
   block_sector?: string;
+  root_category?: string;
   page?: number;
   limit?: number;
 }
@@ -204,6 +207,8 @@ export interface AuthMeResponse {
   has_telegram: boolean;
   shop: ShopProfile | null;
   shop_id?: string | null;
+  coins_balance?: number;
+  coins_balance_uzs?: number;
 }
 
 export interface OrderTrackerStep {
@@ -222,6 +227,13 @@ export interface Order {
   pickup_date?: string | null;
   pickup_time?: string | null;
   pickup_window_label?: string | null;
+  payment_method?: string | null;
+  payment_status?: "unpaid" | "paid" | "at_store" | "failed" | null;
+  online_checkout_url?: string | null;
+  checkout_id?: string | null;
+  can_cancel?: boolean;
+  can_reschedule?: boolean;
+  can_change_payment_method?: boolean;
   status_label?: string;
   tracker_steps?: OrderTrackerStep[];
   tracker_active_index?: number;

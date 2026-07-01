@@ -3,7 +3,6 @@
 import {
   MessageCircle,
   MessagesSquare,
-  RefreshCw,
   Send,
   UserRound,
 } from "lucide-react";
@@ -39,6 +38,7 @@ function threadInitial(name: string) {
 export function ShopLiveChatPanel() {
   const {
     threads,
+    totalUnread,
     activeThreadId,
     messages,
     connectionState,
@@ -46,11 +46,9 @@ export function ShopLiveChatPanel() {
     error,
     selectThread,
     send,
-    refreshThreads,
     reconnect,
   } = useMerchantShopChat();
   const [draft, setDraft] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const activeThread = useMemo(
@@ -72,15 +70,6 @@ export function ShopLiveChatPanel() {
     setDraft("");
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refreshThreads();
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   if (loading) {
     return <div className="skeleton min-h-[420px] rounded-3xl" />;
   }
@@ -91,23 +80,18 @@ export function ShopLiveChatPanel() {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-text-100">
             {threads.length ? `${threads.length} ta suhbat` : "Hali mijoz xabari yo'q"}
+            {totalUnread > 0 ? (
+              <span className="ml-2 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-electric-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </span>
+            ) : null}
           </p>
           <p className="mt-0.5 text-sm text-text-400">
-            Saytdagi do&apos;kon sahifasidan yozilgan xabarlar shu yerda chiqadi
+            Yangi xabarlar avtomatik keladi — yangilash shart emas
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ConnectionStatus state={connectionState} />
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={refreshing}
-            onClick={() => void handleRefresh()}
-          >
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", refreshing && "animate-spin")} />
-            Yangilash
-          </Button>
         </div>
       </div>
 
@@ -152,11 +136,18 @@ export function ShopLiveChatPanel() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <p className="truncate text-sm font-semibold text-text-100">{name}</p>
-                          {thread.updated_at ? (
-                            <span className="shrink-0 text-[10px] tabular-nums text-text-400">
-                              {formatChatTime(thread.updated_at)}
-                            </span>
-                          ) : null}
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {(thread.unread_count ?? 0) > 0 ? (
+                              <span className="inline-flex min-w-[1.125rem] items-center justify-center rounded-full bg-electric-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                {(thread.unread_count ?? 0) > 99 ? "99+" : thread.unread_count}
+                              </span>
+                            ) : null}
+                            {thread.updated_at ? (
+                              <span className="text-[10px] tabular-nums text-text-400">
+                                {formatChatTime(thread.updated_at)}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-text-400">
                           {thread.last_message || "Yangi suhbat"}

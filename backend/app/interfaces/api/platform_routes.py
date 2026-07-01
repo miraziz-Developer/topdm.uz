@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.marketplace.use_cases import MarketplaceUseCases
+from app.application.marketplace.customer_order_service import CustomerOrderService, CustomerOrderError
 from app.core.config import get_settings
 from app.infrastructure.auth.deps import AuthUser, get_current_user, get_optional_user, require_merchant
 from app.infrastructure.auth.merchant_resolve import (
@@ -128,18 +129,87 @@ async def list_my_orders(
     return {"items": items}
 
 
+class OrderNotificationsReadBody(BaseModel):
+    notification_ids: list[str] = Field(default_factory=list)
+    mark_all: bool = False
+    user_phone: str | None = Field(default=None, max_length=20)
+    verification_token: str | None = Field(default=None, min_length=8, max_length=64)
+
+
+@router.get("/orders/notifications")
+async def list_order_notifications(
+    unread_only: bool = True,
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    from app.application.marketplace.customer_order_notifications import (
+        CustomerOrderNotificationService,
+    )
+
+    if not user:
+        return {"items": [], "unread_count": 0}
+    user_id, phone, _email = await customer_account_for_user(db, user)
+    svc = CustomerOrderNotificationService()
+    items = await svc.list_for_customer(user_id=user_id, phone=phone, unread_only=unread_only)
+    unread = await svc.list_for_customer(user_id=user_id, phone=phone, unread_only=True)
+    return {"items": items, "unread_count": len(unread)}
+
+
+@router.post("/orders/notifications/read")
+async def mark_order_notifications_read(
+    body: OrderNotificationsReadBody,
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    from app.application.marketplace.customer_order_notifications import (
+        CustomerOrderNotificationService,
+    )
+
+    user_id: UUID | None = None
+    phone: str | None = None
+    if user:
+        user_id, phone, _email = await customer_account_for_user(db, user)
+    elif body.user_phone and body.verification_token:
+        _uid, phone, _email = await _resolve_customer_access(
+            db,
+            user,
+            guest_phone=body.user_phone,
+            verification_token=body.verification_token,
+        )
+    else:
+        raise HTTPException(status_code=401, detail="Kirish talab qilinadi")
+
+    updated = await CustomerOrderNotificationService().mark_read(
+        user_id=user_id,
+        phone=phone,
+        notification_ids=body.notification_ids or None,
+        mark_all=body.mark_all,
+    )
+    return {"updated": updated}
+
+
 @router.get("/orders/{order_id}")
 async def get_my_order(
     order_id: UUID,
-    user: AuthUser = Depends(get_current_user),
+    user_phone: str | None = Query(default=None, max_length=20),
+    verification_token: str | None = Query(default=None, min_length=8, max_length=64),
+    user: AuthUser | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db_session),
     use_case: MarketplaceUseCases = Depends(marketplace_use_case),
 ) -> dict:
-    user_id, phone, email = await customer_account_for_user(db, user)
-    if not phone and not email:
+    try:
+        user_id, phone, email = await _resolve_customer_access(
+            db,
+            user,
+            guest_phone=user_phone,
+            verification_token=verification_token,
+        )
+    except HTTPException:
+        raise
+    if user is not None and not phone and not email:
         raise HTTPException(status_code=400, detail="Telefon yoki email profilga qo'shing")
     try:
-        return await use_case.get_customer_order(
+        return await use_case.get_live_order(
             user_id=user_id,
             customer_phone=phone,
             customer_email=email,
@@ -147,6 +217,185 @@ async def get_my_order(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class OrderCancelBody(BaseModel):
+    reason: str | None = Field(default=None, max_length=240)
+    user_phone: str | None = Field(default=None, max_length=20)
+    verification_token: str | None = Field(default=None, min_length=8, max_length=64)
+
+
+class OrderRescheduleBody(BaseModel):
+    pickup_date: str = Field(min_length=10, max_length=10)
+    pickup_time: str = Field(min_length=4, max_length=8)
+    user_phone: str | None = Field(default=None, max_length=20)
+    verification_token: str | None = Field(default=None, min_length=8, max_length=64)
+
+
+class OrderPaymentMethodBody(BaseModel):
+    payment_method: str = Field(min_length=3, max_length=16)
+    user_phone: str | None = Field(default=None, max_length=20)
+    verification_token: str | None = Field(default=None, min_length=8, max_length=64)
+
+
+async def _resolve_customer_access(
+    db: AsyncSession,
+    user: AuthUser | None,
+    *,
+    guest_phone: str | None,
+    verification_token: str | None,
+) -> tuple[UUID | None, str | None, str | None]:
+    if user is not None:
+        return await customer_account_for_user(db, user)
+    if not guest_phone or not verification_token:
+        raise HTTPException(status_code=401, detail="Kirish yoki telefon tasdiqlash talab qilinadi")
+    from app.infrastructure.messaging.phone_otp import PhoneOtpError, phone_otp_gateway
+
+    phone = guest_phone.strip()
+    try:
+        await phone_otp_gateway.assert_verified(phone, verification_token)
+    except PhoneOtpError as exc:
+        raise HTTPException(status_code=401, detail=exc.message) from exc
+    return None, phone, None
+
+
+def _customer_order_http_error(exc: CustomerOrderError) -> HTTPException:
+    status = 400
+    if exc.code == "order_not_found":
+        status = 404
+    elif exc.code in {
+        "cannot_cancel",
+        "cannot_reschedule",
+        "cannot_change_payment",
+        "payment_not_pending",
+        "already_paid",
+        "order_cancelled",
+    }:
+        status = 409
+    return HTTPException(status_code=status, detail=exc.message)
+
+
+@router.post("/orders/{order_id}/cancel")
+async def cancel_my_order(
+    order_id: UUID,
+    body: OrderCancelBody,
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    user_id, phone, email = await _resolve_customer_access(
+        db,
+        user,
+        guest_phone=body.user_phone,
+        verification_token=body.verification_token,
+    )
+    svc = CustomerOrderService(
+        db,
+        notifier=TelegramNotifierGateway(get_settings().telegram_bot_token),
+    )
+    try:
+        return await svc.cancel_order(
+            order_id,
+            user_id=user_id,
+            phone=phone,
+            email=email,
+            reason=body.reason,
+        )
+    except CustomerOrderError as exc:
+        raise _customer_order_http_error(exc) from exc
+
+
+@router.patch("/orders/{order_id}/pickup-schedule")
+async def reschedule_my_order(
+    order_id: UUID,
+    body: OrderRescheduleBody,
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    from datetime import date as date_cls
+
+    user_id, phone, email = await _resolve_customer_access(
+        db,
+        user,
+        guest_phone=body.user_phone,
+        verification_token=body.verification_token,
+    )
+    try:
+        pickup_date = date_cls.fromisoformat(body.pickup_date.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Sana formati noto'g'ri (YYYY-MM-DD)") from exc
+
+    svc = CustomerOrderService(
+        db,
+        notifier=TelegramNotifierGateway(get_settings().telegram_bot_token),
+    )
+    try:
+        return await svc.reschedule_pickup(
+            order_id,
+            pickup_date=pickup_date,
+            pickup_time=body.pickup_time.strip(),
+            user_id=user_id,
+            phone=phone,
+            email=email,
+        )
+    except CustomerOrderError as exc:
+        raise _customer_order_http_error(exc) from exc
+
+
+@router.patch("/orders/{order_id}/payment-method")
+async def change_my_order_payment_method(
+    order_id: UUID,
+    body: OrderPaymentMethodBody,
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    user_id, phone, email = await _resolve_customer_access(
+        db,
+        user,
+        guest_phone=body.user_phone,
+        verification_token=body.verification_token,
+    )
+    svc = CustomerOrderService(
+        db,
+        notifier=TelegramNotifierGateway(get_settings().telegram_bot_token),
+    )
+    try:
+        return await svc.change_payment_method(
+            order_id,
+            new_method=body.payment_method,
+            user_id=user_id,
+            phone=phone,
+            email=email,
+        )
+    except CustomerOrderError as exc:
+        raise _customer_order_http_error(exc) from exc
+
+
+@router.post("/orders/{order_id}/retry-payment")
+async def retry_order_payment(
+    order_id: UUID,
+    body: OrderCancelBody,
+    user: AuthUser | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    user_id, phone, email = await _resolve_customer_access(
+        db,
+        user,
+        guest_phone=body.user_phone,
+        verification_token=body.verification_token,
+    )
+    svc = CustomerOrderService(
+        db,
+        notifier=TelegramNotifierGateway(get_settings().telegram_bot_token),
+    )
+    try:
+        return await svc.retry_payment_link(
+            order_id,
+            user_id=user_id,
+            phone=phone,
+            email=email,
+        )
+    except CustomerOrderError as exc:
+        raise _customer_order_http_error(exc) from exc
 
 
 @router.get("/orders/{order_id}/pickup-qr")
@@ -175,6 +424,11 @@ async def get_order_pickup_qr(
             raise HTTPException(status_code=404, detail="Buyurtma topilmadi") from exc
         if code == "not_pickup_order":
             raise HTTPException(status_code=400, detail="Bu yetkazish buyurtmasi — QR faqat olib ketish uchun") from exc
+        if code == "qr_not_ready":
+            raise HTTPException(
+                status_code=400,
+                detail="QR faqat «Olib ketishga tayyor» holatida ochiladi — do'kon tayyor qilguncha kuting",
+            ) from exc
         if code == "qr_not_available":
             raise HTTPException(status_code=400, detail="QR hozir mavjud emas") from exc
         raise HTTPException(status_code=400, detail=code) from exc
@@ -210,6 +464,11 @@ async def guest_order_pickup_qr(
             raise HTTPException(status_code=404, detail="Buyurtma topilmadi") from exc
         if code == "not_pickup_order":
             raise HTTPException(status_code=400, detail="Bu yetkazish buyurtmasi") from exc
+        if code == "qr_not_ready":
+            raise HTTPException(
+                status_code=400,
+                detail="QR faqat «Olib ketishga tayyor» holatida ochiladi — do'kon tayyor qilguncha kuting",
+            ) from exc
         if code == "qr_not_available":
             raise HTTPException(status_code=400, detail="QR hozir mavjud emas") from exc
         raise HTTPException(status_code=400, detail=code) from exc

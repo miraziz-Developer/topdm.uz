@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  MoreHorizontal,
   Package,
   Pencil,
   Percent,
@@ -17,6 +16,7 @@ import { toast } from "sonner";
 import { CrmFilterChip } from "@/components/crm/filter-chip";
 import { ProductEditorSheet } from "@/components/products/product-editor-sheet";
 import { ProductStatusToggle } from "@/components/products/product-status-toggle";
+import { ActionMenu } from "@/components/ui/action-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -71,59 +71,31 @@ function RowActions({
   onDelete: () => void;
   onFeatured: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-lg p-2 text-text-400 hover:bg-canvas hover:text-text-100"
-        aria-label="Harakatlar"
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-      {open ? (
-        <>
-          <button type="button" className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-border-subtle bg-surface py-1 shadow-lg">
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-100 hover:bg-canvas"
-              onClick={() => {
-                setOpen(false);
-                onEdit();
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Tahrirlash
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-100 hover:bg-canvas"
-              onClick={() => {
-                setOpen(false);
-                onFeatured();
-              }}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {product.is_featured ? "Asosiydan olib tashlash" : "Asosiy sahifaga"}
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red hover:bg-red/5"
-              onClick={() => {
-                setOpen(false);
-                onDelete();
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              O&apos;chirish
-            </button>
-          </div>
-        </>
-      ) : null}
-    </div>
+    <ActionMenu
+      triggerClassName="rounded-lg p-2 text-text-400 hover:bg-canvas hover:text-text-100"
+      items={[
+        {
+          key: "edit",
+          label: "Tahrirlash",
+          icon: <Pencil className="h-3.5 w-3.5" />,
+          onSelect: onEdit,
+        },
+        {
+          key: "featured",
+          label: product.is_featured ? "Asosiydan olib tashlash" : "Asosiy sahifaga",
+          icon: <Sparkles className="h-3.5 w-3.5" />,
+          onSelect: onFeatured,
+        },
+        {
+          key: "delete",
+          label: "O'chirish",
+          icon: <Trash2 className="h-3.5 w-3.5" />,
+          tone: "danger",
+          onSelect: onDelete,
+        },
+      ]}
+    />
   );
 }
 
@@ -285,7 +257,7 @@ export function ProductsCatalogPanel() {
 
   return (
     <div className="space-y-0">
-      <div className="crm-surface-card overflow-hidden">
+      <div className="crm-surface-card">
         <div className="border-b border-border-subtle/80 bg-gradient-to-br from-surface via-surface to-canvas/40 p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
             <div className="rounded-2xl bg-surface px-3.5 py-3 ring-1 ring-border-subtle/90">

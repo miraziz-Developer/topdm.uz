@@ -24,11 +24,13 @@ def test_pickup_confirmed_shows_ready_only():
     assert "✔️ Olib ketdi" not in labels
 
 
-def test_pickup_ready_shows_complete_only():
-    assert allowed_order_bot_actions(status="ready", fulfillment_type="pickup") == ["d", "x"]
+def test_pickup_ready_shows_reject_and_qr_only():
+    assert allowed_order_bot_actions(status="ready", fulfillment_type="pickup") == ["x"]
     keys = order_action_markup(uuid.uuid4(), uuid.uuid4(), status="ready")
     labels = [btn["text"] for row in keys["inline_keyboard"] for btn in row]
-    assert "✔️ Olib ketdi" in labels
+    assert "✔️ Olib ketdi" not in labels
+    assert "📷 QR Skaner" in labels
+    assert "❌ Rad" in labels
     assert "✅ Tasdiq" not in labels
 
 
@@ -47,5 +49,13 @@ def test_completed_has_crm_only():
 
 
 def test_not_allowed_messages():
-    assert "Tasdiq" in order_action_not_allowed_message("d", "reserved")
-    assert "Tayyor" in order_action_not_allowed_message("d", "confirmed")
+    assert "QR skaner" in order_action_not_allowed_message("d", "ready").lower()
+    assert "Click" in order_action_not_allowed_message("c", "reserved", click_payment_pending=True)
+
+
+def test_click_pending_hides_confirm():
+    assert allowed_order_bot_actions(status="reserved", click_payment_pending=True) == ["x"]
+    keys = order_action_markup(uuid.uuid4(), uuid.uuid4(), status="reserved", click_payment_pending=True)
+    labels = [btn["text"] for row in keys["inline_keyboard"] for btn in row]
+    assert "✅ Tasdiq" not in labels
+    assert "❌ Rad" in labels
