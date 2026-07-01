@@ -1,5 +1,0 @@
-# Copy to ~/.ssh/config (do NOT put passwords here)
-Host bozorliii
-  HostName 8.222.211.54
-  User root
-  IdentityFile ~/.ssh/id_ed25519

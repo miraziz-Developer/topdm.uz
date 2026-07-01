@@ -1,4 +1,4 @@
-.PHONY: dev-up dev-down sync-brand prod-deploy prod-up prod-down prod-logs prod-preflight verify system-check local-prod-up local-prod-down local-prod-logs
+.PHONY: dev-up dev-down sync-brand prod-deploy prod-up prod-down prod-logs prod-preflight verify system-check
 
 sync-brand:
 	bash scripts/sync-brand-assets.sh
@@ -49,13 +49,3 @@ prod-smoke:
 
 test-backend:
 	cd backend && python3 -m venv .venv && . .venv/bin/activate && pip install -q -e . pytest && python -m pytest tests/ -q
-
-local-prod-up:
-	@test -f .env.local-prod || (echo "Missing .env.local-prod"; exit 1)
-	docker compose -f docker-compose.local-prod.yml up -d --build
-
-local-prod-down:
-	docker compose -f docker-compose.local-prod.yml down
-
-local-prod-logs:
-	docker compose -f docker-compose.local-prod.yml logs -f --tail=120

@@ -5,24 +5,33 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVER="${SERVER:-root@8.222.211.54}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/bozorliii}"
-SSH_PASS="${SSH_PASS:-Miraziz@2007}"
 SSH_OPTS=(-F /dev/null -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
 
 cd "$ROOT"
 
 bash "$ROOT/scripts/sync-brand-assets.sh"
 
-if ! command -v sshpass >/dev/null 2>&1; then
-  echo "Install: brew install hudochenkov/sshpass/sshpass" >&2
-  exit 1
+if [[ -n "${SSH_PASS:-}" ]]; then
+  command -v sshpass >/dev/null || { echo "Install sshpass: brew install hudochenkov/sshpass/sshpass" >&2; exit 1; }
+  RSYNC_SSH="sshpass -p '$SSH_PASS' ssh ${SSH_OPTS[*]}"
+else
+  RSYNC_SSH="ssh ${SSH_OPTS[*]}"
 fi
 
 ssh_cmd() {
-  sshpass -p "$SSH_PASS" ssh "${SSH_OPTS[@]}" "$SERVER" "$@"
+  if [[ -n "${SSH_PASS:-}" ]]; then
+    sshpass -p "$SSH_PASS" ssh "${SSH_OPTS[@]}" "$SERVER" "$@"
+  else
+    ssh "${SSH_OPTS[@]}" "$SERVER" "$@"
+  fi
 }
 
 scp_cmd() {
-  sshpass -p "$SSH_PASS" scp "${SSH_OPTS[@]}" "$@"
+  if [[ -n "${SSH_PASS:-}" ]]; then
+    sshpass -p "$SSH_PASS" scp "${SSH_OPTS[@]}" "$@"
+  else
+    scp "${SSH_OPTS[@]}" "$@"
+  fi
 }
 
 echo "== 1. Test SSH =="
@@ -36,7 +45,7 @@ if [[ -f "$ROOT/.env.production.ready" ]]; then
   cp "$ROOT/.env.production.ready" "$ROOT/.env"
 elif [[ ! -f "$ROOT/.env" ]] || ! grep -qE '^TELEGRAM_BOT_TOKEN=.+' "$ROOT/.env" 2>/dev/null; then
   bash "$ROOT/scripts/generate-production-env.sh" > "$ROOT/.env"
-  echo "Generated .env from .env.local-prod / example"
+  echo "Generated .env from .env.example"
 fi
 
 echo "== 4. Sync project =="
@@ -51,7 +60,7 @@ rsync -az \
   --exclude '.venv' \
   --exclude '__pycache__' \
   --exclude '.cursor' \
-  -e "sshpass -p '$SSH_PASS' ssh ${SSH_OPTS[*]}" \
+  -e "$RSYNC_SSH" \
   "$ROOT/" "${SERVER}:${REMOTE_DIR}/"
 
 scp_cmd "$ROOT/.env" "${SERVER}:${REMOTE_DIR}/.env"

@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="${1:-}"
 if [[ -z "$SRC" ]]; then
-  for candidate in .env.local-prod .env.production.ready .env.example; do
+  for candidate in .env .env.example; do
     if [[ -f "$ROOT/$candidate" ]] && grep -qE '^(GROQ_API_KEY|TELEGRAM_BOT_TOKEN)=' "$ROOT/$candidate" 2>/dev/null; then
       SRC="$ROOT/$candidate"
       break
@@ -16,7 +16,7 @@ fi
 SRC="${SRC:-$ROOT/.env}"
 
 if [[ ! -f "$SRC" ]]; then
-  echo "Missing secrets source — pass path or keep .env.local-prod" >&2
+  echo "Missing secrets source — cp .env.example .env and fill keys, or pass path" >&2
   exit 1
 fi
 

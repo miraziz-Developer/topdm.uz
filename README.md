@@ -50,7 +50,8 @@
 
 ```bash
 git clone <repo-url> bozorliii && cd bozorliii
-cp .env.example .env    # kalitlarni to'ldiring
+cp .env.example .env          # dev
+# yoki production: cp .env.production.example .env
 docker compose up -d --build
 ```
 
@@ -97,20 +98,17 @@ make prod-deploy      # production stack
 
 ## Konfiguratsiya
 
-Asosiy `.env` — root `.env.example`. Backend qo'shimcha kalitlar: `backend/.env.example`.
+Bitta root `.env` — barcha servislar (Docker compose) shu fayldan o'qiydi.
 
-| Guruh | O'zgaruvchilar |
-|-------|----------------|
-| DB | `DATABASE_URL`, `POSTGRES_*` |
-| AI | `GROQ_API_KEY`, `GOOGLE_API_KEY` |
-| Auth | `JWT_SECRET`, `TELEGRAM_BOT_TOKEN` |
-| Email | `RESEND_API_KEY` |
-| Xarita | `NEXT_PUBLIC_YANDEX_MAPS_API_KEY` |
-| Media | `MEDIA_STORAGE_BACKEND` (`local` / `s3`) |
+| Fayl | Maqsad |
+|------|--------|
+| `.env.example` | Lokal development |
+| `.env.production.example` | Production deploy |
 
-**`.env` ni gitga commit qilmang.**
-
-Production namuna: `.env.production.example`
+```bash
+cp .env.example .env              # dev
+cp .env.production.example .env   # prod
+```
 
 ---
 
