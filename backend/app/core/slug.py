@@ -10,6 +10,7 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 def slugify(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value)
     ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_text = ascii_text.replace("'", "").replace("'", "").replace("`", "")
     slug = _SLUG_RE.sub("-", ascii_text.lower()).strip("-")
     return slug or "shop"
 

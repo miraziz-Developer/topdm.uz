@@ -49,7 +49,7 @@ def test_completed_has_crm_only():
 
 
 def test_not_allowed_messages():
-    assert "QR skaner" in order_action_not_allowed_message("d", "ready").lower()
+    assert "qr skaner" in order_action_not_allowed_message("d", "ready").lower()
     assert "Click" in order_action_not_allowed_message("c", "reserved", click_payment_pending=True)
 
 

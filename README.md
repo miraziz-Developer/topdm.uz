@@ -1,7 +1,16 @@
 # Bozorliii.uz
 
+[![CI](https://github.com/miraziz-Developer/topdm.uz/actions/workflows/ci.yml/badge.svg)](https://github.com/miraziz-Developer/topdm.uz/actions/workflows/ci.yml)
+
 **AI-powered mahalliy bozor marketplace** — kiyim-kechak katalogi, vizual qidiruv, onlayn bron, xarita navigatsiyasi, merchant CRM va Telegram bot.
 
+| | |
+|---|---|
+| **Live do'kon** | https://bozorliii.online |
+| **Merchant CRM** | https://crm.bozorliii.online |
+| **API** | https://api.bozorliii.online/health |
+
+> HR / biznes ko'rinishi: [docs/EXECUTIVE_SUMMARY.md](docs/EXECUTIVE_SUMMARY.md)  
 > Texnik arxitektura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
 > Loyiha tuzilmasi: [docs/STRUCTURE.md](docs/STRUCTURE.md)  
 > Production deploy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
@@ -20,9 +29,7 @@
 
 **AI:** Groq LLM, vizual embedding (CLIP), AI stylist agent, mahsulot moderatsiyasi.
 
-**To'lov:** Click, Payme, escrow oqimi.
-
-**Logistika:** BTS Express integratsiyasi.
+**To'lov:** Click, Payme. **Logistika:** BTS Express.
 
 ---
 
@@ -34,24 +41,23 @@
 ├── merchant-crm/         # Sotuvchi panel
 ├── merchant-crm-mobile/  # Android (Capacitor)
 ├── brand/                # Brend manba PNG
-├── deploy/               # nginx, SSL, server skriptlar
-│   └── nginx/            # Production reverse proxy
+├── deploy/nginx/         # Production reverse proxy
 ├── scripts/              # Deploy va ops
-├── docs/                 # STRUCTURE, ARCHITECTURE, DEPLOYMENT
+├── docs/                 # Hujjatlar
 ├── docker-compose.yml
 └── docker-compose.prod.yml
 ```
 
-Har bir ilovada `README.md` bor. To‘liq xarita: [docs/STRUCTURE.md](docs/STRUCTURE.md).
+Har bir ilovada `README.md`. To'liq xarita: [docs/STRUCTURE.md](docs/STRUCTURE.md).
 
 ---
 
 ## Tez boshlash
 
 ```bash
-git clone <repo-url> bozorliii && cd bozorliii
-cp .env.example .env          # dev
-# yoki production: cp .env.production.example .env
+git clone https://github.com/miraziz-Developer/topdm.uz.git bozorliii
+cd bozorliii
+cp .env.example .env
 docker compose up -d --build
 ```
 
@@ -60,9 +66,6 @@ docker compose up -d --build
 | Do'kon | http://localhost:3002 |
 | CRM | http://localhost:3003 |
 | API | http://localhost:8000/health |
-| API docs | http://localhost:8000/docs (`APP_DEBUG=true`) |
-
-Migratsiya backend startida avtomatik ishlaydi.
 
 ```bash
 make dev-up           # docker compose
@@ -87,18 +90,9 @@ make prod-deploy      # production stack
 
 ---
 
-## Merchant oqimi
-
-1. Admin do'kon yaratadi (`owner_phone` +998…)
-2. Botda `/start shop_<uuid>` → telefon tasdiqlash
-3. **CRM Panel** — mahsulot, buyurtma, chat, xarita
-4. Mijoz saytda qidiradi → bron → do'konga keladi
-
----
-
 ## Konfiguratsiya
 
-Bitta root `.env` — barcha servislar (Docker compose) shu fayldan o'qiydi.
+Bitta root `.env` — barcha servislar shu fayldan o'qiydi.
 
 | Fayl | Maqsad |
 |------|--------|
@@ -106,18 +100,17 @@ Bitta root `.env` — barcha servislar (Docker compose) shu fayldan o'qiydi.
 | `.env.production.example` | Production deploy |
 
 ```bash
-cp .env.example .env              # dev
-cp .env.production.example .env   # prod
+cp .env.example .env
 ```
 
 ---
 
-## CI
+## CI / sifat
 
-GitHub Actions: frontend build, Playwright E2E, backend pytest, Alembic migratsiya, Docker prod build.
+GitHub Actions: frontend build, Playwright E2E, backend pytest (30+ test), Alembic migratsiya, production Docker build.
 
 ---
 
 ## License
 
-Maintainer litsenziyasini qo'shguncha — repository default copyright.
+Proprietary — [LICENSE](LICENSE) (Bozorliii © 2026).

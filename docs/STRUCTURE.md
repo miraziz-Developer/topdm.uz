@@ -153,3 +153,5 @@ Faqat operatsion vazifalar. Ro‘yxat: [scripts/README.md](../scripts/README.md)
 | `.env.production.example` | Prod shablon + CI |
 
 Alohida `backend/.env` yoki `frontend/.env` **kerak emas**.
+
+Batafsil biznes ko'rinishi: [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md)
