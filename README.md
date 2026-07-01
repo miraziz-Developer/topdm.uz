@@ -3,6 +3,7 @@
 **AI-powered mahalliy bozor marketplace** — kiyim-kechak katalogi, vizual qidiruv, onlayn bron, xarita navigatsiyasi, merchant CRM va Telegram bot.
 
 > Texnik arxitektura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
+> Loyiha tuzilmasi: [docs/STRUCTURE.md](docs/STRUCTURE.md)  
 > Production deploy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
@@ -28,21 +29,20 @@
 ## Loyiha tuzilmasi
 
 ```
-├── backend/              # FastAPI — biznes logika, API, migratsiyalar
-│   └── app/
-│       ├── interfaces/   # HTTP, WebSocket, admin
-│       ├── application/ # Use-case'lar va servislar
-│       └── infrastructure/ # DB, Redis, S3, bot, Celery
+├── backend/              # FastAPI API + bot + Celery
 ├── frontend/             # Mijoz Next.js PWA
 ├── merchant-crm/         # Sotuvchi panel
-├── merchant-crm-mobile/    # Android ilova
-├── brand/                # Brend aktivlari
-├── deploy/               # Nginx, SSL
-├── scripts/              # Deploy va ops (scripts/README.md)
-├── docs/                 # Arxitektura va deploy hujjatlari
-├── docker-compose.yml    # Lokal dev
+├── merchant-crm-mobile/  # Android (Capacitor)
+├── brand/                # Brend manba PNG
+├── deploy/               # nginx, SSL, server skriptlar
+│   └── nginx/            # Production reverse proxy
+├── scripts/              # Deploy va ops
+├── docs/                 # STRUCTURE, ARCHITECTURE, DEPLOYMENT
+├── docker-compose.yml
 └── docker-compose.prod.yml
 ```
+
+Har bir ilovada `README.md` bor. To‘liq xarita: [docs/STRUCTURE.md](docs/STRUCTURE.md).
 
 ---
 

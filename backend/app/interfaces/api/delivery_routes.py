@@ -14,7 +14,7 @@ from app.services.inventory import InventoryError
 from app.application.delivery.delivery_dispatch_service import DeliveryDispatchService
 from app.application.delivery.bts_delivery import BtsDeliveryError
 from app.infrastructure.delivery.bts_client import BtsDeliveryAPIError
-from app.api.orders import assert_guest_phone_verified
+from app.interfaces.api.order_reservation_routes import assert_guest_phone_verified
 from app.core.phone import normalize_uz_phone_e164
 from app.infrastructure.auth.deps import get_optional_user, require_merchant
 from app.infrastructure.auth.merchant_resolve import resolve_merchant_shop

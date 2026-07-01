@@ -288,7 +288,7 @@ services:
 
   nginx:
     build:
-      context: ./nginx
+      context: ./deploy/nginx
       dockerfile: Dockerfile
     restart: always
     ports:

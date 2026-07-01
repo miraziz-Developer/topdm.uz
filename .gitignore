@@ -19,7 +19,10 @@ dist/
 .claude/
 .cursor/
 *.tsbuildinfo
+.pytest_cache/
 frontend/.env.local
+backend/.env
+backend/.pytest_cache/
 backend/uploads/*
 !backend/uploads/.gitkeep
 !backend/uploads/reels/.gitkeep

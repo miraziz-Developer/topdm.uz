@@ -621,8 +621,8 @@ from app.interfaces.api.merchant_pending_routes import router as merchant_pendin
 from app.interfaces.api.merchant_chat_routes import router as merchant_chat_router
 from app.interfaces.api.media_routes import router as media_router
 from app.interfaces.api.chat_routes import router as shop_chat_router
-from app.api.map import router as map_router
-from app.api.orders import router as orders_router
+from app.interfaces.api.map_stores_routes import router as map_router
+from app.interfaces.api.order_reservation_routes import router as orders_router
 from app.interfaces.api.merchant_workspace_routes import router as merchant_workspace_router
 from app.interfaces.api.merchant_growth_routes import router as merchant_growth_router
 from app.interfaces.api.merchant_support_routes import router as merchant_support_router

@@ -65,19 +65,21 @@ flowchart TB
 | `scripts/` | Deploy va operatsion skriptlar | Bash, Python |
 | `docs/` | Texnik hujjatlar | Markdown |
 
-## Backend — qatlamlar (Clean Architecture)
+## Backend — qatlamlar
 
 ```
 backend/app/
-├── interfaces/     # HTTP routes, WebSocket, admin panel
-├── application/    # Use-case'lar, servislar (biznes qoidalari)
-├── infrastructure/ # DB, Redis, S3, tashqi API, bot, Celery
-├── domain/         # Interfeyslar va domen modellari
-├── models/         # SQLAlchemy ORM
-└── core/           # Config, bootstrap, security
+├── interfaces/api/   # REST (*_routes.py) — bitta joyda
+├── application/      # Use-case'lar, servislar
+├── infrastructure/   # DB, Redis, S3, bot, Celery
+├── domain/           # Interfeyslar va entity
+├── models/           # Qo‘shimcha ORM (feature modullar)
+├── schemas/          # Pydantic DTO
+├── services/         # AI stylist, inventory, dispatcher
+└── core/             # Config, bootstrap, security
 ```
 
-**Oqim:** `interfaces` → `application` → `infrastructure` / `domain`. Tashqi tizimlar faqat `infrastructure` orqali ulanadi.
+To‘liq papka xaritasi: [STRUCTURE.md](./STRUCTURE.md)
 
 ## Asosiy domenlar
 
