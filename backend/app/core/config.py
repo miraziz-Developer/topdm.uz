@@ -189,6 +189,12 @@ class Settings(BaseSettings):
     jwt_exp_minutes: int = 60 * 24 * 7
     cors_origins: str = ""
 
+    # 4GB split / past VPS — OOM oldini olish
+    ai_warmup_on_start: bool = True
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout: int = 30
+
     @property
     def is_production(self) -> bool:
         if self.production:

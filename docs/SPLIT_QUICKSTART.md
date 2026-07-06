@@ -20,11 +20,13 @@ ssh root@CORE_PUBLIC_IP
 git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
 cd /opt/bozorliii
 bash scripts/split-bootstrap.sh core --web-private-ip WEB_PRIVATE_IP
-nano .env          # POSTGRES_PASSWORD, JWT_SECRET, GROQ, TELEGRAM...
+nano .env
 bash scripts/preflight-deploy.sh
 bash deploy/ufw-core.sh
 bash scripts/deploy-core-only.sh
 ```
+
+**Split optimizatsiya:** lazy AI (`AI_WARMUP_ON_START=false`), yengil bot image, RAM limitlar — `docker-compose.core.yml` da.
 
 Tekshirish:
 ```bash

@@ -42,6 +42,7 @@ fi
 bash deploy/setup-swap.sh 2
 
 if [[ "$ROLE" == "core" ]]; then
+  bash deploy/sysctl-split-tune.sh 2>/dev/null || true
   if [[ ! -f .env ]]; then
     cp .env.core.example .env
     echo "Yaratildi: .env — kalitlarni to'ldiring (nano .env)"
@@ -61,6 +62,8 @@ if [[ "$ROLE" == "core" ]]; then
   echo "  4) bash scripts/deploy-core-only.sh"
   exit 0
 fi
+
+bash deploy/sysctl-split-tune.sh 2>/dev/null || true
 
 # WEB
 if [[ ! -f .env ]]; then

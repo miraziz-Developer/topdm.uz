@@ -59,12 +59,13 @@ async def _app_lifespan(_app: FastAPI):
     except Exception:
         pass
     try:
-        from app.infrastructure.ai_clients.clip_visual_embed import warmup_clip_model
+        if settings.ai_warmup_on_start:
+            from app.infrastructure.ai_clients.clip_visual_embed import warmup_clip_model
 
-        await warmup_clip_model()
+            await warmup_clip_model()
     except Exception:
         pass
-    if (settings.fashion_detect_backend or "yolos").lower() == "yolos":
+    if settings.ai_warmup_on_start and (settings.fashion_detect_backend or "yolos").lower() == "yolos":
         try:
             from app.infrastructure.ai_clients.yolos_fashion_detect import warmup_yolos_fashion
 

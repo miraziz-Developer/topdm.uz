@@ -39,6 +39,7 @@ COPY backend/app /app/app
 COPY backend/alembic.ini /app/alembic.ini
 COPY backend/migrations /app/migrations
 COPY scripts/verify_integrations.py /app/scripts/verify_integrations.py
+COPY scripts/run_merchant_bot.py /app/scripts/run_merchant_bot.py
 
 RUN chown -R appuser:appuser /app /app/uploads
 

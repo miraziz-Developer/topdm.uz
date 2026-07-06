@@ -1,12 +1,14 @@
-# Bozorliii CORE — Server 2 (4GB)
-# PostgreSQL, Redis, API, Celery, Telegram bot.
+# Bozorliii CORE — Server 2 (4GB), yuklanishsiz split
 #
-#   cp .env.production.example .env
-#   bash deploy/setup-swap.sh          # 4GB uchun tavsiya
+#   cp .env.core.example .env
+#   bash deploy/setup-swap.sh 2
+#   bash deploy/sysctl-split-tune.sh
 #   docker compose -f docker-compose.core.yml up -d --build
-#
-# API tashqi (WEB server VPC IP dan): :8000
-# Firewall: 8000 faqat WEB server private IP.
+
+x-core-defaults: &core_defaults
+  restart: always
+  env_file:
+    - .env
 
 services:
   postgres:
@@ -16,11 +18,26 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-bozor_ai}
       POSTGRES_USER: ${POSTGRES_USER:-bozor}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=60
+      - -c
+      - random_page_cost=1.1
     volumes:
       - bozor_pg:/var/lib/postgresql/data
+    mem_limit: 900m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bozor} -d ${POSTGRES_DB:-bozor_ai}"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
     networks:
@@ -29,24 +46,23 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes --maxmemory 384mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --tcp-keepalive 60
     volumes:
       - bozor_redis:/data
+    mem_limit: 300m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
     networks:
       - db-network
 
   backend:
+    <<: *core_defaults
     build:
       context: .
       dockerfile: backend/Dockerfile.prod
-    restart: always
-    env_file:
-      - .env
     environment:
       APP_ENV: production
       PRODUCTION: "true"
@@ -60,11 +76,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
       UVICORN_WORKERS: "1"
       HF_HOME: /app/.cache/huggingface
-      FASHION_DETECT_BACKEND: yolos
+      # Split 4GB: tez start + kam RAM (birinchi vizual qidiruvda model yuklanadi)
+      AI_WARMUP_ON_START: ${AI_WARMUP_ON_START:-false}
+      FASHION_DETECT_BACKEND: ${FASHION_DETECT_BACKEND:-heuristic}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-4}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-2}
     volumes:
       - bozor_uploads:/app/uploads
     ports:
       - "${CORE_API_PORT:-8000}:8000"
+    mem_limit: 1750m
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,21 +93,19 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/v1/health/live >/dev/null || exit 1"]
-      interval: 20s
+      interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 150s
+      start_period: 90s
     networks:
       - db-network
       - backend-network
 
   merchant-bot:
+    <<: *core_defaults
     build:
       context: .
-      dockerfile: backend/Dockerfile.prod
-    restart: always
-    env_file:
-      - .env
+      dockerfile: backend/Dockerfile.celery
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -94,10 +113,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
       PYTHONPATH: /app
+      DB_POOL_SIZE: "3"
+      DB_MAX_OVERFLOW: "1"
     volumes:
       - bozor_uploads:/app/uploads
     entrypoint: []
     command: ["python", "/app/scripts/run_merchant_bot.py"]
+    mem_limit: 350m
     depends_on:
       backend:
         condition: service_healthy
@@ -106,12 +128,10 @@ services:
       - backend-network
 
   celery-worker:
+    <<: *core_defaults
     build:
       context: .
       dockerfile: backend/Dockerfile.celery
-    restart: always
-    env_file:
-      - .env
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -121,6 +141,8 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       PYTHONPATH: /app
+      DB_POOL_SIZE: "3"
+      DB_MAX_OVERFLOW: "1"
     volumes:
       - bozor_uploads:/app/uploads
     entrypoint: []
@@ -131,12 +153,15 @@ services:
         "app.infrastructure.tasks.celery_app.celery_app",
         "worker",
         "-l",
-        "info",
+        "warning",
         "-Q",
         "celery",
         "--concurrency",
         "1",
+        "--prefetch-multiplier",
+        "1",
       ]
+    mem_limit: 450m
     depends_on:
       backend:
         condition: service_healthy
@@ -147,12 +172,10 @@ services:
       - backend-network
 
   celery-beat:
+    <<: *core_defaults
     build:
       context: .
       dockerfile: backend/Dockerfile.celery
-    restart: always
-    env_file:
-      - .env
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -170,8 +193,9 @@ services:
         "app.infrastructure.tasks.celery_app.celery_app",
         "beat",
         "-l",
-        "info",
+        "warning",
       ]
+    mem_limit: 180m
     depends_on:
       celery-worker:
         condition: service_started
