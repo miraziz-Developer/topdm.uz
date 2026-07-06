@@ -2,7 +2,7 @@
 # DNS tayyorligini tekshirish — certbot oldidan ishga tushiring
 set -euo pipefail
 
-IP="${SERVER_IP:-8.222.211.54}"
+IP="${SERVER_IP:-$(curl -fsS ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')}"
 DOMAINS=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online media.bozorliii.online)
 
 echo "Kutilayotgan server IP: $IP"

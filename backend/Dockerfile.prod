@@ -48,23 +48,13 @@ COPY backend/alembic.ini /app/alembic.ini
 COPY backend/migrations /app/migrations
 COPY backend/docker-entrypoint.sh /docker-entrypoint.sh
 COPY scripts/seed.py /app/scripts/seed.py
-COPY scripts/seed_bulk_ippodrom.py /app/scripts/seed_bulk_ippodrom.py
-COPY scripts/seed_grow_catalog.py /app/scripts/seed_grow_catalog.py
 COPY scripts/seed_categories.py /app/scripts/seed_categories.py
 COPY scripts/catalog_images.py /app/scripts/catalog_images.py
 COPY scripts/reembed_products.py /app/scripts/reembed_products.py
 COPY scripts/fix_product_images.py /app/scripts/fix_product_images.py
-COPY scripts/catalog_images.py /app/scripts/catalog_images.py
-COPY scripts/rehydrate_product_images.py /app/scripts/rehydrate_product_images.py
 COPY scripts/run_merchant_bot.py /app/scripts/run_merchant_bot.py
 COPY scripts/verify_backend_core.py /app/scripts/verify_backend_core.py
 COPY scripts/ensure_production_catalog.py /app/scripts/ensure_production_catalog.py
-COPY scripts/purge_fake_catalog.py /app/scripts/purge_fake_catalog.py
-COPY scripts/purge_all_merchant_shops.py /app/scripts/purge_all_merchant_shops.py
-COPY scripts/purge_video_demo.py /app/scripts/purge_video_demo.py
-COPY scripts/video_demo_catalog.py /app/scripts/video_demo_catalog.py
-COPY scripts/seed_video_demo.py /app/scripts/seed_video_demo.py
-COPY scripts/mirror_video_demo_images.py /app/scripts/mirror_video_demo_images.py
 COPY scripts/verify_integrations.py /app/scripts/verify_integrations.py
 
 RUN chmod +x /docker-entrypoint.sh \

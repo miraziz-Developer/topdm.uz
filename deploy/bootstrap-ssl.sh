@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-IP="${SERVER_IP:-8.222.211.54}"
+IP="${SERVER_IP:-$(curl -fsS ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')}"
 EMAIL="${CERTBOT_EMAIL:-admin@bozorliii.online}"
 DNS_SERVER="${DNS_SERVER:-8.8.8.8}"
 CANDIDATES=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online media.bozorliii.online)
@@ -32,7 +32,7 @@ if ! command -v certbot >/dev/null 2>&1; then
   apt-get update && apt-get install -y certbot
 fi
 
-docker compose -f docker-compose.prod.yml stop nginx 2>/dev/null || true
+docker compose -f docker-compose.web.yml stop nginx 2>/dev/null || docker compose -f docker-compose.prod.yml stop nginx 2>/dev/null || true
 
 DOMAIN_ARGS=()
 for d in "${READY[@]}"; do
