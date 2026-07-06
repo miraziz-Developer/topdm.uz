@@ -3,8 +3,8 @@
 set -euo pipefail
 
 IP="${SERVER_IP:-$(curl -fsS ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')}"
-DOMAINS=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online)
-OPTIONAL_DOMAINS=(media.bozorliii.online)
+DOMAINS=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online media.bozorliii.online)
+OPTIONAL_DOMAINS=()
 
 echo "Kutilayotgan server IP: $IP"
 echo ""
