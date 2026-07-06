@@ -14,7 +14,7 @@
 > Texnik arxitektura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
 > Loyiha tuzilmasi: [docs/STRUCTURE.md](docs/STRUCTURE.md)  
 > Production deploy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)  
-> **Server 4GB / split:** [docs/SERVER_SIZING.md](docs/SERVER_SIZING.md)
+> **Server 4GB / split:** [docs/SERVER_SIZING.md](docs/SERVER_SIZING.md) · [docs/SPLIT_QUICKSTART.md](docs/SPLIT_QUICKSTART.md)
 
 ---
 

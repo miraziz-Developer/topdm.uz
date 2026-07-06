@@ -6,6 +6,9 @@
 .env.*.local
 !.env.example
 !.env.production.example
+!.env.core.example
+!.env.web.example
+split-hosts.env
 .venv/
 node_modules/
 __pycache__/

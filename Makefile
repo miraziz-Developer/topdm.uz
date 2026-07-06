@@ -35,6 +35,12 @@ prod-preflight:
 prod-deploy:
 	bash scripts/deploy-prod.sh
 
+prod-core:
+	bash scripts/deploy-core-only.sh
+
+prod-web:
+	bash scripts/deploy-web-only.sh
+
 prod-up:
 	docker compose -f docker-compose.prod.yml up -d --build
 

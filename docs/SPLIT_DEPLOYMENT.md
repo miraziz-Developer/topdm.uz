@@ -1,5 +1,7 @@
 # 2× 4GB split deploy (DigitalOcean)
 
+**Tez boshlash:** [SPLIT_QUICKSTART.md](./SPLIT_QUICKSTART.md)
+
 Server 1 = **WEB** (internetga ochiq)  
 Server 2 = **CORE** (API + DB, faqat VPC)
 
@@ -53,10 +55,11 @@ Nginx WEB da `api` ni CORE ga proxy qiladi.
 ```bash
 git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
 cd /opt/bozorliii
-cp .env.production.example .env
-nano .env   # POSTGRES_PASSWORD, JWT, kalitlar...
-
-docker compose -f docker-compose.core.yml up -d --build
+bash scripts/split-bootstrap.sh core --web-private-ip WEB_PRIVATE_IP
+nano .env   # kalitlar: .env.core.example asosida
+bash scripts/preflight-deploy.sh
+bash deploy/ufw-core.sh
+bash scripts/deploy-core-only.sh
 ```
 
 Tekshirish (CORE ichida):
@@ -67,23 +70,28 @@ curl -s http://127.0.0.1:8000/health
 
 ## 6. WEB server (Server 1)
 
-`.env` ga qo‘shing:
+```bash
+git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
+cd /opt/bozorliii
+bash scripts/split-bootstrap.sh web --core-ip CORE_PRIVATE_IP
+nano .env
+```
+
+`.env` da (bootstrap avtomatik to'ldiradi):
 
 ```env
-CORE_BACKEND_HOST=10.116.0.2
-BACKEND_API_URL=http://10.116.0.2:8000
+CORE_BACKEND_HOST=CORE_PRIVATE_IP
+BACKEND_API_URL=http://CORE_PRIVATE_IP:8000
 NEXT_PUBLIC_BACKEND_ORIGIN=https://api.bozorliii.online
 ```
 
-SSL (WEB da):
+DNS → **WEB public IP**. Keyin:
 
 ```bash
+bash deploy/ufw-web.sh
 bash deploy/bootstrap-ssl.sh
-# yoki self-signed: bash deploy/bootstrap-selfsigned-ssl.sh
-```
-
-```bash
-docker compose -f docker-compose.web.yml up -d --build
+bash deploy/verify-split.sh
+bash scripts/deploy-web-only.sh
 ```
 
 ## 7. Tekshirish
