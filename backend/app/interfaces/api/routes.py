@@ -163,7 +163,7 @@ async def search_products_by_image(
     q: str | None = Form(None),
     page: int = 1,
     limit: int = 20,
-    fast: bool = True,
+    fast: bool = False,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     from app.application.visual_search.outfit_search import search_outfit_from_image

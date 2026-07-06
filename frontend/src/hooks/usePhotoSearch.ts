@@ -39,7 +39,7 @@ export function usePhotoSearch() {
       setError(null);
       try {
         const prepared = fileOrPrepared;
-        const response = await searchProductsByImage(prepared, 1, 24, undefined, true);
+        const response = await searchProductsByImage(prepared, 1, 24, undefined, false);
         const preview = previewUrl ?? "";
         storePhotoSearch({
           ...response,

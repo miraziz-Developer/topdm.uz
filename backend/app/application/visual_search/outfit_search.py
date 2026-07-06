@@ -1068,6 +1068,7 @@ async def _resolve_pure_visual_matches(
     min_price: float | None = None,
     max_price: float | None = None,
     strict: bool = True,
+    fast: bool = True,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Taobao core: crop → visual ANN → rank by similarity. No text/slot/keyword."""
     if not crop_bytes:
@@ -1081,7 +1082,7 @@ async def _resolve_pure_visual_matches(
             min_price=min_price,
             max_price=max_price,
             search_hint=PURE_VISUAL_SEARCH_HINT,
-            fast=True,
+            fast=fast,
             strict=strict,
         )
         return _rank_pure_visual(rows, strict=strict)[:limit], True
@@ -1099,6 +1100,7 @@ async def _resolve_visual_matches_fast(
     det: dict[str, Any],
     limit: int,
     crop_bytes: bytes | None = None,
+    fast: bool = True,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Fast path: parallel crop visual + keyword slot — no OpenAI embed / hybrid."""
     if filters.get("image_only_search") and crop_bytes:
@@ -1111,6 +1113,7 @@ async def _resolve_visual_matches_fast(
             min_price=float(filters["min_price"]) if filters.get("min_price") is not None else None,
             max_price=float(filters["max_price"]) if filters.get("max_price") is not None else None,
             strict=strict,
+            fast=fast,
         )
 
     strict_filters = filters if filters.get("strict_slot") else build_strict_slot_filters(
@@ -1132,7 +1135,7 @@ async def _resolve_visual_matches_fast(
                 min_price=float(min_p) if min_p is not None else None,
                 max_price=float(max_p) if max_p is not None else None,
                 search_hint=hint,
-                fast=True,
+                fast=fast,
             )
         except Exception as exc:
             logger.warning("visual_signature_search_failed", error=str(exc))
@@ -1228,6 +1231,7 @@ async def _resolve_visual_matches(
             det=det,
             limit=limit,
             crop_bytes=crop_bytes,
+            fast=fast,
         )
 
     from app.interfaces.api.serializers import product_to_dict
@@ -1518,6 +1522,9 @@ async def search_outfit_from_image(
     if fast:
         max_items = min(max_items, 5)
         limit_per_item = min(limit_per_item, 12)
+    else:
+        max_items = min(max_items, 6)
+        limit_per_item = min(limit_per_item, 16)
 
     pil = Image.open(io.BytesIO(raw)).convert("RGB")
     collage_panels = find_vertical_panels(pil)
@@ -1531,7 +1538,7 @@ async def search_outfit_from_image(
             raw,
             limit=limit_per_item,
             search_hint=PURE_VISUAL_SEARCH_HINT,
-            fast=True,
+            fast=fast,
             strict=False,
         )
         chip = _synthetic_detection_payload(det_id="product", pil=pil, products=products)
@@ -1544,7 +1551,7 @@ async def search_outfit_from_image(
             "query_label": "Rasm bo'yicha qidiruv",
             "detected_items": [chip],
             "primary_detection_id": "product",
-            "mode": "product_photo_fast",
+            "mode": "product_photo_fast" if fast else "product_photo",
             "is_fallback": False,
             "jonli_katalog_natijasi": build_jonli_katalog_natijasi(exact_items=products, vector_neighbors=products),
             "assistant_text": assistant,
@@ -1582,7 +1589,7 @@ async def search_outfit_from_image(
             raw,
             limit=limit_per_item,
             search_hint=PURE_VISUAL_SEARCH_HINT,
-            fast=True,
+            fast=fast,
             strict=False,
         )
         chip = _synthetic_detection_payload(det_id="product", pil=pil, products=products)
@@ -1595,7 +1602,7 @@ async def search_outfit_from_image(
             "query_label": "Rasm bo'yicha qidiruv",
             "detected_items": [chip],
             "primary_detection_id": "product",
-            "mode": "product_photo_fast",
+            "mode": "product_photo_fast" if fast else "product_photo",
             "is_fallback": False,
             "jonli_katalog_natijasi": build_jonli_katalog_natijasi(exact_items=products, vector_neighbors=products),
             "assistant_text": assistant,
@@ -1701,7 +1708,7 @@ async def search_outfit_from_image(
                         crop_raw,
                         limit=limit_per_item,
                         search_hint=PURE_VISUAL_SEARCH_HINT,
-                        fast=True,
+                        fast=fast,
                     )
                     products = _rank_pure_visual(global_hits, strict=False)
                 except Exception as exc:

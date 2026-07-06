@@ -68,7 +68,7 @@ export async function searchProductsByImage(
   page = 1,
   limit = 24,
   intent?: string,
-  fast = true,
+  fast = false,
 ): Promise<PhotoSearchResponse> {
   const form = new FormData();
   form.append("file", file);
