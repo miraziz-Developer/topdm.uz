@@ -7,7 +7,9 @@ Faqat deploy va production operatsiyalari uchun. Dev seed skriptlari `RUN_SEED=t
 | Skript | Vazifa |
 |--------|--------|
 | `preflight-deploy.sh` | `.env` va majburiy kalitlarni tekshirish |
-| `deploy-prod.sh` | Production stack build + up |
+| `deploy-prod.sh` | 1× server — `docker-compose.prod.yml` |
+| `deploy-core-only.sh` | 2× server — CORE (API+DB) |
+| `deploy-web-only.sh` | 2× server — WEB (nginx+frontend) |
 | `deploy-from-mac.sh` | rsync + remote deploy |
 | `deploy-core.sh` | Katalog, integratsiya, embedding post-deploy |
 | `remote-deploy.sh` | SSH orqali deploy |

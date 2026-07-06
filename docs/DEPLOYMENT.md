@@ -1,6 +1,6 @@
 # Production deploy
 
-Batafsil operatsion qo'llanma. Asosiy README da qisqa yo'riqnoma bor.
+Batafsil operatsion qo'llanma. Server hajmi: [SERVER_SIZING.md](./SERVER_SIZING.md) · Split: [SPLIT_DEPLOYMENT.md](./SPLIT_DEPLOYMENT.md)
 
 ## Server va domenlar
 

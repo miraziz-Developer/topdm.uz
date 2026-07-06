@@ -13,7 +13,8 @@
 > HR / biznes ko'rinishi: [docs/EXECUTIVE_SUMMARY.md](docs/EXECUTIVE_SUMMARY.md)  
 > Texnik arxitektura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
 > Loyiha tuzilmasi: [docs/STRUCTURE.md](docs/STRUCTURE.md)  
-> Production deploy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+> Production deploy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)  
+> **Server 4GB / split:** [docs/SERVER_SIZING.md](docs/SERVER_SIZING.md)
 
 ---
 
@@ -44,8 +45,9 @@
 ├── deploy/nginx/         # Production reverse proxy
 ├── scripts/              # Deploy va ops
 ├── docs/                 # Hujjatlar
-├── docker-compose.yml
-└── docker-compose.prod.yml
+├── docker-compose.prod.yml   # 1× server (4GB)
+├── docker-compose.core.yml   # 2× server — API+DB
+└── docker-compose.web.yml    # 2× server — Nginx+Web
 ```
 
 Har bir ilovada `README.md`. To'liq xarita: [docs/STRUCTURE.md](docs/STRUCTURE.md).

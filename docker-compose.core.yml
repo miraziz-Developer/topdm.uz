@@ -1,0 +1,192 @@
+# Bozorliii CORE — Server 2 (4GB)
+# PostgreSQL, Redis, API, Celery, Telegram bot.
+#
+#   cp .env.production.example .env
+#   bash deploy/setup-swap.sh          # 4GB uchun tavsiya
+#   docker compose -f docker-compose.core.yml up -d --build
+#
+# API tashqi (WEB server VPC IP dan): :8000
+# Firewall: 8000 faqat WEB server private IP.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bozor_ai}
+      POSTGRES_USER: ${POSTGRES_USER:-bozor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - bozor_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bozor} -d ${POSTGRES_DB:-bozor_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db-network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 384mb --maxmemory-policy allkeys-lru
+    volumes:
+      - bozor_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      PRODUCTION: "true"
+      APP_DEBUG: ${APP_DEBUG:-false}
+      ALLOW_DEV_MOCKS: "false"
+      RUN_SEED: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      UVICORN_WORKERS: "1"
+      HF_HOME: /app/.cache/huggingface
+      FASHION_DETECT_BACKEND: yolos
+    volumes:
+      - bozor_uploads:/app/uploads
+    ports:
+      - "${CORE_API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/v1/health/live >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 150s
+    networks:
+      - db-network
+      - backend-network
+
+  merchant-bot:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      PYTHONPATH: /app
+    volumes:
+      - bozor_uploads:/app/uploads
+    entrypoint: []
+    command: ["python", "/app/scripts/run_merchant_bot.py"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - db-network
+      - backend-network
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.celery
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PYTHONPATH: /app
+    volumes:
+      - bozor_uploads:/app/uploads
+    entrypoint: []
+    command:
+      [
+        "celery",
+        "-A",
+        "app.infrastructure.tasks.celery_app.celery_app",
+        "worker",
+        "-l",
+        "info",
+        "-Q",
+        "celery",
+        "--concurrency",
+        "1",
+      ]
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - db-network
+      - backend-network
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.celery
+    restart: always
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PYTHONPATH: /app
+    entrypoint: []
+    command:
+      [
+        "celery",
+        "-A",
+        "app.infrastructure.tasks.celery_app.celery_app",
+        "beat",
+        "-l",
+        "info",
+      ]
+    depends_on:
+      celery-worker:
+        condition: service_started
+    networks:
+      - db-network
+      - backend-network
+
+networks:
+  db-network:
+    driver: bridge
+    internal: true
+  backend-network:
+    driver: bridge
+
+volumes:
+  bozor_pg:
+  bozor_redis:
+  bozor_uploads:
