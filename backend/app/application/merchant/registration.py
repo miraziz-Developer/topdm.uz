@@ -147,7 +147,7 @@ class MerchantRegistrationService:
             telegram_chat_id=draft.telegram_chat_id,
             is_verified=False,
         )
-        shop.verification_status = "pending_ai"
+        shop.verification_status = "pending_review"
 
         if draft.storefront_file_id:
             media = TelegramMediaStore()

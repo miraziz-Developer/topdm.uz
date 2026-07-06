@@ -362,7 +362,7 @@ async def _advance_reg_phone(
         f"Raqam: {data.get('reg_stall')}\n"
         f"Izoh: {data.get('reg_location_comment')}\n"
         f"Telefon: {phone}\n\n"
-        "Tasdiqlangach AI moderator do'koningizni tekshiradi (nom, rasm, nomaqbul kontent).\n"
+        "Tasdiqlangach arizangiz platforma moderatoriga yuboriladi (odatda 24 soat ichida).\n"
         "Tasdiqlaysizmi?"
     )
     await state.update_data(reg_phone=phone, reg_owner_name=owner_name)
@@ -483,21 +483,11 @@ async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
         return
 
     await query.answer("Ro'yxatdan o'tilmoqda…")
-    await query.message.answer(
-        "⏳ AI moderator do'koningizni tekshirmoqda…\n"
-        "Profil va do'kon rasmi AI tomonidan ko'rib chiqiladi (30–60 soniya)."
-    )
 
     try:
         async with AsyncSessionFactory() as session:
             svc = MerchantRegistrationService(session)
             result = await svc.register_shop(draft)
-            shop = result.shop
-            image_bytes = await svc.resolve_storefront_image_bytes(
-                storefront_file_id=draft.storefront_file_id,
-                storefront_image_url=shop.storefront_image_url,
-            )
-            verdict = await svc.run_ai_shop_verification(shop, storefront_image_bytes=image_bytes)
     except ValueError as exc:
         await query.message.answer(str(exc))
         return
@@ -515,95 +505,16 @@ async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(MerchantBotStates.ready)
     await state.update_data(shop_id=str(shop.id))
 
-    if not verdict.approved:
-        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Qayta tekshirish", callback_data="shop:ai_retry")],
-            ]
-        )
-        text = (
-            f"❌ Do'kon AI moderator tomonidan rad etildi.\n\n"
-            f"Sabab: {verdict.reason}\n\n"
-            f"CRM Login: {result.login_code}\n"
-            f"Parol: {result.password_plain}\n"
-            f"Do'kon ID: {shop.id}\n\n"
-            "Ma'lumotlarni tuzating (rasm, nom) va «Qayta tekshirish» bosing.\n"
-            f"CRM: {crm_url}/login"
-        )
-        await query.message.answer(text, reply_markup=kb)
-        await query.message.answer("Tezkor:", reply_markup=start_inline_keyboard(shop.id))
-        return
-
     text = (
-        f"✅ Tabriklaymiz! «{shop.name}» AI moderator tomonidan tasdiqlandi.\n\n"
+        f"✅ Ariza qabul qilindi — «{shop.name}»\n\n"
+        f"Platforma moderatori tez orada ko'rib chiqadi (odatda 24 soat ichida). "
+        f"Tasdiqlangach SMS/Telegram orqali xabar beramiz.\n\n"
         f"CRM Login: {result.login_code}\n"
         f"Parol: {result.password_plain}\n"
         f"Do'kon ID: {shop.id}\n\n"
-        f"📱 CRM Panel — buyurtma va chat\n"
-        f"📷 QR Skaner — mijoz kelganda skaner qiling\n"
+        f"📱 CRM — mahsulot va buyurtmalar\n"
         f"🌐 Brauzer: {crm_url}/login\n\n"
-        "Endi mahsulot rasmini botga yuboring — AI tekshiruvdan o'tgach saytda chiqadi."
+        "Hozircha CRM ga kirib mahsulot qo'shishingiz mumkin — saytda ko'rinish tasdiqdan keyin."
     )
     await query.message.answer(text, reply_markup=merchant_menu_keyboard(shop.id))
     await query.message.answer("Tezkor:", reply_markup=start_inline_keyboard(shop.id))
-
-
-@reg_router.callback_query(F.data == "shop:ai_retry")
-async def shop_ai_retry_cb(query: CallbackQuery, state: FSMContext) -> None:
-    if not query.message:
-        await query.answer()
-        return
-    data = await state.get_data()
-    shop_id_raw = data.get("shop_id")
-    if not shop_id_raw:
-        async with AsyncSessionFactory() as session:
-            from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
-
-            repo = MarketplaceRepository(session)
-            shop_lookup = await repo.get_shop_by_telegram_chat_id(int(query.message.chat.id))
-            if shop_lookup:
-                shop_id_raw = str(shop_lookup.id)
-                await state.update_data(shop_id=shop_id_raw)
-    if not shop_id_raw:
-        await query.answer("Do'kon topilmadi", show_alert=True)
-        return
-
-    await query.answer("Tekshirilmoqda…")
-    await query.message.answer("⏳ AI moderator qayta tekshirmoqda…")
-
-    try:
-        async with AsyncSessionFactory() as session:
-            from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
-
-            repo = MarketplaceRepository(session)
-            shop = await repo.get_shop(uuid.UUID(str(shop_id_raw)))
-            if not shop:
-                await query.message.answer("Do'kon topilmadi.")
-                return
-            svc = MerchantRegistrationService(session)
-            image_bytes = await svc.resolve_storefront_image_bytes(
-                storefront_file_id=data.get("reg_storefront_file_id"),
-                storefront_image_url=shop.storefront_image_url,
-            )
-            verdict = await svc.run_ai_shop_verification(shop, storefront_image_bytes=image_bytes)
-    except Exception:
-        logger.exception("shop_ai_retry_failed")
-        await query.message.answer("Tekshiruvda xatolik. Keyinroq urinib ko'ring.")
-        return
-
-    if verdict.approved:
-        await query.message.answer(
-            f"✅ «{shop.name}» tasdiqlandi! Endi mahsulot rasmini yuboring — saytda chiqasiz.",
-            reply_markup=merchant_menu_keyboard(shop.id),
-        )
-    else:
-        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Qayta tekshirish", callback_data="shop:ai_retry")],
-            ]
-        )
-        await query.message.answer(f"❌ Hali ham rad etildi.\n\nSabab: {verdict.reason}", reply_markup=kb)

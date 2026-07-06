@@ -97,7 +97,7 @@ class MerchantWorkspaceHub:
                         "type": "catalog",
                         "priority": "high",
                         "id": "verify_rejected",
-                        "title": "Do'kon AI tomonidan rad etildi",
+                        "title": "Do'kon arizasi rad etildi",
                         "subtitle": reason[:120],
                         "href": "/dashboard/settings",
                     }
@@ -108,8 +108,8 @@ class MerchantWorkspaceHub:
                         "type": "catalog",
                         "priority": "medium",
                         "id": "verify",
-                        "title": "Do'kon AI tekshiruvida",
-                        "subtitle": "Telegram botda «Qayta tekshirish» yoki profilingizni yangilang",
+                        "title": "Moderator ko'rib chiqmoqda",
+                        "subtitle": "Tasdiqlangach saytda ko'rinasiz — odatda 24 soat ichida",
                         "href": "/dashboard/settings",
                     }
                 )

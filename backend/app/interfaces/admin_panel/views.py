@@ -8,6 +8,7 @@ from sqladmin import BaseView, ModelView, expose
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
+from app.application.admin.shop_moderation import AdminShopModerationService
 from app.application.billing.payout_service import MerchantPayoutService, PayoutError
 from app.application.billing.platform_profit_service import (
     PlatformProfitError,
@@ -52,6 +53,8 @@ class ShopAdmin(_ReadOnly, model=ShopModel):
         ShopModel.owner_phone,
         ShopModel.shop_type,
         ShopModel.is_verified,
+        ShopModel.verification_status,
+        ShopModel.verification_reason,
         ShopModel.is_active,
         ShopModel.is_blocked,
         ShopModel.rating,
@@ -650,6 +653,228 @@ class MerchantPayoutView(BaseView):
 </div></body></html>"""
 
 
+</div></body></html>"""
+
+
+class AdminDashboardView(BaseView):
+    """Platforma boshqaruv — CRM uslubidagi umumiy ko'rinish."""
+
+    name = "Boshqaruv paneli"
+    icon = "fa-solid fa-gauge-high"
+
+    @expose("/", methods=["GET"])
+    async def dashboard(self, request: Request):
+        async with AsyncSessionFactory() as session:
+            mod = AdminShopModerationService(session)
+            counts = await mod.dashboard_counts()
+            from app.application.billing.platform_profit_service import PlatformProfitService
+
+            profit = await PlatformProfitService(session).summary()
+            pending_shops = await mod.list_pending(limit=5)
+
+        cards = [
+            ("Kutilayotgan do'konlar", counts["pending_shops"], "/admin/shop-moderation", "#2563eb"),
+            ("To'lov so'rovlari", counts["pending_payouts"], "/admin/merchant-payouts", "#b45309"),
+            ("CRM murojaatlar", counts["open_support_tickets"], "/admin/merchant-support-ticket/list", "#7c3aed"),
+            ("Yechish mumkin (foyda)", int(profit.get("withdrawable_uzs") or 0), "/admin/platform-profit", "#16a34a"),
+        ]
+        card_html = "".join(
+            f'<a class="card link" href="{href}"><div class="label">{html.escape(label)}</div>'
+            f'<div class="val">{_fmt(val) if isinstance(val, (int, float)) else html.escape(str(val))}</div></a>'
+            for label, val, href, _ in cards
+        )
+        rows = []
+        for s in pending_shops:
+            img = html.escape(s.storefront_image_url or s.logo_url or "")
+            rows.append(
+                "<tr>"
+                f'<td>{html.escape(s.name)}</td>'
+                f'<td>{html.escape(s.owner_phone or "")}</td>'
+                f'<td>{html.escape(s.market_zone or "")}</td>'
+                f'<td><a href="/admin/shop-moderation?shop={s.id}">Ko\'rish →</a></td>'
+                "</tr>"
+            )
+        rows_html = "".join(rows) or '<tr><td colspan="4" style="color:#94a3b8">Kutilayotgan ariza yo\'q</td></tr>'
+
+        body = f"""<!doctype html>
+<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bozorliii Admin</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin:0; background:#0f172a; color:#e2e8f0; }}
+  .wrap {{ max-width: 1000px; margin:0 auto; padding:24px 16px 64px; }}
+  h1 {{ font-size:24px; margin:0 0 8px; }}
+  .sub {{ color:#94a3b8; font-size:14px; margin-bottom:24px; }}
+  .cards {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:28px; }}
+  .card {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; text-decoration:none; color:inherit; }}
+  .card.link:hover {{ border-color:#38bdf8; }}
+  .card .label {{ color:#94a3b8; font-size:12px; text-transform:uppercase; }}
+  .card .val {{ font-size:28px; font-weight:700; margin-top:8px; }}
+  .panel {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; margin-bottom:20px; }}
+  .panel h2 {{ font-size:16px; margin:0 0 12px; }}
+  table {{ width:100%; border-collapse:collapse; font-size:14px; }}
+  th, td {{ text-align:left; padding:10px; border-bottom:1px solid #334155; }}
+  th {{ color:#94a3b8; }}
+  a {{ color:#38bdf8; }}
+  .links {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }}
+  .btn {{ background:#334155; color:#e2e8f0; padding:8px 14px; border-radius:8px; text-decoration:none; font-size:13px; }}
+</style></head><body><div class="wrap">
+  <h1>Boshqaruv paneli</h1>
+  <div class="sub">Do'kon moderatsiyasi, to'lovlar, foyda — barchasi shu yerdan.</div>
+  <div class="cards">{card_html}</div>
+  <div class="panel">
+    <h2>So'nggi do'kon arizalari</h2>
+    <table><thead><tr><th>Do'kon</th><th>Telefon</th><th>Bozor</th><th></th></tr></thead>
+    <tbody>{rows_html}</tbody></table>
+    <div class="links">
+      <a class="btn" href="/admin/shop-moderation">Barcha arizalar</a>
+      <a class="btn" href="/admin/shop/list">Do'konlar jadvali</a>
+      <a class="btn" href="/admin/merchant-payouts">To'lovlar</a>
+      <a class="btn" href="/admin/platform-profit">Platforma foydasi</a>
+    </div>
+  </div>
+</div></body></html>"""
+        return HTMLResponse(body)
+
+
+class ShopModerationView(BaseView):
+    """Do'kon ro'yxatdan o'tish — qo'lda tasdiqlash / rad etish."""
+
+    name = "Do'kon moderatsiyasi"
+    icon = "fa-solid fa-user-check"
+
+    @expose("/shop-moderation", methods=["GET", "POST"])
+    async def moderation_page(self, request: Request):
+        path = "/admin/shop-moderation"
+        shop_focus = request.query_params.get("shop")
+        if request.method == "POST":
+            return await self._handle_post(request, path)
+
+        msg = request.query_params.get("msg")
+        err = request.query_params.get("err")
+        async with AsyncSessionFactory() as session:
+            svc = AdminShopModerationService(session)
+            pending = await svc.list_pending(limit=100)
+            focus = None
+            if shop_focus:
+                try:
+                    from uuid import UUID
+
+                    focus = await svc.get_shop(UUID(shop_focus))
+                except ValueError:
+                    focus = None
+
+        return HTMLResponse(self._render(pending, focus=focus, msg=msg, err=err))
+
+    async def _handle_post(self, request: Request, path: str):
+        from uuid import UUID
+
+        from app.application.admin.shop_moderation import ShopModerationError
+
+        form = await request.form()
+        action = str(form.get("action") or "")
+        shop_id_raw = str(form.get("shop_id") or "")
+        try:
+            shop_id = UUID(shop_id_raw)
+        except ValueError:
+            return RedirectResponse(f"{path}?err=Noto'g'ri do'kon ID", status_code=303)
+
+        async with AsyncSessionFactory() as session:
+            svc = AdminShopModerationService(session)
+            try:
+                if action == "approve":
+                    await svc.approve(shop_id, note=str(form.get("note") or "") or None)
+                    return RedirectResponse(f"{path}?msg=Tasdiqlandi", status_code=303)
+                if action == "reject":
+                    reason = str(form.get("reason") or "").strip() or "Moderator talablariga mos emas."
+                    await svc.reject(shop_id, reason=reason)
+                    return RedirectResponse(f"{path}?msg=Rad etildi", status_code=303)
+            except ShopModerationError as exc:
+                return RedirectResponse(f"{path}?err={html.escape(str(exc))}", status_code=303)
+        return RedirectResponse(path, status_code=303)
+
+    def _render(self, pending: list, *, focus, msg: str | None, err: str | None) -> str:
+        flash = ""
+        if msg:
+            flash += f'<div class="flash ok">{html.escape(msg)}</div>'
+        if err:
+            flash += f'<div class="flash err">{html.escape(err)}</div>'
+
+        detail = ""
+        if focus:
+            img = focus.storefront_image_url or focus.logo_url or ""
+            img_html = (
+                f'<img src="{html.escape(img)}" alt="vitrina" style="max-width:280px;border-radius:12px;margin:12px 0">'
+                if img
+                else "<p style='color:#94a3b8'>Rasm yo'q</p>"
+            )
+            detail = f"""
+            <div class="panel focus">
+              <h2>{html.escape(focus.name)}</h2>
+              <p>📞 {html.escape(focus.owner_phone or "")} · {html.escape(focus.market_zone or "")} · {html.escape(focus.block_sector or "")} {html.escape(focus.stall_number or "")}</p>
+              {img_html}
+              <form method="post" style="margin-top:12px">
+                <input type="hidden" name="shop_id" value="{focus.id}">
+                <input type="hidden" name="action" value="approve">
+                <input type="text" name="note" placeholder="Izoh (ixtiyoriy)" style="width:220px">
+                <button class="btn ok" type="submit">✅ Tasdiqlash</button>
+              </form>
+              <form method="post" style="margin-top:8px" onsubmit="return confirm('Rad etilsinmi?')">
+                <input type="hidden" name="shop_id" value="{focus.id}">
+                <input type="hidden" name="action" value="reject">
+                <input type="text" name="reason" placeholder="Rad etish sababi" required style="width:280px">
+                <button class="btn danger" type="submit">❌ Rad etish</button>
+              </form>
+            </div>"""
+
+        rows = []
+        for s in pending:
+            rows.append(
+                "<tr>"
+                f'<td>{html.escape(s.name)}</td>'
+                f'<td>{html.escape(s.owner_phone or "")}</td>'
+                f'<td>{html.escape(s.market_zone or "-")}</td>'
+                f'<td>{html.escape(s.verification_status or "")}</td>'
+                f'<td><a href="/admin/shop-moderation?shop={s.id}">Moderatsiya</a></td>'
+                "</tr>"
+            )
+        rows_html = "".join(rows) or '<tr><td colspan="5" style="text-align:center;color:#94a3b8">Kutilayotgan ariza yo\'q 🎉</td></tr>'
+
+        return f"""<!doctype html>
+<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Do'kon moderatsiyasi</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin:0; background:#0f172a; color:#e2e8f0; }}
+  .wrap {{ max-width: 960px; margin:0 auto; padding:24px 16px 64px; }}
+  a.back {{ color:#38bdf8; text-decoration:none; font-size:14px; }}
+  h1 {{ font-size:22px; margin:12px 0 4px; }}
+  .sub {{ color:#94a3b8; font-size:13px; margin-bottom:20px; }}
+  .panel {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; margin-bottom:20px; }}
+  .panel.focus {{ border-color:#2563eb; }}
+  table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+  th, td {{ text-align:left; padding:8px 10px; border-bottom:1px solid #334155; }}
+  th {{ color:#94a3b8; }}
+  input[type=text] {{ background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:8px; padding:8px 10px; }}
+  .btn {{ border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-weight:600; color:#fff; }}
+  .btn.ok {{ background:#16a34a; }} .btn.danger {{ background:#dc2626; }}
+  .flash {{ padding:10px 14px; border-radius:8px; margin-bottom:16px; }}
+  .flash.ok {{ background:#065f46; }} .flash.err {{ background:#7f1d1d; }}
+  a {{ color:#38bdf8; }}
+</style></head><body><div class="wrap">
+  <a class="back" href="/admin">&larr; Admin</a>
+  <h1>Do'kon moderatsiyasi</h1>
+  <div class="sub">AI o'chirilgan — har bir arizani qo'lda tasdiqlang yoki rad eting. Do'konchiga Telegram xabar ketadi.</div>
+  {flash}
+  {detail}
+  <div class="panel">
+    <h2>Kutilayotgan arizalar ({len(pending)})</h2>
+    <table>
+      <thead><tr><th>Do'kon</th><th>Telefon</th><th>Bozor</th><th>Holat</th><th></th></tr></thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+  </div>
+</div></body></html>"""
+
+
 ALL_MODEL_VIEWS = [
     ShopAdmin,
     ProductAdmin,
@@ -664,4 +889,4 @@ ALL_MODEL_VIEWS = [
     DeliveryClaimAdmin,
 ]
 
-ALL_CUSTOM_VIEWS = [PlatformProfitView, MerchantPayoutView]
+ALL_CUSTOM_VIEWS = [AdminDashboardView, ShopModerationView, PlatformProfitView, MerchantPayoutView]

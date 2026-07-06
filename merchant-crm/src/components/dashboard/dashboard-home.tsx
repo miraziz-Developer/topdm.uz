@@ -192,8 +192,8 @@ export function DashboardHome() {
                 <p className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-1 text-xs font-medium text-warning-foreground">
                   <Sparkles className="h-3.5 w-3.5" />
                   {today?.verification_status === "rejected"
-                    ? `AI rad etdi: ${today?.verification_reason || "profilni yangilang"}`
-                    : "Do'kon AI tekshiruvida — Telegram botda tasdiqlang"}
+                    ? `Rad etildi: ${today?.verification_reason || "profilni yangilang"}`
+                    : "Moderator ko'rib chiqmoqda — odatda 24 soat ichida"}
                 </p>
               ) : null}
             </div>

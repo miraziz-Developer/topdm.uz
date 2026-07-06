@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.admin.market_analytics import AdminMarketAnalyticsService
+from app.application.admin.shop_moderation import AdminShopModerationService, PENDING_STATUSES
 from app.core.config import get_settings
 from app.infrastructure.db.session import get_db_session
 from app.infrastructure.repositories.finance_repo import FinanceRepository
@@ -80,7 +81,11 @@ async def admin_list_pending_shops(
 
     result = await db.execute(
         select(ShopModel)
-        .where(ShopModel.is_active == True, ShopModel.is_verified == False)
+        .where(
+            ShopModel.is_active == True,
+            ShopModel.is_verified == False,
+            ShopModel.verification_status.in_(PENDING_STATUSES),
+        )
         .order_by(ShopModel.name.asc())
         .limit(min(limit, 200))
     )
@@ -90,6 +95,11 @@ async def admin_list_pending_shops(
 
 class VerifyShopBody(BaseModel):
     verified: bool = True
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class RejectShopBody(BaseModel):
+    reason: str = Field(default="Moderator talablariga mos emas.", max_length=500)
 
 
 @router.get("/shops/{shop_id}/share-kit")
@@ -118,14 +128,33 @@ async def admin_verify_shop(
     _: None = Depends(require_admin_key),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    from app.infrastructure.db.models import ShopModel
+    from app.application.admin.shop_moderation import ShopModerationError
 
-    shop = await db.get(ShopModel, shop_id)
-    if not shop:
-        raise HTTPException(status_code=404, detail="Shop not found")
-    shop.is_verified = body.verified
-    await db.commit()
-    await db.refresh(shop)
+    svc = AdminShopModerationService(db)
+    try:
+        if body.verified:
+            shop = await svc.approve(shop_id, note=body.reason)
+        else:
+            shop = await svc.reject(shop_id, reason=body.reason or "Rad etildi.")
+    except ShopModerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return shop_to_dict(shop)
+
+
+@router.post("/shops/{shop_id}/reject")
+async def admin_reject_shop(
+    shop_id: UUID,
+    body: RejectShopBody,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    from app.application.admin.shop_moderation import ShopModerationError
+
+    svc = AdminShopModerationService(db)
+    try:
+        shop = await svc.reject(shop_id, reason=body.reason)
+    except ShopModerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return shop_to_dict(shop)
 
 
