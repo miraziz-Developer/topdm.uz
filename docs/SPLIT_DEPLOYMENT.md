@@ -127,3 +127,15 @@ Build og‘ir bo‘lsa — image larni Mac/CI da build qilib registry orqali tor
 | 502 Bad Gateway | CORE `CORE_BACKEND_HOST` noto‘g‘ri yoki firewall 8000 yopiq |
 | CRM API ishlamaydi | `BACKEND_API_URL` CORE private IP bo‘lishi kerak |
 | OOM | `deploy/setup-swap.sh 2` ikkala serverda |
+
+## Split performance (nagruzka kam, tezroq)
+
+| Optimizatsiya | Ta'sir |
+|---------------|--------|
+| `mem_limit` har container | OOM oldini oladi, server qotmaydi |
+| `AI_WARMUP_ON_START=false` | API 60–90s tezroq ishga tushadi |
+| `FASHION_DETECT_BACKEND=heuristic` | ~400MB RAM tejash (YOLOS o'rniga) |
+| Bot/Celery → `Dockerfile.celery` | Torch yo'q, yengil jarayon |
+| Postgres `shared_buffers=256MB` | DB barqaror |
+| Nginx `/_next/static/` cache | Sahifa tezroq yuklanadi |
+| `sysctl-split-tune.sh` | Tarmoq va swap optimizatsiya |
