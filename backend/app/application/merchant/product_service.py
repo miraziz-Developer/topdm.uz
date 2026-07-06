@@ -29,8 +29,33 @@ class PublishPendingProductError(Exception):
         super().__init__(message)
 
 
+AWAITING_REVIEW = "awaiting_review"
+
+
+def _stored_image_urls(attrs: dict) -> list[str]:
+    urls: list[str] = []
+    for raw in attrs.get("images") or []:
+        text = str(raw).strip()
+        if text:
+            urls.append(text)
+    for key in ("image_url", "preview_url", "thumbnail_url"):
+        text = str(attrs.get(key) or "").strip()
+        if text:
+            urls.append(text)
+    variants = attrs.get("variants")
+    if isinstance(variants, list):
+        for variant in variants:
+            if not isinstance(variant, dict):
+                continue
+            for raw in variant.get("images") or []:
+                text = str(raw).strip()
+                if text:
+                    urls.append(text)
+    return list(dict.fromkeys(urls))
+
+
 class MerchantProductService:
-    """Pending product moderation → live catalog (`products` + pgvector embedding)."""
+    """Telegram/CRM draft → live catalog (`products` + pgvector embedding)."""
 
     def __init__(
         self,
@@ -71,7 +96,7 @@ class MerchantProductService:
                     image_url=images[0] if images else None,
                     status="published",
                 )
-        if row.status not in {"pending", "approved"}:
+        if row.status not in {"pending", "rejected", "approved", AWAITING_REVIEW}:
             raise PublishPendingProductError("invalid_status", f"Cannot publish status={row.status}")
 
         attrs = dict(row.vision_attributes or {})
@@ -118,10 +143,20 @@ class MerchantProductService:
                     url = await _resolve_file_id(str(file_id))
                     if url:
                         resolved.append(url)
+                if not resolved:
+                    resolved = [
+                        str(u).strip()
+                        for u in (color_row.get("image_urls") or [])
+                        if str(u).strip()
+                    ]
                 color_row["image_urls"] = resolved
                 image_urls.extend(resolved)
         else:
             primary_url = await _resolve_file_id(row.telegram_file_id)
+            if not primary_url:
+                for candidate in _stored_image_urls(attrs):
+                    primary_url = candidate
+                    break
             if not primary_url:
                 raise PublishPendingProductError("image_failed", "Rasmni saqlab bo'lmadi")
             image_urls = [primary_url]
@@ -144,7 +179,7 @@ class MerchantProductService:
         if not shop.is_verified:
             raise PublishPendingProductError(
                 "shop_not_verified",
-                "Do'kon hali AI tasdiqlanmagan. Telegram botda do'kon ro'yxatini tasdiqlang yoki qayta tekshirishni bosing.",
+                "Do'kon hali tasdiqlanmagan. Moderator arizangizni ko'rib chiqmoqda (24 soat ichida).",
             )
 
         from app.application.merchant.category_resolver import enrich_attrs_with_category
@@ -190,27 +225,6 @@ class MerchantProductService:
                 "image_failed",
                 "Mahsulot rasmini yuklab bo'lmadi — qayta rasm yuboring.",
             )
-
-        from app.application.merchant.ai_moderator import ShopAiModeratorService
-
-        category_label = str(attrs.get("category_label") or attrs.get("category") or "")
-        moderator = ShopAiModeratorService(self._session)
-        ai_verdict = await moderator.review_product_publish(
-            shop=shop,
-            name=name,
-            price_uzs=price,
-            category_label=category_label or None,
-            image_bytes=img_bytes,
-            description=payload.description,
-        )
-        if not ai_verdict.approved:
-            await self._repo.update_pending_product(
-                row,
-                status="rejected",
-                moderation_reason=ai_verdict.reason,
-            )
-            await self._session.commit()
-            raise PublishPendingProductError("ai_rejected", ai_verdict.reason)
 
         variant_attrs, _total_stock = build_attributes_from_catalog(
             catalog_payload,

@@ -57,6 +57,13 @@ def merchant_menu_keyboard(shop_id: uuid.UUID) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
+def pending_approval_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="Ariza holati")]],
+        resize_keyboard=True,
+    )
+
+
 def start_inline_keyboard(shop_id: uuid.UUID | None) -> InlineKeyboardMarkup:
     crm_base = get_settings().merchant_crm_webapp_url.rstrip("/")
     rows: list[list[InlineKeyboardButton]] = [

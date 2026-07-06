@@ -9,7 +9,6 @@ from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.application.merchant.ai_inspector import AIInspectorService
 from app.application.merchant.category_resolver import enrich_attrs_with_category, resolve_category_from_attrs
 from app.application.merchant.category_size_presets import (
     size_group_for_attrs,
@@ -123,6 +122,21 @@ async def _resolve_shop_id(state: FSMContext, chat_id: int) -> uuid.UUID | None:
         await state.set_state(MerchantBotStates.ready)
         await state.update_data(shop_id=str(shop.id))
         return shop.id
+
+
+async def _shop_verification_message(shop_id: uuid.UUID) -> str | None:
+    """Tasdiqlanmagan do'kon uchun xabar; tasdiqlangan bo'lsa None."""
+    async with AsyncSessionFactory() as session:
+        shop = await MarketplaceRepository(session).get_shop(shop_id)
+    if not shop or shop.is_verified:
+        return None
+    if shop.verification_status == "rejected":
+        reason = (shop.verification_reason or "").strip()
+        return f"❌ Ariza rad etildi.{f' {reason}' if reason else ''}"
+    return (
+        "⏳ Do'kon hali tasdiqlanmagan. Moderator arizangizni ko'rib chiqmoqda (24 soat ichida).\n"
+        "Tasdiqlangach mahsulot qo'shishingiz mumkin."
+    )
 
 
 def _cb(data: str) -> str:
@@ -332,7 +346,15 @@ async def _subcategory_keyboard(
 
 
 @prod_router.message(MerchantBotStates.ready, F.text == "Mahsulot yuklash (rasm)")
-async def on_product_upload_menu(message: Message) -> None:
+async def on_product_upload_menu(message: Message, state: FSMContext) -> None:
+    shop_id = await _resolve_shop_id(state, int(message.chat.id))
+    if not shop_id:
+        await message.answer("Avval /register yoki /start shop_<UUID> bilan ulanishni yakunlang.")
+        return
+    blocked = await _shop_verification_message(shop_id)
+    if blocked:
+        await message.answer(blocked)
+        return
     await message.answer(
         "Mahsulot rasmini yuboring — AI nom, kategoriya va narxni taxmin qiladi.\n"
         "Keyin «+ Rang/rasm» bilan boshqa ranglar qo'shing, «Razmerlar» dan o'lcham tanlang.\n"
@@ -345,6 +367,10 @@ async def on_manual_product_start(message: Message, state: FSMContext) -> None:
     shop_id = await _resolve_shop_id(state, int(message.chat.id))
     if not shop_id:
         await message.answer("Avval /register yoki /start shop_<UUID> bilan ulanishni yakunlang.")
+        return
+    blocked = await _shop_verification_message(shop_id)
+    if blocked:
+        await message.answer(blocked)
         return
     await state.set_state(MerchantBotStates.product_manual_photo)
     await message.answer("Mahsulot rasmini yuboring (AI ishlatilmaydi).")
@@ -359,6 +385,10 @@ async def on_manual_product_photo(message: Message, state: FSMContext, bot: Bot)
         await message.answer("Avval /register yoki /start shop_<UUID> bilan ulanishni yakunlang.")
         await state.set_state(MerchantBotStates.ready)
         return
+    blocked = await _shop_verification_message(shop_id)
+    if blocked:
+        await message.answer(blocked)
+        return
     photo = message.photo[-1]
     buf = io.BytesIO()
     try:
@@ -368,20 +398,11 @@ async def on_manual_product_photo(message: Message, state: FSMContext, bot: Bot)
         return
     raw = buf.getvalue()
     async with AsyncSessionFactory() as session:
-        inspector = AIInspectorService(session)
-        moderation = await inspector.moderate_image(raw)
-        if not moderation.allowed:
-            await message.answer(f"Rasm rad etildi: {moderation.reason}")
-            return
         attrs = _manual_fallback_attrs()
         caption_price = _parse_price_from_caption(message.caption)
         if caption_price:
             attrs["price_uzs"] = caption_price
-        attrs["moderation"] = {
-            "allowed": True,
-            "reason": moderation.reason,
-            "flags": moderation.flags,
-        }
+        attrs["moderation"] = {"allowed": True, "reason": "manual_review", "flags": []}
         attrs = _attach_variant_draft(attrs, telegram_file_id=photo.file_id)
         repo = MarketplaceRepository(session)
         row = await repo.create_merchant_pending_product(
@@ -457,6 +478,10 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
     if not shop_id:
         await message.answer("Avval /register yoki /start shop_<UUID> bilan ulanishni yakunlang.")
         return
+    blocked = await _shop_verification_message(shop_id)
+    if blocked:
+        await message.answer(blocked)
+        return
     photo = message.photo[-1]
     buf = io.BytesIO()
     try:
@@ -475,16 +500,6 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
     try:
         async with asyncio.timeout(_AI_VISION_TIMEOUT_SEC):
             async with AsyncSessionFactory() as session:
-                inspector = AIInspectorService(session)
-                moderation = await inspector.moderate_image(raw)
-                if not moderation.allowed:
-                    hint = ""
-                    if "moderation_degraded" in (moderation.flags or []):
-                        hint = "\n\n💡 «Mahsulot qo'lda» tugmasi bilan nom/narxni o'zingiz kiriting."
-                    await status_msg.edit_text(f"Rasm rad etildi: {moderation.reason}{hint}")
-                    return
-                if "moderation_degraded" in (moderation.flags or []):
-                    ai_note = "⚠️ AI vaqtincha cheklangan — nom va narxni tekshiring.\n\n"
                 try:
                     attrs = await analyze_product_photo(raw)
                     if str(attrs.get("product_name") or "").strip() in {"", "Yangi mahsulot"}:
@@ -493,13 +508,7 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
                     logger.exception("product_photo_vision_failed")
                     attrs = _manual_fallback_attrs(reason="vision_failed")
                     ai_note = "AI ishlamadi — qo'lda to'ldiring.\n\n"
-                if moderation.category:
-                    attrs.setdefault("category_hint", moderation.category)
-                attrs["moderation"] = {
-                    "allowed": True,
-                    "reason": moderation.reason,
-                    "flags": moderation.flags,
-                }
+                attrs["moderation"] = {"allowed": True, "reason": "manual_review", "flags": []}
                 caption_price = _parse_price_from_caption(message.caption)
                 if caption_price and not attrs.get("price_uzs"):
                     attrs["price_uzs"] = caption_price
@@ -1176,10 +1185,10 @@ async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
                         "stock_required": "Omborda nechta borligini kiriting (kamida 1 dona).",
                         "embedding_failed": "Qidiruv indeksi xatosi — qayta urinib ko'ring.",
                         "publish_failed": "Mahsulot saqlanmadi — qayta urinib ko'ring.",
-                        "shop_not_verified": "Do'kon hali AI tasdiqlanmagan. Avval do'kon profilingizni tasdiqlang.",
+                        "shop_not_verified": "Do'kon hali tasdiqlanmagan. Moderator arizangizni ko'rib chiqmoqda.",
                     }.get(exc.code, str(exc))
                     if exc.code == "ai_rejected":
-                        friendly = f"AI moderator rad etdi: {exc}"
+                        friendly = str(exc)
                     await query.message.answer(f"Yuklashda xatolik: {friendly}")
                     return
     except TimeoutError:

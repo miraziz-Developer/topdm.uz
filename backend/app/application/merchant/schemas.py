@@ -31,7 +31,7 @@ class RejectPendingProductRequest(BaseModel):
 
 class PublishPendingProductResult(BaseModel):
     pending_id: UUID
-    product_id: UUID
+    product_id: UUID | None = None
     product_name: str
     image_url: str | None
     status: str = "published"

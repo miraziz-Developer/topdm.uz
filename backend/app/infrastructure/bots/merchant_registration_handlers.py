@@ -21,6 +21,7 @@ from app.infrastructure.bots.merchant_bot_ui import (
     location_keyboard,
     market_zone_keyboard,
     merchant_menu_keyboard,
+    pending_approval_keyboard,
     shop_type_keyboard,
     start_inline_keyboard,
 )
@@ -79,10 +80,17 @@ async def cmd_register(message: Message, state: FSMContext, command: CommandObje
     if existing:
         await state.set_state(MerchantBotStates.ready)
         await state.update_data(shop_id=str(existing.id))
-        await message.answer(
-            f"Siz allaqachon ro'yxatdan o'tgansiz: {existing.name}",
-            reply_markup=merchant_menu_keyboard(existing.id),
-        )
+        if existing.is_verified:
+            await message.answer(
+                f"Siz allaqachon ro'yxatdan o'tgansiz: {existing.name}",
+                reply_markup=merchant_menu_keyboard(existing.id),
+            )
+        else:
+            await message.answer(
+                f"«{existing.name}» — ariza moderator ko'rib chiqmoqda.\n"
+                "Tasdiqlangach Telegram orqali CRM login va parol yuboriladi (24 soat ichida).",
+                reply_markup=pending_approval_keyboard(),
+            )
         return
 
     await state.clear()
@@ -497,24 +505,13 @@ async def reg_confirm_cb(query: CallbackQuery, state: FSMContext) -> None:
         return
 
     shop = result.shop
-    from app.core.config import get_settings
-
-    settings = get_settings()
-    crm_url = settings.merchant_crm_webapp_url.rstrip("/")
-
     await state.set_state(MerchantBotStates.ready)
     await state.update_data(shop_id=str(shop.id))
 
     text = (
         f"✅ Ariza qabul qilindi — «{shop.name}»\n\n"
-        f"Platforma moderatori tez orada ko'rib chiqadi (odatda 24 soat ichida). "
-        f"Tasdiqlangach SMS/Telegram orqali xabar beramiz.\n\n"
-        f"CRM Login: {result.login_code}\n"
-        f"Parol: {result.password_plain}\n"
-        f"Do'kon ID: {shop.id}\n\n"
-        f"📱 CRM — mahsulot va buyurtmalar\n"
-        f"🌐 Brauzer: {crm_url}/login\n\n"
-        "Hozircha CRM ga kirib mahsulot qo'shishingiz mumkin — saytda ko'rinish tasdiqdan keyin."
+        "Platforma moderatori tez orada ko'rib chiqadi (odatda 24 soat ichida).\n"
+        "Tasdiqlangach Telegram orqali CRM login va parol yuboriladi.\n\n"
+        "Hozircha mahsulot qo'shish mumkin emas — tasdiqdan keyin ochiladi."
     )
-    await query.message.answer(text, reply_markup=merchant_menu_keyboard(shop.id))
-    await query.message.answer("Tezkor:", reply_markup=start_inline_keyboard(shop.id))
+    await query.message.answer(text, reply_markup=pending_approval_keyboard())

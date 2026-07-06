@@ -207,7 +207,7 @@ export function ProductEditorSheet({ open, mode, product, onClose, onSaved }: Pr
           variantCatalog: variantPayload,
           wholesale: wholesaleToCreateForm(wholesale),
         });
-        toast.success("Mahsulot qo'shildi");
+        toast.success("Mahsulot qo'shildi — saytda chiqadi");
       } else if (product) {
         await updateMerchantProduct(product.id, {
           name: name.trim(),

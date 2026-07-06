@@ -111,8 +111,8 @@ export function ModerationQueue() {
     setRejectingId(id);
     try {
       const reason =
-        window.prompt("Rad etish sababi (ixtiyoriy):", "Moderatsiya talablariga mos emas") ||
-        "Moderatsiya talablariga mos emas";
+        window.prompt("Rad etish sababi (ixtiyoriy):", "Qoralama bekor qilindi") ||
+        "Qoralama bekor qilindi";
       await rejectPendingProduct(id, { reason });
       toast.success("Rad etildi");
       await load();
@@ -142,7 +142,7 @@ export function ModerationQueue() {
       {!items.length ? (
         <div className="crm-surface-card py-16 text-center">
           <ImageIcon className="mx-auto h-10 w-10 text-text-400/50" />
-          <p className="mt-3 font-medium text-text-100">Tasdiqlash uchun yangi rasm yo&apos;q</p>
+          <p className="mt-3 font-medium text-text-100">Yuklash uchun yangi rasm yo&apos;q</p>
           <p className="mt-1 text-sm text-text-400">Botga mahsulot rasmini yuboring</p>
         </div>
       ) : (
@@ -183,7 +183,7 @@ export function ModerationQueue() {
 
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">
-                        Tekshirish kerak
+                        Qoralama
                       </p>
                       <h3 className="mt-0.5 text-base font-semibold text-text-100">{pendingName(item)}</h3>
                       <p className="mt-1 text-sm text-text-400">
@@ -195,6 +195,7 @@ export function ModerationQueue() {
                           </>
                         ) : null}
                       </p>
+
 
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button

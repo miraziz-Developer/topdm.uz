@@ -44,7 +44,7 @@ export function MerchantCrmLauncher({ variant = "dock", className }: MerchantCrm
               {shopName ? `${shopName} — CRM` : "Merchant CRM"}
             </h3>
             <p className="mt-1 text-sm text-ink-500">
-              Buyurtmalar, leadlar, mijoz chat, mahsulot moderatsiyasi va bannerlar.
+              Buyurtmalar, leadlar, mijoz chat, mahsulot katalogi va bannerlar.
             </p>
             <Button type="button" className="mt-4 w-full sm:w-auto" onClick={onOpen}>
               <LayoutDashboard className="mr-2 h-4 w-4" />

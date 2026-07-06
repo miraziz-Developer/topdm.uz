@@ -29,6 +29,16 @@ async def login_merchant_with_password(
     if shop is None or not shop.is_active:
         raise HTTPException(status_code=403, detail="Do'kon faol emas")
 
+    if not shop.is_verified:
+        if shop.verification_status == "rejected":
+            reason = (shop.verification_reason or "").strip()
+            detail = f"Ariza rad etildi. {reason}" if reason else "Ariza rad etildi."
+            raise HTTPException(status_code=403, detail=detail)
+        raise HTTPException(
+            status_code=403,
+            detail="Arizangiz moderator tomonidan ko'rib chiqilmoqda. Tasdiqlangach CRM ochiladi (24 soat ichida).",
+        )
+
     owner_phone = (shop.owner_phone or "").strip()
     if not owner_phone:
         raise HTTPException(status_code=400, detail="Do'kon telefoni topilmadi — bot orqali ro'yxatdan o'ting")
@@ -57,6 +67,15 @@ async def send_merchant_shop_otp(session: AsyncSession, *, login_code: str) -> d
     shop = await repo.get_shop(cred.shop_id)
     if shop is None:
         raise HTTPException(status_code=404, detail="Do'kon topilmadi")
+    if not shop.is_verified:
+        if shop.verification_status == "rejected":
+            reason = (shop.verification_reason or "").strip()
+            detail = f"Ariza rad etildi. {reason}" if reason else "Ariza rad etildi."
+            raise HTTPException(status_code=403, detail=detail)
+        raise HTTPException(
+            status_code=403,
+            detail="Arizangiz moderator tomonidan ko'rib chiqilmoqda. Tasdiqlangach CRM ochiladi.",
+        )
     if not shop.telegram_chat_id:
         raise HTTPException(
             status_code=400,
@@ -90,6 +109,15 @@ async def verify_merchant_shop_otp(
     shop = await repo.get_shop(cred.shop_id)
     if shop is None or not shop.telegram_chat_id:
         raise HTTPException(status_code=400, detail="Do'kon bot bilan ulanmagan")
+    if not shop.is_verified:
+        if shop.verification_status == "rejected":
+            reason = (shop.verification_reason or "").strip()
+            detail = f"Ariza rad etildi. {reason}" if reason else "Ariza rad etildi."
+            raise HTTPException(status_code=403, detail=detail)
+        raise HTTPException(
+            status_code=403,
+            detail="Arizangiz moderator tomonidan ko'rib chiqilmoqda. Tasdiqlangach CRM ochiladi.",
+        )
 
     try:
         telegram_id = await telegram_otp_gateway.verify_otp_for_chat(

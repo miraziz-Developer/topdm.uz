@@ -47,7 +47,7 @@ export const CRM_MAIN_NAV: CrmNavItem[] = [
   {
     href: "/dashboard/products",
     label: "Mahsulotlar",
-    description: "Katalog va moderatsiya",
+    description: "Katalog va yuklash",
     icon: Package,
   },
   {

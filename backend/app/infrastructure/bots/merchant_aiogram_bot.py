@@ -19,6 +19,7 @@ from app.core.config import get_settings
 from app.infrastructure.bots.merchant_bot_ui import (
     contact_keyboard,
     merchant_menu_keyboard,
+    pending_approval_keyboard,
     start_inline_keyboard,
 )
 from app.infrastructure.bots.merchant_bulk_handlers import bulk_router
@@ -69,17 +70,24 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         if existing is not None:
             await state.set_state(MerchantBotStates.ready)
             await state.update_data(shop_id=str(existing.id))
-            await message.answer(
-                f"Qayta xush kelibsiz, {existing.name}!\n\n"
-                "📸 Rasm yuboring — izohda narx yozing (150000)\n"
-                "✍️ «Mahsulot qo'lda» — nom va narxni o'zingiz kiriting\n"
-                "📱 CRM Panel — buyurtma, chat, statistika\n"
-                "📷 QR Skaner — mijoz kelganda tez skaner qiling\n"
-                "🗺 Xarita — rasta joylashuvi\n"
-                "🏷 /chegirma 10 — barcha narxga chegirma",
-                reply_markup=merchant_menu_keyboard(existing.id),
-            )
-            await message.answer("Tezkor:", reply_markup=start_inline_keyboard(existing.id))
+            if existing.is_verified:
+                await message.answer(
+                    f"Qayta xush kelibsiz, {existing.name}!\n\n"
+                    "📸 Rasm yuboring — izohda narx yozing (150000)\n"
+                    "✍️ «Mahsulot qo'lda» — nom va narxni o'zingiz kiriting\n"
+                    "📱 CRM Panel — buyurtma, chat, statistika\n"
+                    "📷 QR Skaner — mijoz kelganda tez skaner qiling\n"
+                    "🗺 Xarita — rasta joylashuvi\n"
+                    "🏷 /chegirma 10 — barcha narxga chegirma",
+                    reply_markup=merchant_menu_keyboard(existing.id),
+                )
+                await message.answer("Tezkor:", reply_markup=start_inline_keyboard(existing.id))
+            else:
+                await message.answer(
+                    f"«{existing.name}» — ariza moderator ko'rib chiqmoqda.\n"
+                    "Tasdiqlangach Telegram orqali CRM login va parol yuboriladi.",
+                    reply_markup=pending_approval_keyboard(),
+                )
             return
 
         # Tugallanmagan ro'yxatdan o'tish/qoralama holatini tozalaymiz
@@ -111,11 +119,39 @@ async def cmd_help(message: Message) -> None:
         "/register — yangi do'kon ro'yxatdan o'tish\n"
         "/start shop_<UUID> — admin havolasi\n"
         "/crm — CRM tugmalari\n"
-        "Rasm — mahsulot (AI + tasdiq)\n"
+        "Rasm — mahsulot qo'shish\n"
         "Mahsulot qo'lda — rasm + nom + narx\n"
         "Ombor yangilash — tugagan mahsulotga zaxira qo'shish\n"
         "QR Skaner — mijoz QR ni skaner qiling, buyurtma yopiladi\n"
         "Ovoz — tovar tavsifi (keyin rasm yuboring)"
+    )
+
+
+@router.message(F.text == "Ariza holati")
+async def cmd_application_status(message: Message, state: FSMContext) -> None:
+    shop = await _shop_for_chat(int(message.chat.id))
+    if shop is None:
+        await message.answer("Ariza topilmadi. /register bilan ro'yxatdan o'ting.")
+        return
+    if shop.is_verified:
+        await state.set_state(MerchantBotStates.ready)
+        await state.update_data(shop_id=str(shop.id))
+        await message.answer(
+            f"✅ «{shop.name}» tasdiqlangan. Mahsulot qo'shishingiz mumkin.",
+            reply_markup=merchant_menu_keyboard(shop.id),
+        )
+        return
+    if shop.verification_status == "rejected":
+        reason = (shop.verification_reason or "").strip() or "—"
+        await message.answer(
+            f"❌ «{shop.name}» arizasi rad etildi.\n\nModerator izohi:\n{reason}",
+            reply_markup=pending_approval_keyboard(),
+        )
+        return
+    await message.answer(
+        f"⏳ «{shop.name}» — moderator ko'rib chiqmoqda.\n"
+        "Odatda 24 soat ichida javob beramiz. Tasdiqlangach login va parol yuboriladi.",
+        reply_markup=pending_approval_keyboard(),
     )
 
 
@@ -137,6 +173,14 @@ async def cmd_crm(message: Message, state: FSMContext) -> None:
             await state.update_data(shop_id=str(shop_id))
     if shop_id is None:
         await message.answer("Avval /register yoki /start shop_<UUID> bilan ulaning.")
+        return
+    shop = await _shop_for_chat(int(message.chat.id))
+    if shop and not shop.is_verified:
+        await message.answer(
+            "CRM hali ochilmagan — ariza moderator ko'rib chiqmoqda.\n"
+            "Tasdiqlangach login va parol Telegram orqali yuboriladi.",
+            reply_markup=pending_approval_keyboard(),
+        )
         return
     await message.answer(
         "CRM va xarita:",

@@ -5,7 +5,6 @@ from uuid import UUID
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.merchant.ai_inspector import AIInspectorService
 from app.application.merchant.product_variants import build_attributes_from_catalog, parse_variant_catalog
 from app.application.merchant.schemas import (
     MerchantProductUpdateRequest,
@@ -64,6 +63,17 @@ class MerchantCatalogProductService:
         payload["variant_catalog"] = parse_variant_catalog(product.attributes)
         return payload
 
+    async def _require_verified_shop(self, shop_id: UUID):
+        shop = await self._repo.get_shop(shop_id)
+        if not shop:
+            raise CatalogProductError("not_found", "Do'kon topilmadi")
+        if not shop.is_verified:
+            raise CatalogProductError(
+                "shop_not_verified",
+                "Do'kon tasdiqlanmaguncha mahsulot qo'shib bo'lmaydi. Moderator arizangizni ko'rib chiqmoqda.",
+            )
+        return shop
+
     async def create_product(
         self,
         shop_id: UUID,
@@ -83,9 +93,7 @@ class MerchantCatalogProductService:
         units_per_pack: int | None = None,
         wholesale_pack: WholesalePackInput | None = None,
     ) -> dict:
-        shop = await self._repo.get_shop(shop_id)
-        if not shop:
-            raise CatalogProductError("not_found", "Do'kon topilmadi")
+        shop = await self._require_verified_shop(shop_id)
 
         name = name.strip()
         if len(name) < 2:
@@ -94,8 +102,6 @@ class MerchantCatalogProductService:
             raise CatalogProductError("invalid_price", "Narx 1 dan 99 999 999 gacha")
         if not image_bytes:
             raise CatalogProductError("image_required", "Rasm yuklang")
-
-        await self._moderate_image_bytes(image_bytes)
 
         ext = _extension_from_content_type(content_type)
         image_url = await self._media.save_product_image(
@@ -107,7 +113,6 @@ class MerchantCatalogProductService:
         all_images = [image_url]
         if extra_image_bytes:
             for raw, ctype, _color in extra_image_bytes:
-                await self._moderate_image_bytes(raw)
                 ext = _extension_from_content_type(ctype)
                 url = await self._media.save_product_image(
                     shop_id=shop_id,
@@ -117,19 +122,20 @@ class MerchantCatalogProductService:
                 )
                 all_images.append(url)
 
-        vector, visual_vector, attrs = await self._build_embeddings(
+        attrs: dict = {"source": "crm", "product_name": name, "price_uzs": price, "image_url": image_url, "images": all_images}
+        if description:
+            attrs["description"] = description
+
+        vector, visual_vector, embed_attrs = await self._build_embeddings(
             name=name,
             description=description,
             image_url=image_url,
             source="crm",
         )
+        attrs = {**embed_attrs, **attrs}
         if variant_catalog:
             catalog_dict = variant_catalog.model_dump()
-            attrs_patch, total_stock = build_attributes_from_catalog(
-                catalog_dict,
-                existing=attrs,
-            )
-            attrs = attrs_patch
+            attrs, total_stock = build_attributes_from_catalog(catalog_dict, existing=attrs)
             stock_count = total_stock if total_stock > 0 else stock_count
             if extra_image_bytes:
                 self._merge_uploaded_color_images(attrs, extra_image_bytes, all_images[1:])
@@ -318,7 +324,6 @@ class MerchantCatalogProductService:
 
         urls: list[str] = []
         for raw, ctype, _color in items:
-            await self._moderate_image_bytes(raw)
             ext = _extension_from_content_type(ctype)
             url = await self._media.save_product_image(
                 shop_id=shop_id,
@@ -376,8 +381,6 @@ class MerchantCatalogProductService:
             raise CatalogProductError("not_found", "Mahsulot topilmadi")
         if not image_bytes:
             raise CatalogProductError("image_required", "Rasm yuklang")
-
-        await self._moderate_image_bytes(image_bytes)
 
         ext = _extension_from_content_type(content_type)
         image_url = await self._media.save_product_image(
@@ -550,13 +553,6 @@ class MerchantCatalogProductService:
         merged_attrs["pricing_unit"] = pu
         merged_attrs["min_order_quantity"] = moq
         return sale, pu, moq, upp if sale == "Optom" and pu == "pack" else None, merged_attrs
-
-    async def _moderate_image_bytes(self, image_bytes: bytes) -> None:
-        inspector = AIInspectorService(self._session)
-        moderation = await inspector.moderate_image(image_bytes)
-        if not moderation.allowed:
-            raise CatalogProductError("image_rejected", moderation.reason or "Rasm rad etildi")
-
 
 def _extension_from_content_type(content_type: str) -> str:
     lowered = (content_type or "").lower()

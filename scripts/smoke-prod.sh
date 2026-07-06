@@ -41,6 +41,15 @@ check "www" "https://www.bozorliii.online/"
 check_json "API health (direct)" "$API/health"
 
 echo ""
+echo "== Moderation (do'kon only) =="
+code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$API/admin/product-moderation" || echo "000")
+if [[ "$code" == "404" || "$code" == "302" || "$code" == "307" ]]; then
+  ok "Product moderation removed ($code)"
+else
+  bad "Product moderation still reachable ($code)"
+fi
+
+echo ""
 if [[ "$fail" -eq 0 ]]; then
   echo "SMOKE PASSED"
   exit 0

@@ -126,7 +126,7 @@ export function DashboardHome() {
       {
         href: "/dashboard/products",
         title: "Mahsulotlar",
-        desc: "Katalog va moderatsiya",
+        desc: "Katalog va yuklash",
         icon: Package,
         meta: `${stats?.total_products ?? 0} ta`,
       },

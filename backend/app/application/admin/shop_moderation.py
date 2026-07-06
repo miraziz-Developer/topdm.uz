@@ -9,7 +9,10 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.db.models import ShopModel
+from app.application.merchant.password import hash_password
+from app.application.merchant.registration import generate_password
+from app.core.config import get_settings
+from app.infrastructure.db.models import MerchantCredentialModel, ShopModel
 
 PENDING_STATUSES = ("pending_review", "pending_ai")
 
@@ -52,9 +55,16 @@ class AdminShopModerationService:
             "note": note,
         }
         shop.trust_metrics = metrics
+        login_code, password_plain = await self._refresh_shop_credentials(shop.id)
         await self._session.commit()
         await self._session.refresh(shop)
-        await self._notify_shop(shop, approved=True, reason=note)
+        await self._notify_shop(
+            shop,
+            approved=True,
+            reason=note,
+            login_code=login_code,
+            password_plain=password_plain,
+        )
         return shop
 
     async def reject(self, shop_id: UUID, *, reason: str) -> ShopModel:
@@ -110,24 +120,62 @@ class AdminShopModerationService:
             raise ShopModerationError("shop_already_approved")
         return shop
 
-    async def _notify_shop(self, shop: ShopModel, *, approved: bool, reason: str | None) -> None:
+    async def _refresh_shop_credentials(self, shop_id: UUID) -> tuple[str, str]:
+        result = await self._session.execute(
+            select(MerchantCredentialModel).where(MerchantCredentialModel.shop_id == shop_id)
+        )
+        cred = result.scalar_one_or_none()
+        password_plain = generate_password()
+        if cred is None:
+            from app.application.merchant.registration import generate_login_code
+
+            shop = await self._session.get(ShopModel, shop_id)
+            login_code = generate_login_code(shop.name if shop else "shop")
+            cred = MerchantCredentialModel(
+                shop_id=shop_id,
+                login_code=login_code,
+                password_hash=hash_password(password_plain),
+            )
+            self._session.add(cred)
+        else:
+            cred.password_hash = hash_password(password_plain)
+        await self._session.flush()
+        return cred.login_code, password_plain
+
+    async def _notify_shop(
+        self,
+        shop: ShopModel,
+        *,
+        approved: bool,
+        reason: str | None,
+        login_code: str | None = None,
+        password_plain: str | None = None,
+    ) -> None:
         chat_id = shop.telegram_chat_id
         if not chat_id:
             return
         try:
             from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
 
-            gateway = TelegramNotifierGateway()
+            settings = get_settings()
+            token = settings.telegram_bot_token
+            if not token:
+                return
+            gateway = TelegramNotifierGateway(token)
             if approved:
+                crm_url = settings.merchant_crm_webapp_url.rstrip("/")
                 text = (
                     f"✅ «{shop.name}» platforma moderatori tomonidan tasdiqlandi!\n\n"
-                    "Endi mahsulotlaringiz saytda ko'rinadi. CRM va botdan foydalaning."
+                    f"CRM Login: {login_code}\n"
+                    f"Parol: {password_plain}\n\n"
+                    f"🌐 Brauzer: {crm_url}/login\n\n"
+                    "Endi mahsulot qo'shishingiz va buyurtmalarni boshqarishingiz mumkin."
                 )
             else:
                 text = (
                     f"❌ «{shop.name}» arizasi rad etildi.\n\n"
-                    f"Sabab: {reason or '—'}\n\n"
-                    "Ma'lumotlarni tuzatib, qayta murojaat qiling yoki @Bozorliiicrm_bot orqali yozing."
+                    f"Moderator izohi:\n{reason or '—'}\n\n"
+                    "Ma'lumotlarni tuzatib qayta murojaat qiling."
                 )
             await gateway.send_message(chat_id=int(chat_id), text=text)
         except Exception as exc:

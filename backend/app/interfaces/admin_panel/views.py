@@ -9,6 +9,13 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from app.application.admin.shop_moderation import AdminShopModerationService
+from app.interfaces.admin_panel.theme import (
+    admin_page,
+    empty_state,
+    flash_block,
+    stat_card,
+    table_panel,
+)
 from app.application.billing.payout_service import MerchantPayoutService, PayoutError
 from app.application.billing.platform_profit_service import (
     PlatformProfitError,
@@ -369,27 +376,19 @@ class PlatformProfitView(BaseView):
         return RedirectResponse(path, status_code=303)
 
     def _render(self, summary: dict, sweeps: list[dict], *, msg: str | None, err: str | None) -> str:
-        flash = ""
-        if msg:
-            flash += f'<div class="flash ok">{html.escape(msg)}</div>'
-        if err:
-            flash += f'<div class="flash err">{html.escape(err)}</div>'
+        flash = flash_block(msg=msg, err=err)
 
         rows = []
         for s in sweeps:
             status = s["status"]
-            badge = {
-                "pending": "#b45309",
-                "completed": "#15803d",
-                "cancelled": "#b91c1c",
-            }.get(status, "#475569")
+            badge_cls = {"pending": "pending", "completed": "ok", "cancelled": "no"}.get(status, "pending")
             actions = ""
             if status == "pending":
                 actions = (
-                    '<form method="post" style="display:inline" onsubmit="return confirm(\'Tasdiqlaysizmi?\')">'
+                    '<form method="post" style="display:inline-flex;gap:6px;flex-wrap:wrap" onsubmit="return confirm(\'Tasdiqlaysizmi?\')">'
                     '<input type="hidden" name="action" value="complete">'
                     f'<input type="hidden" name="sweep_id" value="{html.escape(s["id"])}">'
-                    '<input type="text" name="reference" placeholder="click-tx-id" style="width:130px">'
+                    '<input type="text" name="reference" placeholder="click-tx-id" style="width:120px">'
                     '<button class="btn ok" type="submit">Tasdiqlash</button>'
                     '</form> '
                     '<form method="post" style="display:inline" onsubmit="return confirm(\'Bekor qilinsinmi?\')">'
@@ -400,78 +399,47 @@ class PlatformProfitView(BaseView):
                 )
             rows.append(
                 "<tr>"
-                f'<td>{_fmt(s["amount_uzs"])}</td>'
-                f'<td><span class="badge" style="background:{badge}">{html.escape(status)}</span></td>'
-                f'<td>{html.escape(s.get("reference") or "-")}</td>'
+                f'<td><strong>{_fmt(s["amount_uzs"])}</strong> so\'m</td>'
+                f'<td><span class="badge {badge_cls}">{html.escape(status)}</span></td>'
+                f'<td>{html.escape(s.get("reference") or "—")}</td>'
                 f'<td>{html.escape((s.get("created_at") or "")[:19].replace("T", " "))}</td>'
                 f'<td>{html.escape((s.get("processed_at") or "-")[:19].replace("T", " "))}</td>'
                 f"<td>{actions}</td>"
                 "</tr>"
             )
-        rows_html = "".join(rows) or '<tr><td colspan="6" style="text-align:center;color:#94a3b8">Hozircha sweep yo\'q</td></tr>'
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="6">{empty_state("Sweep tarixi bo\'sh", emoji="📭")}</td></tr>'
 
-        return f"""<!doctype html>
-<html lang="uz"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Platforma Foydasi</title>
-<style>
-  body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background:#0f172a; color:#e2e8f0; }}
-  .wrap {{ max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }}
-  a.back {{ color:#38bdf8; text-decoration:none; font-size:14px; }}
-  h1 {{ font-size: 22px; margin: 12px 0 4px; }}
-  .sub {{ color:#94a3b8; font-size:13px; margin-bottom:20px; }}
-  .cards {{ display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:24px; }}
-  .card {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:16px; }}
-  .card .label {{ color:#94a3b8; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }}
-  .card .val {{ font-size:24px; font-weight:700; margin-top:6px; }}
-  .card.hl {{ background:#064e3b; border-color:#047857; }}
-  .panel {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; margin-bottom:20px; }}
-  .panel h2 {{ font-size:15px; margin:0 0 12px; }}
-  input[type=text], input[type=number] {{ background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:8px; padding:8px 10px; margin:2px; }}
-  .btn {{ border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-weight:600; color:#fff; }}
-  .btn.primary {{ background:#2563eb; }}
-  .btn.ok {{ background:#16a34a; }}
-  .btn.danger {{ background:#dc2626; }}
-  table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-  th, td {{ text-align:left; padding:8px 10px; border-bottom:1px solid #334155; }}
-  th {{ color:#94a3b8; font-weight:600; }}
-  .badge {{ color:#fff; padding:2px 8px; border-radius:999px; font-size:11px; }}
-  .flash {{ padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:14px; }}
-  .flash.ok {{ background:#065f46; }}
-  .flash.err {{ background:#7f1d1d; }}
-  .note {{ color:#94a3b8; font-size:12px; margin-top:8px; }}
-</style></head>
-<body><div class="wrap">
-  <a class="back" href="/admin">&larr; Admin panel</a>
-  <h1>Platforma Foydasi</h1>
-  <div class="sub">Faqat yetkazilgan (released) buyurtmalar komissiyasi. Escrow (do'konchilar puli) hech qachon tegilmaydi.</div>
-  {flash}
-  <div class="cards">
-    <div class="card"><div class="label">Jami foyda (released)</div><div class="val">{_fmt(summary['earned_profit_uzs'])}</div></div>
-    <div class="card"><div class="label">Band (pending)</div><div class="val">{_fmt(summary['swept_pending_uzs'])}</div></div>
-    <div class="card"><div class="label">Yechilgan (completed)</div><div class="val">{_fmt(summary['swept_completed_uzs'])}</div></div>
-    <div class="card hl"><div class="label">Yechish mumkin</div><div class="val">{_fmt(summary['withdrawable_uzs'])} so'm</div></div>
-  </div>
+        cards = "".join(
+            [
+                stat_card("Jami foyda", _fmt(summary["earned_profit_uzs"]), None, icon="📈", tone="blue"),
+                stat_card("Band (pending)", _fmt(summary["swept_pending_uzs"]), None, icon="⏳", tone="amber"),
+                stat_card("Yechilgan", _fmt(summary["swept_completed_uzs"]), None, icon="✓", tone="green"),
+                stat_card("Yechish mumkin", f"{_fmt(summary['withdrawable_uzs'])}", None, icon="💰", tone="green", hint="so'm"),
+            ]
+        )
 
-  <div class="panel">
-    <h2>Yangi sweep (kartaga ko'chirish uchun band qilish)</h2>
-    <form method="post">
+        inner = f"""{flash}
+<div class="cards">{cards}</div>
+<div class="panel">
+  <div class="panel-head"><h2>Yangi sweep</h2></div>
+  <div class="panel-body padded">
+    <form method="post" class="form-stack" style="max-width:420px">
       <input type="hidden" name="action" value="create">
-      <input type="number" name="amount_uzs" placeholder="Summa (so'm)" min="1" step="1" required>
-      <input type="text" name="note" placeholder="Izoh (ixtiyoriy)" style="width:220px">
+      <div class="form-group"><label>Summa (so'm)</label><input type="number" name="amount_uzs" min="1" step="1" required></div>
+      <div class="form-group"><label>Izoh</label><input type="text" name="note" placeholder="Ixtiyoriy"></div>
       <button class="btn primary" type="submit">Sweep yaratish</button>
     </form>
-    <div class="note">Sweep yaratgach, Click ilovasida o'sha summani shaxsiy kartangizga o'tkazasiz, keyin "Tasdiqlash" tugmasi bilan click-tx-id ni yozib qo'yasiz.</div>
+    <p style="color:var(--text-muted);font-size:12px;margin:12px 0 0">Click ilovasida kartaga o'tkazing, keyin sweep ni tasdiqlang.</p>
   </div>
+</div>
+{table_panel("Sweep tarixi", ["Summa", "Holat", "Reference", "Yaratilgan", "Bajarilgan", "Amal"], rows_html)}"""
 
-  <div class="panel">
-    <h2>Sweep tarixi</h2>
-    <table>
-      <thead><tr><th>Summa</th><th>Holat</th><th>Reference</th><th>Yaratilgan</th><th>Bajarilgan</th><th>Amal</th></tr></thead>
-      <tbody>{rows_html}</tbody>
-    </table>
-  </div>
-</div></body></html>"""
+        return admin_page(
+            "Platforma foydasi",
+            inner,
+            active="profit",
+            subtitle="Faqat yetkazilgan buyurtmalar komissiyasi. Escrow (do'konchilar puli) tegilmaydi.",
+        )
 
 
 def _mask_card(card: str) -> str:
@@ -548,29 +516,24 @@ class MerchantPayoutView(BaseView):
         return RedirectResponse(path, status_code=303)
 
     def _render(self, summary: dict, pending: list[dict], *, msg: str | None, err: str | None) -> str:
-        flash = ""
-        if msg:
-            flash += f'<div class="flash ok">{html.escape(msg)}</div>'
-        if err:
-            flash += f'<div class="flash err">{html.escape(err)}</div>'
-
+        flash = flash_block(msg=msg, err=err)
         is_auto = bool(summary.get("automatic"))
         rows = []
         for p in pending:
             rows.append(
                 "<tr>"
-                f'<td>{html.escape(p.get("shop_name") or p["shop_id"][:8])}</td>'
-                f'<td>{_fmt(p["amount_uzs"])}</td>'
+                f'<td><strong>{html.escape(p.get("shop_name") or p["shop_id"][:8])}</strong></td>'
+                f'<td>{_fmt(p["amount_uzs"])} so\'m</td>'
                 f'<td>{html.escape(_mask_card(p.get("card_number") or ""))}</td>'
                 f'<td>{html.escape((p.get("created_at") or "")[:19].replace("T", " "))}</td>'
                 "<td>"
-                '<form method="post" style="display:inline" onsubmit="return confirm(\'Tasdiqlansinmi?\')">'
+                '<form method="post" style="display:inline-flex;gap:6px;flex-wrap:wrap" onsubmit="return confirm(\'Tasdiqlansinmi?\')">'
                 '<input type="hidden" name="action" value="complete_one">'
                 f'<input type="hidden" name="payout_id" value="{html.escape(p["id"])}">'
-                '<input type="text" name="reference" placeholder="ref" style="width:90px">'
+                '<input type="text" name="reference" placeholder="ref" style="width:80px">'
                 '<button class="btn ok" type="submit">To\'landi</button>'
                 '</form> '
-                '<form method="post" style="display:inline" onsubmit="return confirm(\'Bekor qilinsinmi? Pul qaytadi.\')">'
+                '<form method="post" style="display:inline" onsubmit="return confirm(\'Bekor qilinsinmi?\')">'
                 '<input type="hidden" name="action" value="cancel_one">'
                 f'<input type="hidden" name="payout_id" value="{html.escape(p["id"])}">'
                 '<button class="btn danger" type="submit">Bekor</button>'
@@ -578,82 +541,51 @@ class MerchantPayoutView(BaseView):
                 "</td>"
                 "</tr>"
             )
-        rows_html = "".join(rows) or '<tr><td colspan="5" style="text-align:center;color:#94a3b8">Pending to\'lov yo\'q</td></tr>'
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="5">{empty_state("Pending to\'lov yo\'q", emoji="✓")}</td></tr>'
 
         auto_btn = ""
         if is_auto:
             auto_btn = (
                 '<form method="post" style="display:inline" onsubmit="return confirm(\'Avtomatik tolansinmi?\')">'
                 '<input type="hidden" name="action" value="auto">'
-                '<button class="btn primary" type="submit">⚡ Avtomatik to\'lash (API)</button>'
+                '<button class="btn primary" type="submit">Avtomatik to\'lash</button>'
                 "</form>"
             )
 
-        mode_badge = "AVTO (API)" if is_auto else "BATCH (reestr)"
-        return f"""<!doctype html>
-<html lang="uz"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Do'konchi To'lovlari</title>
-<style>
-  body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background:#0f172a; color:#e2e8f0; }}
-  .wrap {{ max-width: 1000px; margin:0 auto; padding:24px 16px 64px; }}
-  a.back {{ color:#38bdf8; text-decoration:none; font-size:14px; }}
-  h1 {{ font-size:22px; margin:12px 0 4px; }}
-  .sub {{ color:#94a3b8; font-size:13px; margin-bottom:20px; }}
-  .cards {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:20px; }}
-  .card {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:16px; }}
-  .card .label {{ color:#94a3b8; font-size:12px; text-transform:uppercase; }}
-  .card .val {{ font-size:24px; font-weight:700; margin-top:6px; }}
-  .panel {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; margin-bottom:20px; }}
-  .panel h2 {{ font-size:15px; margin:0 0 12px; }}
-  input[type=text] {{ background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:8px; padding:8px 10px; margin:2px; }}
-  .btn {{ border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-weight:600; color:#fff; text-decoration:none; display:inline-block; }}
-  .btn.primary {{ background:#2563eb; }} .btn.ok {{ background:#16a34a; }} .btn.danger {{ background:#dc2626; }} .btn.gray {{ background:#475569; }}
-  table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-  th, td {{ text-align:left; padding:8px 10px; border-bottom:1px solid #334155; }}
-  th {{ color:#94a3b8; }}
-  .flash {{ padding:10px 14px; border-radius:8px; margin-bottom:16px; font-size:14px; }}
-  .flash.ok {{ background:#065f46; }} .flash.err {{ background:#7f1d1d; }}
-  .badge {{ background:#334155; padding:3px 10px; border-radius:999px; font-size:12px; }}
-  .note {{ color:#94a3b8; font-size:12px; margin-top:8px; line-height:1.5; }}
-</style></head>
-<body><div class="wrap">
-  <a class="back" href="/admin">&larr; Admin panel</a>
-  <h1>Do'konchi To'lovlari <span class="badge">{mode_badge}</span></h1>
-  <div class="sub">Yetkazilgan buyurtmalardan do'konchilarga tegishli pul (current_balance) bo'yicha so'rovlar.</div>
-  {flash}
-  <div class="cards">
-    <div class="card"><div class="label">Pending so'rovlar</div><div class="val">{summary['pending_count']}</div></div>
-    <div class="card"><div class="label">Jami summa</div><div class="val">{_fmt(summary['pending_total_uzs'])} so'm</div></div>
-    <div class="card"><div class="label">Rejim</div><div class="val" style="font-size:16px">{mode_badge}</div></div>
-  </div>
+        mode_badge = "AVTO" if is_auto else "BATCH"
+        cards = "".join(
+            [
+                stat_card("Pending", str(summary["pending_count"]), None, icon="📋", tone="amber"),
+                stat_card("Jami summa", _fmt(summary["pending_total_uzs"]), None, icon="💳", tone="purple", hint="so'm"),
+                stat_card("Rejim", mode_badge, None, icon="⚙", tone="blue"),
+            ]
+        )
 
-  <div class="panel">
-    <h2>Ommaviy to'lov (1 fayl + 1 tugma)</h2>
-    <a class="btn gray" href="/admin/merchant-payouts/reestr.csv">⬇️ Reestr (CSV) yuklab olish</a>
-    {auto_btn}
-    <form method="post" style="display:inline" onsubmit="return confirm('Barcha pending tolandi deb belgilansinmi?')">
-      <input type="hidden" name="action" value="complete_all">
-      <input type="text" name="reference" placeholder="reestr ref / sana" style="width:140px">
-      <button class="btn ok" type="submit">✅ Hammasini to'landi</button>
-    </form>
-    <div class="note">
-      <b>Batch oqim:</b> 1) Reestr CSV ni yuklab oling → 2) Click Business / bank kabinetiga "ommaviy to'lov" sifatida yuklang → 3) "Hammasini to'landi" tugmasini bosing.<br>
-      <b>Avto oqim</b> (YaTT + provayder shartnomasi bo'lsa, PAYOUT_MODE=auto): "Avtomatik to'lash" tugmasi har bir kartaga API orqali jo'natadi.
+        inner = f"""{flash}
+<div class="cards">{cards}</div>
+<div class="panel">
+  <div class="panel-head"><h2>Ommaviy to'lov</h2></div>
+  <div class="panel-body padded">
+    <div class="btn-row">
+      <a class="btn ghost" href="/admin/merchant-payouts/reestr.csv">⬇ Reestr CSV</a>
+      {auto_btn}
+      <form method="post" style="display:inline-flex;gap:8px;align-items:center" onsubmit="return confirm('Hammasi to\'landi deb belgilansinmi?')">
+        <input type="hidden" name="action" value="complete_all">
+        <input type="text" name="reference" placeholder="reestr ref" style="width:120px">
+        <button class="btn ok" type="submit">Hammasini to'landi</button>
+      </form>
     </div>
+    <p style="color:var(--text-muted);font-size:12px;margin:12px 0 0">Batch: CSV yuklab oling → bank/Click → «Hammasini to'landi».</p>
   </div>
+</div>
+{table_panel("Pending to'lovlar", ["Do'kon", "Summa", "Karta", "So'ralgan", "Amal"], rows_html, count=len(pending))}"""
 
-  <div class="panel">
-    <h2>Pending to'lovlar</h2>
-    <table>
-      <thead><tr><th>Do'kon</th><th>Summa</th><th>Karta</th><th>So'ralgan</th><th>Amal</th></tr></thead>
-      <tbody>{rows_html}</tbody>
-    </table>
-  </div>
-</div></body></html>"""
-
-
-</div></body></html>"""
+        return admin_page(
+            "Do'konchi to'lovlari",
+            inner,
+            active="payouts",
+            subtitle="Yetkazilgan buyurtmalardan do'konchilarga tegishli pul so'rovlari.",
+        )
 
 
 class AdminDashboardView(BaseView):
@@ -673,66 +605,47 @@ class AdminDashboardView(BaseView):
             pending_shops = await mod.list_pending(limit=5)
 
         cards = [
-            ("Kutilayotgan do'konlar", counts["pending_shops"], "/admin/shop-moderation", "#2563eb"),
-            ("To'lov so'rovlari", counts["pending_payouts"], "/admin/merchant-payouts", "#b45309"),
-            ("CRM murojaatlar", counts["open_support_tickets"], "/admin/merchant-support-ticket/list", "#7c3aed"),
-            ("Yechish mumkin (foyda)", int(profit.get("withdrawable_uzs") or 0), "/admin/platform-profit", "#16a34a"),
+            ("Kutilayotgan do'konlar", counts["pending_shops"], "/admin/shop-moderation", "🏪", "amber", "Tasdiqlash kerak"),
+            ("To'lov so'rovlari", counts["pending_payouts"], "/admin/merchant-payouts", "💳", "purple", "Pending"),
+            ("CRM murojaatlar", counts["open_support_tickets"], "/admin/merchant-support-ticket/list", "💬", "red", "Ochiq"),
+            ("Yechish mumkin", int(profit.get("withdrawable_uzs") or 0), "/admin/platform-profit", "💰", "green", "so'm"),
         ]
         card_html = "".join(
-            f'<a class="card link" href="{href}"><div class="label">{html.escape(label)}</div>'
-            f'<div class="val">{_fmt(val) if isinstance(val, (int, float)) else html.escape(str(val))}</div></a>'
-            for label, val, href, _ in cards
+            stat_card(
+                label,
+                _fmt(val) if isinstance(val, (int, float)) else str(val),
+                href,
+                icon=icon,
+                tone=tone,
+                hint=hint,
+            )
+            for label, val, href, icon, tone, hint in cards
         )
         rows = []
         for s in pending_shops:
-            img = html.escape(s.storefront_image_url or s.logo_url or "")
             rows.append(
                 "<tr>"
-                f'<td>{html.escape(s.name)}</td>'
-                f'<td>{html.escape(s.owner_phone or "")}</td>'
-                f'<td>{html.escape(s.market_zone or "")}</td>'
-                f'<td><a href="/admin/shop-moderation?shop={s.id}">Ko\'rish →</a></td>'
+                f'<td><strong>{html.escape(s.name)}</strong></td>'
+                f'<td>{html.escape(s.owner_phone or "—")}</td>'
+                f'<td>{html.escape(s.market_zone or "—")}</td>'
+                f'<td><a class="link-btn" href="/admin/shop-moderation?shop={s.id}">Ko\'rish</a></td>'
                 "</tr>"
             )
-        rows_html = "".join(rows) or '<tr><td colspan="4" style="color:#94a3b8">Kutilayotgan ariza yo\'q</td></tr>'
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="4">{empty_state("Kutilayotgan do\'kon arizasi yo\'q", emoji="🎉")}</td></tr>'
 
-        body = f"""<!doctype html>
-<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bozorliii Admin</title>
-<style>
-  body {{ font-family: system-ui, sans-serif; margin:0; background:#0f172a; color:#e2e8f0; }}
-  .wrap {{ max-width: 1000px; margin:0 auto; padding:24px 16px 64px; }}
-  h1 {{ font-size:24px; margin:0 0 8px; }}
-  .sub {{ color:#94a3b8; font-size:14px; margin-bottom:24px; }}
-  .cards {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:28px; }}
-  .card {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; text-decoration:none; color:inherit; }}
-  .card.link:hover {{ border-color:#38bdf8; }}
-  .card .label {{ color:#94a3b8; font-size:12px; text-transform:uppercase; }}
-  .card .val {{ font-size:28px; font-weight:700; margin-top:8px; }}
-  .panel {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; margin-bottom:20px; }}
-  .panel h2 {{ font-size:16px; margin:0 0 12px; }}
-  table {{ width:100%; border-collapse:collapse; font-size:14px; }}
-  th, td {{ text-align:left; padding:10px; border-bottom:1px solid #334155; }}
-  th {{ color:#94a3b8; }}
-  a {{ color:#38bdf8; }}
-  .links {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }}
-  .btn {{ background:#334155; color:#e2e8f0; padding:8px 14px; border-radius:8px; text-decoration:none; font-size:13px; }}
-</style></head><body><div class="wrap">
-  <h1>Boshqaruv paneli</h1>
-  <div class="sub">Do'kon moderatsiyasi, to'lovlar, foyda — barchasi shu yerdan.</div>
+        body = admin_page(
+            "Boshqaruv paneli",
+            f"""
   <div class="cards">{card_html}</div>
-  <div class="panel">
-    <h2>So'nggi do'kon arizalari</h2>
-    <table><thead><tr><th>Do'kon</th><th>Telefon</th><th>Bozor</th><th></th></tr></thead>
-    <tbody>{rows_html}</tbody></table>
-    <div class="links">
-      <a class="btn" href="/admin/shop-moderation">Barcha arizalar</a>
-      <a class="btn" href="/admin/shop/list">Do'konlar jadvali</a>
-      <a class="btn" href="/admin/merchant-payouts">To'lovlar</a>
-      <a class="btn" href="/admin/platform-profit">Platforma foydasi</a>
-    </div>
-  </div>
-</div></body></html>"""
+  {table_panel("So'nggi do'kon arizalari", ["Do'kon", "Telefon", "Bozor", ""], rows_html, count=len(pending_shops),
+    footer='''<div class="quick-links">
+      <a class="btn ghost" href="/admin/shop-moderation">Barcha do'kon arizalari</a>
+      <a class="btn ghost" href="/admin/merchant-payouts">To'lovlar</a>
+    </div>''')}
+""",
+            active="dashboard",
+            subtitle="Do'kon moderatsiyasi va to'lovlar — barchasi bir joyda.",
+        )
         return HTMLResponse(body)
 
 
@@ -793,86 +706,86 @@ class ShopModerationView(BaseView):
         return RedirectResponse(path, status_code=303)
 
     def _render(self, pending: list, *, focus, msg: str | None, err: str | None) -> str:
-        flash = ""
-        if msg:
-            flash += f'<div class="flash ok">{html.escape(msg)}</div>'
-        if err:
-            flash += f'<div class="flash err">{html.escape(err)}</div>'
+        flash = flash_block(msg=msg, err=err)
 
         detail = ""
         if focus:
-            img = focus.storefront_image_url or focus.logo_url or ""
+            img = (focus.storefront_image_url or focus.logo_url or "").strip()
             img_html = (
-                f'<img src="{html.escape(img)}" alt="vitrina" style="max-width:280px;border-radius:12px;margin:12px 0">'
+                f'<img class="thumb" src="{html.escape(img)}" alt="Vitrina">'
                 if img
-                else "<p style='color:#94a3b8'>Rasm yo'q</p>"
+                else '<div class="thumb-placeholder">Rasm yuklanmagan</div>'
             )
             detail = f"""
-            <div class="panel focus">
-              <h2>{html.escape(focus.name)}</h2>
-              <p>📞 {html.escape(focus.owner_phone or "")} · {html.escape(focus.market_zone or "")} · {html.escape(focus.block_sector or "")} {html.escape(focus.stall_number or "")}</p>
-              {img_html}
-              <form method="post" style="margin-top:12px">
-                <input type="hidden" name="shop_id" value="{focus.id}">
-                <input type="hidden" name="action" value="approve">
-                <input type="text" name="note" placeholder="Izoh (ixtiyoriy)" style="width:220px">
-                <button class="btn ok" type="submit">✅ Tasdiqlash</button>
-              </form>
-              <form method="post" style="margin-top:8px" onsubmit="return confirm('Rad etilsinmi?')">
-                <input type="hidden" name="shop_id" value="{focus.id}">
-                <input type="hidden" name="action" value="reject">
-                <input type="text" name="reason" placeholder="Rad etish sababi" required style="width:280px">
-                <button class="btn danger" type="submit">❌ Rad etish</button>
-              </form>
-            </div>"""
+<div class="panel focus" style="margin-bottom:24px">
+  <div class="panel-head"><h2>{html.escape(focus.name)}</h2><span class="badge pending">kutilmoqda</span></div>
+  <div class="panel-body padded">
+    <div class="detail-grid">
+      <div>
+        <ul class="meta-list">
+          <li><strong>Telefon</strong> {html.escape(focus.owner_phone or "—")}</li>
+          <li><strong>Bozor</strong> {html.escape(focus.market_zone or "—")}</li>
+          <li><strong>Rasta</strong> {html.escape(focus.block_sector or "")} {html.escape(focus.stall_number or "")}</li>
+          <li><strong>Holat</strong> {html.escape(focus.verification_status or "pending_review")}</li>
+        </ul>
+        <div class="split-forms">
+          <div class="approve-box">
+            <h3>✓ Tasdiqlash</h3>
+            <form method="post" class="form-stack">
+              <input type="hidden" name="shop_id" value="{focus.id}">
+              <input type="hidden" name="action" value="approve">
+              <div class="form-group">
+                <label>Izoh (ixtiyoriy)</label>
+                <input type="text" name="note" placeholder="Masalan: barcha ma'lumotlar to'g'ri">
+              </div>
+              <button class="btn ok" type="submit">Tasdiqlash — CRM ochiladi</button>
+            </form>
+          </div>
+          <div class="reject-box">
+            <h3>✕ Rad etish</h3>
+            <form method="post" class="form-stack" onsubmit="return confirm('Rad etilsinmi? Sotuvchiga izoh boradi.')">
+              <input type="hidden" name="shop_id" value="{focus.id}">
+              <input type="hidden" name="action" value="reject">
+              <div class="form-group">
+                <label>Sabab (majburiy)</label>
+                <textarea name="reason" placeholder="Nima uchun rad etilmoqda?" required></textarea>
+              </div>
+              <button class="btn danger" type="submit">Rad etish</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div>{img_html}</div>
+    </div>
+  </div>
+</div>"""
 
         rows = []
         for s in pending:
             rows.append(
                 "<tr>"
-                f'<td>{html.escape(s.name)}</td>'
-                f'<td>{html.escape(s.owner_phone or "")}</td>'
-                f'<td>{html.escape(s.market_zone or "-")}</td>'
-                f'<td>{html.escape(s.verification_status or "")}</td>'
-                f'<td><a href="/admin/shop-moderation?shop={s.id}">Moderatsiya</a></td>'
+                f'<td><strong>{html.escape(s.name)}</strong></td>'
+                f'<td>{html.escape(s.owner_phone or "—")}</td>'
+                f'<td>{html.escape(s.market_zone or "—")}</td>'
+                f'<td><span class="badge pending">{html.escape(s.verification_status or "pending")}</span></td>'
+                f'<td><a class="link-btn" href="/admin/shop-moderation?shop={s.id}">Moderatsiya</a></td>'
                 "</tr>"
             )
-        rows_html = "".join(rows) or '<tr><td colspan="5" style="text-align:center;color:#94a3b8">Kutilayotgan ariza yo\'q 🎉</td></tr>'
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="5">{empty_state("Barcha arizalar ko\'rib chiqilgan", emoji="🎉")}</td></tr>'
 
-        return f"""<!doctype html>
-<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Do'kon moderatsiyasi</title>
-<style>
-  body {{ font-family: system-ui, sans-serif; margin:0; background:#0f172a; color:#e2e8f0; }}
-  .wrap {{ max-width: 960px; margin:0 auto; padding:24px 16px 64px; }}
-  a.back {{ color:#38bdf8; text-decoration:none; font-size:14px; }}
-  h1 {{ font-size:22px; margin:12px 0 4px; }}
-  .sub {{ color:#94a3b8; font-size:13px; margin-bottom:20px; }}
-  .panel {{ background:#1e293b; border:1px solid #334155; border-radius:12px; padding:18px; margin-bottom:20px; }}
-  .panel.focus {{ border-color:#2563eb; }}
-  table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-  th, td {{ text-align:left; padding:8px 10px; border-bottom:1px solid #334155; }}
-  th {{ color:#94a3b8; }}
-  input[type=text] {{ background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:8px; padding:8px 10px; }}
-  .btn {{ border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-weight:600; color:#fff; }}
-  .btn.ok {{ background:#16a34a; }} .btn.danger {{ background:#dc2626; }}
-  .flash {{ padding:10px 14px; border-radius:8px; margin-bottom:16px; }}
-  .flash.ok {{ background:#065f46; }} .flash.err {{ background:#7f1d1d; }}
-  a {{ color:#38bdf8; }}
-</style></head><body><div class="wrap">
-  <a class="back" href="/admin">&larr; Admin</a>
-  <h1>Do'kon moderatsiyasi</h1>
-  <div class="sub">AI o'chirilgan — har bir arizani qo'lda tasdiqlang yoki rad eting. Do'konchiga Telegram xabar ketadi.</div>
-  {flash}
-  {detail}
-  <div class="panel">
-    <h2>Kutilayotgan arizalar ({len(pending)})</h2>
-    <table>
-      <thead><tr><th>Do'kon</th><th>Telefon</th><th>Bozor</th><th>Holat</th><th></th></tr></thead>
-      <tbody>{rows_html}</tbody>
-    </table>
-  </div>
-</div></body></html>"""
+        inner = f"""{flash}{detail}{table_panel(
+            "Kutilayotgan arizalar",
+            ["Do'kon", "Telefon", "Bozor", "Holat", ""],
+            rows_html,
+            count=len(pending),
+        )}"""
+
+        return admin_page(
+            "Do'kon moderatsiyasi",
+            inner,
+            active="shops",
+            subtitle="Har bir arizani qo'lda tasdiqlang yoki rad eting. Tasdiqlangach login/parol Telegram orqali yuboriladi.",
+        )
 
 
 ALL_MODEL_VIEWS = [
@@ -889,4 +802,9 @@ ALL_MODEL_VIEWS = [
     DeliveryClaimAdmin,
 ]
 
-ALL_CUSTOM_VIEWS = [AdminDashboardView, ShopModerationView, PlatformProfitView, MerchantPayoutView]
+ALL_CUSTOM_VIEWS = [
+    AdminDashboardView,
+    ShopModerationView,
+    PlatformProfitView,
+    MerchantPayoutView,
+]
