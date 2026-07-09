@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Copy, MapPin, Package, Share2, Star } from "lucide-react";
+import { BadgeCheck, Copy, MapPin, Package, Share2, Star, Zap } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -8,7 +8,6 @@ import { ShopCoverBrandBadge, ShopCoverMedia, ShopLogoAvatar } from "@/component
 import {
   shopCardShell,
   shopTypeChip,
-  shopTypeDisplay,
   shopTypeEyebrow,
   shopTypeLead,
   shopTypeMeta,
@@ -57,7 +56,7 @@ export function ShopStorefrontHero({ shop, productCount, coverFromProduct, onBro
   const shopTitle = displayShopName(shop.name);
 
   const shareUrl = useMemo(() => {
-    if (typeof window === "undefined") return `https://bozorliii.uz/shop/${shop.slug}`;
+    if (typeof window === "undefined") return `https://bozorliii.online/shop/${shop.slug}`;
     return `${window.location.origin}/shop/${shop.slug}`;
   }, [shop.slug]);
 
@@ -84,53 +83,66 @@ export function ShopStorefrontHero({ shop, productCount, coverFromProduct, onBro
 
   return (
     <section className={cn("shop-storefront-hero", shopCardShell)}>
-      <div className="relative h-36 sm:h-44 md:h-52">
-        <ShopCoverMedia src={coverSrc} priority />
+      <div className="relative h-44 sm:h-52 md:h-60">
+        <ShopCoverMedia src={coverSrc} priority alt={`${shopTitle} muqovasi`} />
         {showCoverBadge ? <ShopCoverBrandBadge /> : null}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0c1118]/92 via-[#0c1118]/40 to-transparent" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_0%_0%,rgba(255,255,255,0.08),transparent_50%)]" />
+        <div className="shop-hero-cover-overlay" />
+        <div className="shop-hero-cover-shine" aria-hidden />
+
+        <div className="absolute left-4 top-4 flex flex-wrap gap-2 sm:left-6">
+          {shop.is_verified ? (
+            <span className="shop-hero-verified-pill">
+              <BadgeCheck className="h-3.5 w-3.5" />
+              Tasdiqlangan sotuvchi
+            </span>
+          ) : null}
+          {productCount > 0 ? (
+            <span className="shop-hero-stat-pill">
+              <Zap className="h-3.5 w-3.5 text-amber-300" />
+              Yangi kolleksiya
+            </span>
+          ) : (
+            <span className="shop-hero-stat-pill">
+              <Package className="h-3.5 w-3.5 opacity-80" />
+              Tez kunda mahsulotlar
+            </span>
+          )}
+        </div>
 
         <div className="absolute bottom-3 left-4 right-4 flex flex-wrap items-center gap-2 sm:left-6 sm:right-6">
           {rating != null ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] font-medium text-white/95 backdrop-blur-md ring-1 ring-white/10">
+            <span className="shop-hero-stat-pill">
               <Star className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />
               <span className="tabular-nums">{rating.toFixed(1)}</span>
               {reviews > 0 ? <span className="text-white/60">· {reviews} baho</span> : null}
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px] font-medium text-white/95 backdrop-blur-md ring-1 ring-white/10">
+          <span className="shop-hero-stat-pill">
             <Package className="h-3.5 w-3.5 opacity-80" />
             {productCount} mahsulot
           </span>
         </div>
       </div>
 
-      <div className="relative px-5 pb-6 pt-0 sm:px-7 sm:pb-7">
-        <div className="-mt-12 flex flex-col gap-6 sm:-mt-14">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex min-w-0 items-end gap-4">
-              <ShopLogoAvatar shopName={shop.name} src={logoSrc} size="md" />
-              <div className="min-w-0 space-y-2 pb-0.5">
-                <p className={shopTypeEyebrow}>Do&apos;kon vitrinasi</p>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  <h1 className={cn(shopTypeDisplay, "text-[1.65rem] sm:text-[1.85rem]")}>{shopTitle}</h1>
-                  {shop.is_verified ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-semibold tracking-wide text-[#1d4ed8] ring-1 ring-[#bfdbfe]/80">
-                      <BadgeCheck className="h-3.5 w-3.5" />
-                      Tasdiqlangan
-                    </span>
-                  ) : null}
-                </div>
-                {locationLine ? (
-                  <p className={cn(shopTypeMeta, "flex items-start gap-2 text-text-300")}>
-                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-400" aria-hidden />
-                    <span className="line-clamp-2 leading-relaxed">{locationLine}</span>
-                  </p>
-                ) : null}
-              </div>
+      <div className="relative px-4 pb-6 pt-0 sm:px-6 sm:pb-7">
+        <div className="relative z-10 -mt-12 sm:-mt-14">
+          <div className="shop-hero-identity-strip">
+            <ShopLogoAvatar shopName={shop.name} src={logoSrc} size="md" className="shrink-0" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <p className={shopTypeEyebrow}>Do&apos;kon vitrinasi</p>
+              <h1 className="shop-hero-shop-name">{shopTitle}</h1>
+              {locationLine ? (
+                <p className={cn(shopTypeMeta, "flex items-start gap-2 text-text-400")}>
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-electric-500" aria-hidden />
+                  <span className="line-clamp-2 leading-relaxed">{locationLine}</span>
+                </p>
+              ) : null}
             </div>
+          </div>
 
-            <div className="flex flex-col gap-2 sm:items-end">
+          <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 sm:max-w-xl" />
+            <div className="flex flex-col gap-2 sm:ml-auto sm:items-end">
               {notice ? (
                 <p className="rounded-xl bg-[#eef4ff] px-3 py-1.5 text-[12px] font-medium text-[#1d4ed8] ring-1 ring-[#bfdbfe]/60">
                   {notice}
@@ -140,12 +152,20 @@ export function ShopStorefrontHero({ shop, productCount, coverFromProduct, onBro
                 {productCount > 0 ? (
                   <button
                     type="button"
-                    className="shop-hero-btn shop-hero-btn--primary"
+                    className="sales-cta shop-cta-pulse inline-flex items-center gap-2 px-5 py-2.5 text-[13px]"
                     onClick={onBrowseCatalog}
                   >
                     Mahsulotlarni ko&apos;rish
                   </button>
-                ) : null}
+                ) : (
+                  <Link
+                    href={`/map?shop=${encodeURIComponent(shop.slug)}`}
+                    className="sales-cta shop-cta-pulse inline-flex items-center gap-2 px-5 py-2.5 text-[13px]"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    Do&apos;konni topish
+                  </Link>
+                )}
                 <Link
                   href={`/map?shop=${encodeURIComponent(shop.slug)}`}
                   className="shop-hero-btn shop-hero-btn--secondary"
@@ -168,8 +188,9 @@ export function ShopStorefrontHero({ shop, productCount, coverFromProduct, onBro
             {shop.description ? (
               <p className={cn(shopTypeLead, "max-w-2xl")}>{shop.description}</p>
             ) : (
-              <p className={cn(shopTypeLead, "max-w-2xl text-text-400")}>
-                Mahsulotlarni onlayn tanlang, do&apos;konda olib keting. Tez va qulay bron tizimi.
+              <p className={cn(shopTypeLead, "max-w-2xl")}>
+                <span className="font-medium text-ink-700">Onlayn tanlang</span>
+                <span className="text-text-400"> — do&apos;konda naqd yoki terminalda to&apos;lang. Tez va xavfsiz bron.</span>
               </p>
             )}
 

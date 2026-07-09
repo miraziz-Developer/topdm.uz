@@ -6,6 +6,7 @@ import logging
 import uuid
 
 from aiogram import Bot, F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
@@ -48,7 +49,42 @@ from app.infrastructure.repositories.marketplace_repo import MarketplaceReposito
 logger = logging.getLogger(__name__)
 prod_router = Router(name="merchant_product")
 _AI_VISION_TIMEOUT_SEC = 45.0
-_PUBLISH_TIMEOUT_SEC = 75.0
+_PUBLISH_TIMEOUT_SEC = 90.0
+
+# Tahrir/qo'lda kiritish holatlari — bu yerda menyu tugmalari yoki /start "boshi berk" bo'lib qolmasin.
+_EDIT_ESCAPE_STATES = (
+    MerchantBotStates.product_edit_name,
+    MerchantBotStates.product_edit_price,
+    MerchantBotStates.product_edit_hashtags,
+    MerchantBotStates.product_manual_photo,
+    MerchantBotStates.product_manual_name,
+    MerchantBotStates.product_manual_price,
+    MerchantBotStates.product_add_color_name,
+    MerchantBotStates.product_add_color_photo,
+    MerchantBotStates.product_edit_stock,
+    MerchantBotStates.stock_set_quantity,
+)
+_EDIT_ESCAPE_TEXTS = {
+    "Mahsulot yuklash (rasm)",
+    "Mahsulot qo'lda",
+    "Ombor yangilash",
+    "/start",
+    "/cancel",
+    "/bekor",
+    "Bekor",
+    "bekor",
+    "❌ Bekor",
+}
+
+
+@prod_router.message(StateFilter(*_EDIT_ESCAPE_STATES), F.text.in_(_EDIT_ESCAPE_TEXTS))
+async def escape_edit_state(message: Message, state: FSMContext) -> None:
+    """Tahrir holatida menyu tugmasi/`/start` bosilsa — boshi berk ko'chadan chiqarish."""
+    await state.set_state(MerchantBotStates.ready)
+    await message.answer(
+        "Tahrir bekor qilindi. ✅\n"
+        "Menyudan amalni tanlang yoki yangi mahsulot rasmini yuboring."
+    )
 
 
 async def _consume_voice_prefill(chat_id: int, attrs: dict) -> bool:
@@ -520,13 +556,13 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
                     telegram_file_id=photo.file_id,
                     color_name=str(attrs.get("color") or ""),
                 )
-                if not attrs.get("hashtags"):
-                    attrs["hashtags"] = suggest_hashtags_from_attrs(attrs)
                 attrs = await enrich_attrs_with_category(session, attrs)
                 if attrs.get("category_id"):
                     attrs = await _apply_category_size_presets(session, attrs, reset_sizes=False)
                     if attrs.get("category_auto") and not ai_note:
                         ai_note = "Kategoriya avtomatik tanlandi — tekshirib, «Yuklash» bosing.\n\n"
+                if not attrs.get("hashtags"):
+                    attrs["hashtags"] = suggest_hashtags_from_attrs(attrs)
 
                 repo = MarketplaceRepository(session)
                 row = await repo.create_merchant_pending_product(
@@ -549,6 +585,8 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
             attrs = await enrich_attrs_with_category(session, attrs)
             if attrs.get("category_id"):
                 attrs = await _apply_category_size_presets(session, attrs, reset_sizes=False)
+            if not attrs.get("hashtags"):
+                attrs["hashtags"] = suggest_hashtags_from_attrs(attrs)
             repo = MarketplaceRepository(session)
             row = await repo.create_merchant_pending_product(
                 shop_id=shop_id,
@@ -583,7 +621,11 @@ async def prod_cat_page(query: CallbackQuery) -> None:
         await query.answer()
         return
     pending_id, page_s = parts[2], parts[3]
-    page = int(page_s)
+    try:
+        page = int(page_s)
+    except (TypeError, ValueError):
+        await query.answer()
+        return
     async with AsyncSessionFactory() as session:
         kb = await _category_keyboard(session, pending_id, page=page)
     if query.message:
@@ -1120,6 +1162,11 @@ async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
         await query.answer("Chat do'konga ulanmagan", show_alert=True)
         return
     await query.answer("Yuklanmoqda…")
+    status_msg = None
+    try:
+        status_msg = await query.message.answer("⏳ Mahsulot yuklanmoqda…")
+    except Exception:
+        pass
     result = None
     attrs: dict = {}
     price = 0
@@ -1216,6 +1263,11 @@ async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
         await query.message.edit_text(success_text, reply_markup=None)
     except Exception:
         await query.message.answer(success_text)
+    if status_msg:
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
 
     try:
         from app.application.merchant.share_kit import build_product_share_message

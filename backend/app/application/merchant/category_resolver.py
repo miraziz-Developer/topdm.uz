@@ -8,6 +8,59 @@ from typing import TYPE_CHECKING, Any
 
 from app.application.merchant.category_size_presets import normalize_category_hint
 
+_GENERIC_PRODUCT_NAMES = frozenset({
+    "",
+    "yangi mahsulot",
+    "boshqa",
+    "other",
+    "mahsulot",
+    "yangi tovar",
+})
+
+_HINT_PRODUCT_NAMES: dict[str, str] = {
+    "poyabzal": "Oyoq kiyim",
+    "shim": "Shim",
+    "koylak": "Ko'ylak",
+    "kurtka": "Kurtka",
+    "libos": "Libos",
+    "sumka": "Sumka",
+    "sport": "Sport kiyim",
+    "futbolka": "Futbolka",
+    "bolalar": "Bolalar kiyimi",
+    "mato": "Mato",
+    "atir": "Atir",
+    "texnika": "Texnika",
+    "idish": "Idish",
+    "oziq": "Oziq-ovqat",
+}
+
+
+def is_generic_product_name(name: str | None) -> bool:
+    return str(name or "").strip().casefold() in _GENERIC_PRODUCT_NAMES
+
+
+def refine_product_name_from_category(attrs: dict[str, Any]) -> dict[str, Any]:
+    """Kategoriya tanlangan, lekin nom «Boshqa»/bo'sh bo'lsa — sub-kategoriyadan nom chiqaradi."""
+    if not is_generic_product_name(attrs.get("product_name")):
+        return attrs
+
+    out = dict(attrs)
+    label = str(out.get("category_label") or "").strip()
+    if label:
+        parsed = parse_category_label(label)
+        if parsed:
+            sub = parsed[1].strip()
+            if sub and not is_generic_product_name(sub):
+                out["product_name"] = sub
+                return out
+
+    hint = normalize_category_hint(str(out.get("category_hint") or ""))
+    if hint and hint != "boshqa":
+        mapped = _HINT_PRODUCT_NAMES.get(hint)
+        if mapped:
+            out["product_name"] = mapped
+    return out
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -238,8 +291,15 @@ async def enrich_attrs_with_category(session: AsyncSession, attrs: dict[str, Any
     if attrs.get("category_id"):
         return attrs
 
-    working = dict(attrs)
-    cat = await resolve_or_create_category(session, working)
+    try:
+        working = dict(attrs)
+        cat = await resolve_or_create_category(session, working)
+    except Exception:
+        from loguru import logger
+
+        logger.exception("enrich_attrs_with_category_failed")
+        return attrs
+
     if cat is None:
         return attrs
 
@@ -254,4 +314,4 @@ async def enrich_attrs_with_category(session: AsyncSession, attrs: dict[str, Any
     out["category_label"] = category_label_for(cat, parent=parent)
     out["category_auto"] = True
     out["category_created_dynamic"] = bool(out.get("suggested_root_category") or out.get("category_hint") == "boshqa")
-    return out
+    return refine_product_name_from_category(out)

@@ -24,8 +24,9 @@ async def run_merchant_smart_alerts(session: AsyncSession, notifier: NotifierGat
             continue
         if not shop.telegram_chat_id:
             continue
+        idle_days = settings.merchant_alert_idle_days
         text = (
-            "Bozorliii eslatmasi: 3 kundan beri yangi mahsulot yuklamadingiz.\n"
+            f"Bozorliii eslatmasi: {idle_days} kundan beri yangi mahsulot yuklamadingiz.\n"
             "Rasm yoki ovozli xabar yuboring — mijozlar sizni topa olishi uchun katalogni yangilang."
         )
         try:

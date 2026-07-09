@@ -6,6 +6,7 @@ from typing import Any
 
 from loguru import logger
 
+from app.application.merchant.category_resolver import is_generic_product_name
 from app.infrastructure.ai_clients.gemini import GeminiClient, _guess_mime, _normalize_image_input
 from app.infrastructure.ai_clients.groq import GroqClient
 
@@ -146,21 +147,23 @@ def _merge_listing(base: dict[str, Any], payload: dict[str, Any]) -> dict[str, A
             if inferred:
                 merged["category_hint"] = inferred
                 break
-    if not merged.get("product_name"):
-        cat = str(merged.get("category_hint") or merged.get("category") or "").strip()
-        merged["product_name"] = {
-            "poyabzal": "Oyoq kiyim",
-            "shim": "Shim",
-            "koylak": "Ko'ylak",
-            "libos": "Libos",
-            "sumka": "Sumka",
-        }.get(cat, cat.title() if cat else "Yangi mahsulot")
+    if not merged.get("product_name") or is_generic_product_name(str(merged.get("product_name"))):
+        cat = _normalize_category_hint(str(merged.get("category_hint") or merged.get("category") or ""))
+        if cat and cat != "boshqa":
+            from app.application.merchant.category_resolver import _HINT_PRODUCT_NAMES
+
+            merged["product_name"] = _HINT_PRODUCT_NAMES.get(
+                cat,
+                cat.replace("_", " ").title() if cat else "Yangi mahsulot",
+            )
+        elif not merged.get("product_name"):
+            merged["product_name"] = "Yangi mahsulot"
     return merged
 
 
 def _listing_sufficient(merged: dict[str, Any]) -> bool:
     name = str(merged.get("product_name") or "").strip()
-    if not name or name == "Yangi mahsulot":
+    if is_generic_product_name(name):
         return False
     if merged.get("price_uzs"):
         return True

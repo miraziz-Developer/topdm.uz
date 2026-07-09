@@ -12,7 +12,7 @@ type Props = {
 };
 
 export function PremiumImageGallery({ images, alt }: Props) {
-  const gallery = images.length ? images : ["/placeholder.png"];
+  const gallery = images.length ? images : ["/brand/bozorliii-product-placeholder.svg"];
   const [index, setIndex] = useState(0);
   const active = gallery[index] ?? gallery[0];
 

@@ -244,4 +244,5 @@ def shop_to_dict(shop) -> dict:
         "market_zone": getattr(shop, "market_zone", None),
         "location_comment": getattr(shop, "location_comment", None),
         "block_sector": getattr(shop, "block_sector", None),
+        "verification_status": getattr(shop, "verification_status", None),
     }

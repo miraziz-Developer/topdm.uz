@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Inter", system-ui, sans-serif;
+
+  --background: 224 71% 4%;
+  --foreground: 210 40% 98%;
+  --card: 224 47% 8%;
+  --card-foreground: 210 40% 98%;
+  --popover: 224 47% 8%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 215 28% 14%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 215 28% 14%;
+  --muted-foreground: 217 10% 64%;
+  --accent: 215 28% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 210 40% 98%;
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --border: 215 28% 18%;
+  --input: 215 28% 18%;
+  --ring: 217 91% 60%;
+  --radius: 0.75rem;
+
+  --sidebar-background: 224 47% 6%;
+  --sidebar-foreground: 210 40% 92%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 215 28% 12%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-border: 215 28% 14%;
+
+  --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.35), 0 8px 32px -8px hsl(217 91% 60% / 0.15);
+  --shadow-glow: 0 0 0 1px hsl(217 91% 60% / 0.2), 0 8px 40px -8px hsl(217 91% 60% / 0.35);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 0% -20%, hsl(217 91% 60% / 0.12), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(262 83% 58% / 0.08), transparent 50%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .admin-card {
+    @apply rounded-xl border border-border bg-card/80 p-5 shadow-card backdrop-blur-sm;
+  }
+  .admin-table {
+    @apply w-full text-sm;
+  }
+  .admin-table th {
+    @apply border-b border-border px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+  .admin-table td {
+    @apply border-b border-border/60 px-3 py-3 text-foreground/90;
+  }
+  .admin-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .admin-badge-pending {
+    @apply bg-warning/15 text-amber-300;
+  }
+  .admin-badge-ok {
+    @apply bg-success/15 text-emerald-300;
+  }
+  .admin-badge-danger {
+    @apply bg-destructive/15 text-red-300;
+  }
+  .admin-scroll-x {
+    @apply -mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-mobile-nav {
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}

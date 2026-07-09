@@ -33,6 +33,7 @@ import {
   filterProductsClient,
   filtersAnimationKey,
   filtersToSearchParams,
+  hasActiveBazaarFilters,
   type BazaarCatalogFilters,
 } from "@/lib/home-catalog-filters";
 import { useT } from "@/i18n/locale-provider";
@@ -62,7 +63,13 @@ export default function HomePage() {
   const dealFeed = useHomeDealFeed(16);
   const featuredShops = useFeaturedShops();
 
-  const localFeed = data?.items?.length ? data.items : featured.data?.items ?? [];
+  // Filtr/kategoriya faol bo'lsa va server bo'sh qaytarsa — featured ko'rsatmaymiz (aks holda mos kelmagan mahsulot chiqadi).
+  const noActiveFilters = category === "all" && !hasActiveBazaarFilters(debouncedFilters);
+  const localFeed = data?.items?.length
+    ? data.items
+    : noActiveFilters
+      ? featured.data?.items ?? []
+      : [];
 
   const filteredFeed = useMemo(() => {
     const byCategory = filterProductsByCategory(localFeed, category);
@@ -71,11 +78,9 @@ export default function HomePage() {
 
   const displayFeed = useMemo(() => {
     if (filteredFeed.length > 0) return filteredFeed;
-    if (category === "all" && bazaarFilters.marketZone === "all") {
-      return localFeed.slice(0, 12);
-    }
+    if (noActiveFilters) return localFeed.slice(0, 12);
     return [];
-  }, [filteredFeed, category, bazaarFilters.marketZone, localFeed]);
+  }, [filteredFeed, noActiveFilters, localFeed]);
 
   const gridKey = `${filtersAnimationKey(debouncedFilters)}|${category}`;
   const catalogLoading = localLoading || isFetching;
@@ -87,7 +92,7 @@ export default function HomePage() {
   );
 
   const categoryBar = !isChina ? (
-    <div className="sticky top-14 z-30 border-b border-border-subtle/80 bg-white/95 pb-1 pt-0.5 backdrop-blur-md sm:top-16">
+    <div className="sticky top-[6.25rem] z-30 border-b border-border-subtle/80 bg-white/95 pb-1 pt-0.5 backdrop-blur-md sm:top-[6.75rem]">
       <DomainCategoryFilter value={category} onChange={setCategory} />
     </div>
   ) : null;
@@ -139,7 +144,7 @@ export default function HomePage() {
           experience={experience}
           sections={{
             trust: isChina ? null : (
-              <div className="mx-auto max-w-7xl px-4 pt-2 sm:px-6">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6">
                 <PremiumTrustAnchors />
               </div>
             ),

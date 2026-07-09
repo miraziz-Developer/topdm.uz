@@ -38,11 +38,15 @@ fi
 
 RSYNC_EXCLUDES=(
   --exclude '.git'
+  --exclude '.env'
+  --exclude 'backend/.env'
   --exclude 'node_modules'
   --exclude 'frontend/node_modules'
   --exclude 'merchant-crm/node_modules'
+  --exclude 'platform-admin/node_modules'
   --exclude 'frontend/.next'
   --exclude 'merchant-crm/.next'
+  --exclude 'platform-admin/.next'
   --exclude '.venv'
   --exclude '__pycache__'
   --exclude '.cursor'

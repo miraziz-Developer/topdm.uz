@@ -209,7 +209,7 @@ class Settings(BaseSettings):
                 object.__setattr__(self, "premium_china_demo_mode", False)
             object.__setattr__(self, "tdb_bts_api_mock", False)
             object.__setattr__(self, "bts_api_mock", False)
-            object.__setattr__(self, "publish_visual_embed_lightweight", False)
+            # publish_visual_embed_lightweight — CLIP merchant-bot da OOM; .env da True qoldiring
             if not self.allow_payment_sandbox_in_production:
                 object.__setattr__(self, "payment_sandbox_mode", False)
         return self

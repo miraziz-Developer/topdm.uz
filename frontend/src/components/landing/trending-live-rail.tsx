@@ -64,7 +64,7 @@ function LiveCard({ product, clip }: { product: Product; clip: string }) {
     void video.play().catch(() => undefined);
   }, []);
 
-  const poster = product.images?.[0] || "/placeholder.png";
+  const poster = product.images?.[0] || "/brand/bozorliii-product-placeholder.svg";
 
   return (
     <motion.article

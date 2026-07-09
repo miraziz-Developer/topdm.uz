@@ -1,6 +1,4 @@
 import { isUnreliableProductImage, PLACEHOLDER_IMAGE, resolveMediaUrl } from "@/lib/media";
-
-/** Premium default — do'kon muqovasi (rasm yuklanmaganda). */
 export const SHOP_COVER_DEFAULT = "/brand/bozorliii-shop-cover-default.svg";
 
 export function shopInitials(name: string): string {

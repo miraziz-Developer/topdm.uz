@@ -1299,10 +1299,18 @@ class MarketplaceRepository:
         result = await self._db.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_pending_product(self, pending_id: UUID, *, shop_id: UUID | None = None) -> MerchantPendingProductModel | None:
+    async def get_pending_product(
+        self,
+        pending_id: UUID,
+        *,
+        shop_id: UUID | None = None,
+        for_update: bool = False,
+    ) -> MerchantPendingProductModel | None:
         stmt = select(MerchantPendingProductModel).where(MerchantPendingProductModel.id == pending_id)
         if shop_id:
             stmt = stmt.where(MerchantPendingProductModel.shop_id == shop_id)
+        if for_update:
+            stmt = stmt.with_for_update()
         result = await self._db.execute(stmt)
         return result.scalar_one_or_none()
 

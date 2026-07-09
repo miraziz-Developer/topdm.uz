@@ -45,7 +45,7 @@ export default function LocalMarketHubPage() {
               href={`/market/local/${p.id}`}
               name={p.name}
               price={p.price}
-              imageUrl={resolveMediaUrl(p.images?.[0]) ?? "/placeholder.png"}
+              imageUrl={resolveMediaUrl(p.images?.[0]) ?? "/brand/bozorliii-product-placeholder.svg"}
               badge="Mahalliy"
             />
           ))}

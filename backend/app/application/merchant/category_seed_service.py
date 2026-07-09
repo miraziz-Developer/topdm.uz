@@ -74,8 +74,9 @@ class CategorySeedService:
             stmt = stmt.where(CategoryModel.parent_id.is_(None))
         else:
             stmt = stmt.where(CategoryModel.parent_id == parent_id)
+        stmt = stmt.order_by(CategoryModel.sort_order, CategoryModel.id)
         result = await self._session.execute(stmt)
-        existing = result.scalar_one_or_none()
+        existing = result.scalars().first()
         if existing:
             return existing, False
         row = CategoryModel(

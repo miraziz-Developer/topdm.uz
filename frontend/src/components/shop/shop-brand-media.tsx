@@ -6,6 +6,7 @@ import { Sparkles, Store } from "lucide-react";
 
 import { BRAND } from "@/components/brand/brand-tokens";
 import { SHOP_COVER_DEFAULT, shopInitials } from "@/lib/shop-branding";
+import { resolveProductImageUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 type ShopCoverMediaProps = {
@@ -19,19 +20,23 @@ type ShopCoverMediaProps = {
 export function ShopCoverMedia({ src, alt = "", className, priority }: ShopCoverMediaProps) {
   const isDefaultAsset = src === SHOP_COVER_DEFAULT || src.endsWith("bozorliii-shop-cover-default.svg");
   const [failed, setFailed] = useState(false);
-  const displaySrc = failed || !src ? SHOP_COVER_DEFAULT : src;
+  const displaySrc = failed || !src || isDefaultAsset ? SHOP_COVER_DEFAULT : src;
+  const resolvedSrc =
+    displaySrc === SHOP_COVER_DEFAULT
+      ? SHOP_COVER_DEFAULT
+      : resolveProductImageUrl(displaySrc);
 
   const onError = useCallback(() => setFailed(true), []);
 
   return (
     <Image
-      src={displaySrc}
+      src={resolvedSrc}
       alt={alt}
       fill
       className={cn("object-cover", className)}
       priority={priority}
       sizes="(max-width: 768px) 100vw, 1152px"
-      unoptimized={isDefaultAsset || displaySrc === SHOP_COVER_DEFAULT}
+      unoptimized
       onError={onError}
     />
   );
@@ -66,7 +71,7 @@ export function ShopLogoAvatar({ shopName, src, className, size = "md" }: ShopLo
         )}
       >
         <Image
-          src={src}
+          src={resolveProductImageUrl(src)}
           alt={shopName}
           fill
           className="object-cover"
@@ -116,7 +121,7 @@ export function ShopLogoChip({
         )}
       >
         <Image
-          src={src}
+          src={resolveProductImageUrl(src)}
           alt={shopName}
           fill
           className="object-cover"

@@ -301,7 +301,12 @@ async def on_voice(message: Message, state: FSMContext, bot: Bot) -> None:
     if not shop_raw:
         await message.answer("Avval /register bilan ro'yxatdan o'ting.")
         return
-    shop_id = uuid.UUID(str(shop_raw))
+    try:
+        shop_id = uuid.UUID(str(shop_raw))
+    except (ValueError, TypeError):
+        await state.clear()
+        await message.answer("Sessiya buzilgan — /start bilan qayta ulang.")
+        return
     buf = io.BytesIO()
     try:
         await bot.download(message.voice, destination=buf)

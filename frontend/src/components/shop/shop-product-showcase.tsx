@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { LayoutGrid } from "lucide-react";
 
+import { ShopEmptyCatalog } from "@/components/shop/shop-empty-catalog";
 import { shopSectionSubtitle, shopSectionTitle } from "@/components/shop/shop-premium-ui";
 
 import { useCurrency } from "@/components/providers/currency-provider";
@@ -33,14 +34,7 @@ export function ShopProductShowcase({ products, loading, shopName, shopSlug, isD
   }
 
   if (!products.length) {
-    return (
-      <div className="rounded-[1.75rem] border border-dashed border-border-subtle bg-surface px-6 py-16 text-center">
-        <p className="font-semibold text-text-100">Hozircha mahsulot yo&apos;q</p>
-        <p className="mt-1 text-sm text-text-400">
-          {shopName ? `${shopName} tez orada yangi kolleksiya qo&apos;shadi` : "Keyinroq qaytib kiring"}
-        </p>
-      </div>
-    );
+    return <ShopEmptyCatalog shopName={shopName ?? "Do'kon"} shopSlug={shopSlug ?? ""} />;
   }
 
   const showFeatured = products.length === 1 && !isDemo && !isDemoProduct(products[0]!);

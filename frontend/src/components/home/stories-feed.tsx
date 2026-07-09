@@ -8,7 +8,9 @@ import { Sparkles } from "lucide-react";
 import { StoryViewerModal } from "@/components/home/story-viewer-modal";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useStoryDock } from "@/hooks/useStoryDock";
+import { usePremiumBanners } from "@/hooks/usePremiumBanners";
 import { useT } from "@/i18n/locale-provider";
+import { bannerSlidesToStoryRings } from "@/lib/platform-story-ads";
 import { PLACEHOLDER_BOUTIQUE, PLACEHOLDER_IMAGE, resolveMediaUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import type { StoryDockRing } from "@/types";
@@ -132,8 +134,25 @@ export function StoriesFeed() {
   const t = useT();
   const reduceMotion = useReducedMotion();
   const { data, isLoading } = useStoryDock(DOCK_FETCH_LIMIT);
+  const premiumQ = usePremiumBanners(6);
 
-  const rings = useMemo<StoryDockRing[]>(() => data?.items ?? [], [data?.items]);
+  const rings = useMemo<StoryDockRing[]>(() => {
+    const storyRings = data?.items ?? [];
+    const premiumSlides = premiumQ.data?.items?.length
+      ? premiumQ.data.items
+      : premiumQ.data?.slides ?? [];
+    const adRings = premiumSlides.length ? bannerSlidesToStoryRings(premiumSlides, 3) : [];
+    if (!adRings.length) return storyRings;
+    const seen = new Set(adRings.map((r) => r.shop_id));
+    const merged = [...adRings];
+    for (const ring of storyRings) {
+      if (seen.has(ring.shop_id)) continue;
+      merged.push(ring);
+    }
+    return merged;
+  }, [data?.items, premiumQ.data?.items, premiumQ.data?.slides]);
+
+  const loading = isLoading || premiumQ.isLoading;
 
   const [viewerRingIndex, setViewerRingIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -159,7 +178,7 @@ export function StoriesFeed() {
     return () => window.clearInterval(id);
   }, [advanceScroll, dockHover, reduceMotion, rings.length, viewerRingIndex]);
 
-  if (!isLoading && rings.length === 0) {
+  if (!loading && rings.length === 0) {
     return null;
   }
 
@@ -209,7 +228,7 @@ export function StoriesFeed() {
           role="list"
           aria-label={t("home.stories.title")}
         >
-          {isLoading ? (
+          {loading ? (
             Array.from({ length: 5 }).map((_, index) => (
               <StoryDockSkeleton key={index} />
             ))

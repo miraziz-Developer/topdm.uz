@@ -12,6 +12,15 @@ from app.infrastructure.repositories.premium_banner_repo import PremiumBannerRep
 from app.models.premium_banner import SponsoredBannerModel
 
 
+def _banner_to_admin_item(banner: SponsoredBannerModel) -> dict[str, Any]:
+    item = _banner_to_slide(banner)
+    item["status"] = banner.status
+    item["is_active"] = bool(banner.is_active)
+    item["ends_at"] = banner.ends_at.isoformat() if banner.ends_at else None
+    item["created_at"] = banner.created_at.isoformat() if banner.created_at else None
+    return item
+
+
 def _banner_to_slide(banner: SponsoredBannerModel) -> dict[str, Any]:
     shop = banner.shop
     tariff = banner.tariff

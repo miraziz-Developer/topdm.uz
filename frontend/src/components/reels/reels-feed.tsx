@@ -9,7 +9,7 @@ import {
   Volume2, VolumeX, X,
 } from "lucide-react";
 import Link from "next/link";
-import { resolveReelPosterUrl, resolveReelVideoUrl } from "@/lib/media";
+import { productImage, resolveReelPosterUrl, resolveReelVideoUrl } from "@/lib/media";
 import { isUnreliableShopMedia } from "@/lib/shop-branding";
 import { cn } from "@/lib/utils";
 
@@ -79,7 +79,7 @@ function ProductSheet({ products, onClose }: { products: TaggedProduct[]; onClos
             className="flex items-center gap-3 rounded-2xl border border-neutral-100 bg-neutral-50 p-3 active:bg-neutral-100"
           >
             <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-neutral-200">
-              {p.images?.[0] && <img src={p.images[0]} alt={p.name} className="h-full w-full object-cover" />}
+              {p.images?.[0] && <img src={productImage(p.images)} alt={p.name} className="h-full w-full object-cover" />}
             </div>
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-sm font-semibold text-neutral-900 leading-snug">{p.name}</p>

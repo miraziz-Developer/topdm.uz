@@ -8,7 +8,7 @@ cd "$ROOT"
 IP="${SERVER_IP:-$(curl -fsS ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')}"
 EMAIL="${CERTBOT_EMAIL:-admin@bozorliii.online}"
 DNS_SERVER="${DNS_SERVER:-8.8.8.8}"
-CANDIDATES=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online media.bozorliii.online)
+CANDIDATES=(bozorliii.online www.bozorliii.online api.bozorliii.online crm.bozorliii.online media.bozorliii.online admin.bozorliii.online)
 
 mkdir -p deploy/ssl deploy/certbot/www
 

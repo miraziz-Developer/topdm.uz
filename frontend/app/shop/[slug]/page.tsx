@@ -11,6 +11,7 @@ import { shopPageBg } from "@/components/shop/shop-premium-ui";
 import { ShopProductShowcase } from "@/components/shop/shop-product-showcase";
 import { ShopStoriesStrip } from "@/components/shop/shop-stories-strip";
 import { ShopStorefrontHero } from "@/components/shop/shop-storefront-hero";
+import { ShopTrustStrip } from "@/components/shop/shop-trust-strip";
 import { getShopProducts } from "@/lib/api";
 import { buildMockShopProducts } from "@/lib/mock-shop-demo";
 import { hasReliableProductImage, resolveMediaUrl } from "@/lib/media";
@@ -94,6 +95,8 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
               coverFromProduct={coverFromProduct}
               onBrowseCatalog={scrollToCatalog}
             />
+
+            <ShopTrustStrip shop={shop} />
 
             <ShopStoriesStrip
               shopId={shop.id}

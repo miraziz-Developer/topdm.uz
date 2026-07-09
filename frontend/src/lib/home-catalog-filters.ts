@@ -111,6 +111,17 @@ export function filterProductsClient(
   });
 }
 
+/** Foydalanuvchi zona/blok/kategoriya/narx filtrini yoqganmi (bo'sh natijada featured ko'rsatmaslik uchun). */
+export function hasActiveBazaarFilters(filters: BazaarCatalogFilters): boolean {
+  return (
+    filters.marketZone !== "all" ||
+    filters.blockSector !== "all" ||
+    filters.rootCategory !== "all" ||
+    filters.minPrice.trim() !== "" ||
+    filters.maxPrice.trim() !== ""
+  );
+}
+
 export function filtersToSearchParams(filters: BazaarCatalogFilters): SearchParams {
   const params: SearchParams = { limit: 48, page: 1 };
   params.sale_type = filters.saleMode;

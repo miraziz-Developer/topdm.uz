@@ -152,9 +152,14 @@ class MerchantAlertsRepository:
         await self.session.flush()
 
     async def shops_needing_upload_nudge(self, idle_days: int) -> list[ShopModel]:
+        """Shops idle ≥ idle_days since last product upload (not since registration)."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=idle_days)
         shops_result = await self.session.execute(
-            select(ShopModel).where(ShopModel.is_active == True, ShopModel.telegram_chat_id.is_not(None))
+            select(ShopModel).where(
+                ShopModel.is_active == True,
+                ShopModel.telegram_chat_id.is_not(None),
+                ShopModel.is_verified == True,
+            )
         )
         needy: list[ShopModel] = []
         for shop in shops_result.scalars().all():
@@ -164,8 +169,17 @@ class MerchantAlertsRepository:
                 )
             )
             last_at = last_upload.scalar()
-            if last_at is None or last_at < cutoff:
-                needy.append(shop)
+
+            if last_at is not None:
+                if last_at >= cutoff:
+                    continue
+            else:
+                # Hech qachon mahsulot yuklamagan — taymer tasdiqlangan vaqtdan boshlanadi.
+                baseline = shop.ai_reviewed_at
+                if baseline is None or baseline >= cutoff:
+                    continue
+
+            needy.append(shop)
         return needy
 
     async def shops_with_stale_leads(self, stale_hours: int) -> list[tuple[ShopModel, int]]:

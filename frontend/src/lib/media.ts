@@ -94,9 +94,25 @@ function isStorefrontHost(hostname: string): boolean {
   );
 }
 
+function productionMediaApiOrigin(): string | null {
+  const backend = process.env.NEXT_PUBLIC_BACKEND_ORIGIN?.replace(/\/$/, "");
+  if (backend) return backend;
+
+  const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+  if (api.startsWith("https://")) {
+    return api.replace(/\/api\/v1\/?$/, "");
+  }
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  if (site.includes("bozorliii.online")) return "https://api.bozorliii.online";
+  if (site.includes("bozorliii.uz")) return "https://api.bozorliii.uz";
+
+  return null;
+}
+
 function resolveApiMediaUrlForBrowser(resolved: string): string {
   if (!resolved.startsWith("/api/v1/media/")) return resolved;
-  const apiOrigin = mediaApiOriginForBrowser();
+  const apiOrigin = mediaApiOriginForBrowser() ?? productionMediaApiOrigin();
   if (apiOrigin) return `${apiOrigin}${resolved}`;
   if (typeof window !== "undefined" && isStorefrontHost(window.location.hostname)) {
     return resolved;

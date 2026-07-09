@@ -17,7 +17,6 @@ from app.application.merchant.telegram_variant_draft import draft_to_catalog_pay
 from app.core.config import get_settings
 from app.domain.interfaces.notifier_gateway import NotifierGateway
 from app.application.visual_search.image_fetch import fetch_image_bytes
-from app.application.visual_search.visual_search_engine import index_product_visual_embedding
 from app.infrastructure.ai_clients.embedding import EmbeddingClient, _deterministic_embed
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.infrastructure.storage.telegram_media import TelegramMediaStore
@@ -82,13 +81,15 @@ class MerchantProductService:
         payload: PublishPendingProductRequest | None = None,
     ) -> PublishPendingProductResult:
         payload = payload or PublishPendingProductRequest()
-        row = await self._repo.get_pending_product(pending_id, shop_id=shop_id)
+        # Row-level lock — ikki marta «Yuklash» bosilsa dublikat mahsulot yaralmasin.
+        row = await self._repo.get_pending_product(pending_id, shop_id=shop_id, for_update=True)
         if not row:
             raise PublishPendingProductError("not_found", "Pending product not found")
         if row.status == "published" and row.published_product_id:
             product = await self._repo.get_product_by_id(row.published_product_id)
             if product:
                 images = list(product.images or [])
+                await self._session.commit()
                 return PublishPendingProductResult(
                     pending_id=row.id,
                     product_id=product.id,
@@ -96,9 +97,39 @@ class MerchantProductService:
                     image_url=images[0] if images else None,
                     status="published",
                 )
+        if row.status == "publishing":
+            raise PublishPendingProductError(
+                "invalid_status", "Mahsulot hozir yuklanmoqda — biroz kuting."
+            )
         if row.status not in {"pending", "rejected", "approved", AWAITING_REVIEW}:
             raise PublishPendingProductError("invalid_status", f"Cannot publish status={row.status}")
 
+        # Qatorni «publishing» deb band qilamiz va lockni bo'shatamiz — raqib so'rov bloklanadi.
+        prior_status = row.status
+        await self._repo.update_pending_product(row, status="publishing")
+        await self._session.commit()
+
+        try:
+            return await self._do_publish_pending(row, pending_id, shop_id=shop_id, payload=payload)
+        except Exception:
+            # Xato bo'lsa merchant qayta urinishi uchun holatni tiklaymiz.
+            try:
+                fresh = await self._repo.get_pending_product(pending_id, shop_id=shop_id)
+                if fresh and fresh.status == "publishing":
+                    await self._repo.update_pending_product(fresh, status=prior_status)
+                    await self._session.commit()
+            except Exception:
+                logger.warning("publish_status_reset_failed", pending_id=str(pending_id))
+            raise
+
+    async def _do_publish_pending(
+        self,
+        row,
+        pending_id: UUID,
+        *,
+        shop_id: UUID,
+        payload: PublishPendingProductRequest,
+    ) -> PublishPendingProductResult:
         attrs = dict(row.vision_attributes or {})
         name = (payload.name or attrs.get("product_name") or attrs.get("category") or "Yangi tovar").strip()
         if len(name) < 2:
@@ -238,20 +269,9 @@ class MerchantProductService:
             "hashtags": tags,
         }
         if img_bytes:
-            if self._settings.publish_visual_embed_lightweight:
-                visual_vector, visual_meta = self._lightweight_visual_embed(img_bytes)
-                product_attrs.update(visual_meta)
-            else:
-                try:
-                    visual_vector, vsrc, phash = await index_product_visual_embedding(
-                        image_bytes=img_bytes,
-                        text_hint=embed_text,
-                    )
-                    product_attrs["visual_embed_source"] = vsrc
-                    if phash:
-                        product_attrs["phash"] = phash
-                except Exception:
-                    visual_vector = None
+            # CLIP/YOLOS 4GB CORE da OOM — faqat yengil signature (tez, xavfsiz).
+            visual_vector, visual_meta = self._lightweight_visual_embed(img_bytes)
+            product_attrs.update(visual_meta)
 
         resolved_category_id = payload.category_id
         if resolved_category_id is None and attrs.get("category_id"):

@@ -45,6 +45,7 @@ const nextConfig = {
       { protocol: "https", hostname: "bozorliii.online", pathname: "/**" },
       { protocol: "https", hostname: "www.bozorliii.online", pathname: "/**" },
       { protocol: "https", hostname: "api.bozorliii.online", pathname: "/**" },
+      { protocol: "https", hostname: "media.bozorliii.online", pathname: "/**" },
       { protocol: "https", hostname: "ui-avatars.com", pathname: "/**" },
       { protocol: "https", hostname: "*.r2.dev", pathname: "/**" },
       ...mediaCdnPatterns(),

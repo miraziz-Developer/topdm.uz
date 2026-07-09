@@ -149,6 +149,14 @@ class FinanceRepository:
         result = await self._session.execute(stmt)
         return Decimal(str(result.scalar() or 0))
 
+    async def held_commission_total(self) -> Decimal:
+        """Yetkazilishi kutilayotgan buyurtmalardan komissiya (escrow)."""
+        stmt = select(func.coalesce(func.sum(PlatformTransactionModel.platform_commission), 0)).where(
+            PlatformTransactionModel.status == PlatformTransactionStatus.HELD_IN_ESCROW.value
+        )
+        result = await self._session.execute(stmt)
+        return Decimal(str(result.scalar() or 0))
+
     async def profit_sweep_totals(self) -> dict[str, Decimal]:
         """Sweep summalari: pending (band qilingan) + completed (o'tkazilgan)."""
         stmt = select(

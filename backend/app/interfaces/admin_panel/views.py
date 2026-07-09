@@ -407,7 +407,8 @@ class PlatformProfitView(BaseView):
                 f"<td>{actions}</td>"
                 "</tr>"
             )
-        rows_html = "".join(rows) if rows else f'<tr><td colspan="6">{empty_state("Sweep tarixi bo\'sh", emoji="📭")}</td></tr>'
+        empty_sweep = empty_state("Sweep tarixi bo'sh", emoji="📭")
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="6">{empty_sweep}</td></tr>'
 
         cards = "".join(
             [
@@ -541,7 +542,8 @@ class MerchantPayoutView(BaseView):
                 "</td>"
                 "</tr>"
             )
-        rows_html = "".join(rows) if rows else f'<tr><td colspan="5">{empty_state("Pending to\'lov yo\'q", emoji="✓")}</td></tr>'
+        empty_payouts = empty_state("Pending to'lov yo'q", emoji="✓")
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="5">{empty_payouts}</td></tr>'
 
         auto_btn = ""
         if is_auto:
@@ -631,7 +633,8 @@ class AdminDashboardView(BaseView):
                 f'<td><a class="link-btn" href="/admin/shop-moderation?shop={s.id}">Ko\'rish</a></td>'
                 "</tr>"
             )
-        rows_html = "".join(rows) if rows else f'<tr><td colspan="4">{empty_state("Kutilayotgan do\'kon arizasi yo\'q", emoji="🎉")}</td></tr>'
+        empty_shops = empty_state("Kutilayotgan do'kon arizasi yo'q", emoji="🎉")
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="4">{empty_shops}</td></tr>'
 
         body = admin_page(
             "Boshqaruv paneli",
@@ -771,7 +774,8 @@ class ShopModerationView(BaseView):
                 f'<td><a class="link-btn" href="/admin/shop-moderation?shop={s.id}">Moderatsiya</a></td>'
                 "</tr>"
             )
-        rows_html = "".join(rows) if rows else f'<tr><td colspan="5">{empty_state("Barcha arizalar ko\'rib chiqilgan", emoji="🎉")}</td></tr>'
+        empty_moderation = empty_state("Barcha arizalar ko'rib chiqilgan", emoji="🎉")
+        rows_html = "".join(rows) if rows else f'<tr><td colspan="5">{empty_moderation}</td></tr>'
 
         inner = f"""{flash}{detail}{table_panel(
             "Kutilayotgan arizalar",

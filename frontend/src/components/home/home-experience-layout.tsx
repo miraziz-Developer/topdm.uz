@@ -30,17 +30,17 @@ type Props = {
  * Filter → Category → Products → Banners → Spotlight
  */
 const FIXED_ORDER: SectionKey[] = [
-  "trust",
   "sale_hero",
+  "trust",
+  "banners",
+  "stories",
   "banner",
   "lightning",
   "clearance",
-  "stories",
   "reels",
   "visual_search",
   "toolbar",
   "categories",
-  "banners",
   "recommended",
   "products",
   "spotlight",

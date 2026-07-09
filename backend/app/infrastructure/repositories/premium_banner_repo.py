@@ -68,6 +68,20 @@ class PremiumBannerRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_admin_banners(self, *, limit: int = 100) -> list[SponsoredBannerModel]:
+        stmt = (
+            select(SponsoredBannerModel)
+            .options(
+                selectinload(SponsoredBannerModel.shop),
+                selectinload(SponsoredBannerModel.tariff),
+                selectinload(SponsoredBannerModel.product),
+            )
+            .order_by(SponsoredBannerModel.created_at.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().unique().all())
+
     async def list_active_banners(self, *, limit: int = 48) -> list[SponsoredBannerModel]:
         now = datetime.now(timezone.utc)
         stmt = (

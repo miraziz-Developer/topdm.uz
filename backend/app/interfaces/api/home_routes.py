@@ -116,6 +116,9 @@ async def create_sponsored_banner(
     )
     created = await repo.create_banner(banner)
     await db.commit()
+    from app.infrastructure.cache.premium_carousel_cache import PremiumCarouselCache
+
+    await PremiumCarouselCache().bump_invalidation()
     from app.application.premium_banners.service import _banner_to_slide
 
     return {"status": "ok", "item": _banner_to_slide(created)}

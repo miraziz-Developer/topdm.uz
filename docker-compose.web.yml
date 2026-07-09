@@ -12,10 +12,13 @@ services:
       dockerfile: Dockerfile.prod
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_BACKEND_ORIGIN: ${NEXT_PUBLIC_BACKEND_ORIGIN:-https://api.bozorliii.online}
         NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.online}
         NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-https://crm.bozorliii.online}
         NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
+        NEXT_PUBLIC_DEMO_FAKE_DATA: "false"
+        NEXT_PUBLIC_ALLOW_DEV_MOCKS: "false"
         NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
         NEXT_PUBLIC_MEDIA_CDN_URL: ${NEXT_PUBLIC_MEDIA_CDN_URL:-}
     restart: always
@@ -26,6 +29,7 @@ services:
       NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=460}
       BACKEND_API_URL: ${BACKEND_API_URL:?Set BACKEND_API_URL to core server http://PRIVATE_IP:8000}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+      NEXT_PUBLIC_BACKEND_ORIGIN: ${NEXT_PUBLIC_BACKEND_ORIGIN:-https://api.bozorliii.online}
     mem_limit: 520m
     healthcheck:
       test:
@@ -75,6 +79,38 @@ services:
     networks:
       - frontend-network
 
+  platform-admin:
+    build:
+      context: ./platform-admin
+      dockerfile: Dockerfile
+      target: runner
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=460}
+      BACKEND_API_URL: ${BACKEND_API_URL:?Set BACKEND_API_URL}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Set ADMIN_API_KEY}
+      ADMIN_PANEL_USERNAME: ${ADMIN_PANEL_USERNAME:-admin}
+      ADMIN_PANEL_PASSWORD: ${ADMIN_PANEL_PASSWORD:?Set ADMIN_PANEL_PASSWORD}
+      ADMIN_PANEL_SECRET: ${ADMIN_PANEL_SECRET:-}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.online}
+    mem_limit: 520m
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000',(r)=>{r.resume();process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 45s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - frontend-network
+
   nginx:
     build:
       context: ./deploy/nginx
@@ -96,6 +132,8 @@ services:
       frontend:
         condition: service_healthy
       merchant-crm:
+        condition: service_healthy
+      platform-admin:
         condition: service_healthy
     healthcheck:
       test:

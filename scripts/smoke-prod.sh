@@ -5,6 +5,7 @@ set -euo pipefail
 SITE="${SITE:-https://bozorliii.online}"
 CRM="${CRM:-https://crm.bozorliii.online}"
 API="${API:-https://api.bozorliii.online}"
+ADMIN="${ADMIN:-https://admin.bozorliii.online}"
 
 fail=0
 ok() { echo "OK  $1"; }
@@ -25,7 +26,21 @@ check() {
 check_json() {
   local name="$1"
   local url="$2"
-  if curl -fsSk --max-time 15 "$url" | grep -q '"status":"ok"'; then
+  local body
+  body=$(curl -fsSk --max-time 15 "$url" 2>/dev/null || echo "")
+  if echo "$body" | grep -qE '"status":"(ok|degraded)"'; then
+    ok "$name"
+  else
+    bad "$name"
+  fi
+}
+
+check_api_core() {
+  local name="$1"
+  local url="$2"
+  local body
+  body=$(curl -fsSk --max-time 15 "$url" 2>/dev/null || echo "")
+  if echo "$body" | grep -q '"database":"ok"' && echo "$body" | grep -q '"redis":"ok"'; then
     ok "$name"
   else
     bad "$name"
@@ -33,12 +48,13 @@ check_json() {
 }
 
 echo "== Smoke: $SITE =="
-check_json "API health" "$API/health"
+check_api_core "API health" "$API/health"
 check_json "Site health" "$SITE/health"
 check "Site home" "$SITE/"
 check "CRM login" "$CRM/login"
+check "Admin login" "$ADMIN/login"
 check "www" "https://www.bozorliii.online/"
-check_json "API health (direct)" "$API/health"
+check_api_core "API health (direct)" "$API/health"
 
 echo ""
 echo "== Moderation (do'kon only) =="

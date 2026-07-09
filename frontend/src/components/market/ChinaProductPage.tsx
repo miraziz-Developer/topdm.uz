@@ -27,7 +27,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
-const PLACEHOLDER = "/placeholder.png";
+const PLACEHOLDER = "/brand/bozorliii-product-placeholder.svg";
 
 type ChinaProductPageProps = {
   initialQuery?: string;

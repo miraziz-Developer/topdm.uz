@@ -30,7 +30,7 @@ export default async function OpenGraphImage({ params }: { params: { id: string 
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ fontSize: 56, fontWeight: 700, lineHeight: 1.1, maxWidth: 900 }}>{product.name}</div>
             <div style={{ fontSize: 36, color: "#fde68a" }}>{price}</div>
-            <div style={{ fontSize: 24, opacity: 0.85 }}>{product.shop.name}</div>
+            <div style={{ fontSize: 24, opacity: 0.85 }}>{product.shop?.name ?? "Bozorliii.uz"}</div>
           </div>
         </div>
       ),

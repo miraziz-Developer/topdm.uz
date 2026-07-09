@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
-import { SectionHeader } from "@/components/ui/section-header";
 import { usePremiumBanners } from "@/hooks/usePremiumBanners";
 import { useT } from "@/i18n/locale-provider";
 import { trackPremiumBannerClick, trackPremiumBannerImpression } from "@/lib/api";
@@ -250,25 +249,11 @@ export function PremiumBannersCarousel() {
 
   return (
     <section className={cn(SECTION_SHELL, "py-5 md:py-7")}>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <SectionHeader
-          eyebrow={t("home.premiumBanners.eyebrow")}
-          title={t("home.premiumBanners.title")}
-          description={t("home.premiumBanners.description")}
-          descriptionClassName="!mt-2 block text-sm font-medium tracking-wide !text-neutral-500"
-          className="mb-0 flex-1"
-        />
-        <span className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden />
-          {t("home.premiumBanners.sponsored")}
-        </span>
-      </div>
-
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45 }}
-        className="relative mt-6 overflow-hidden rounded-2xl glass-panel-strong p-2 shadow-elevated ring-1 ring-black/[0.04] sm:p-3"
+        className="relative overflow-hidden rounded-2xl glass-panel-strong p-2 shadow-elevated ring-1 ring-black/[0.04] sm:p-3"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onTouchStart={onTouchStart}

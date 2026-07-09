@@ -46,7 +46,7 @@ export function PremiumTrustAnchors() {
 
   return (
     <div
-      className="mx-auto mb-16 grid max-w-5xl grid-cols-1 gap-6 animate-fade-in md:grid-cols-3 md:items-stretch"
+      className="mx-auto mb-8 grid max-w-5xl grid-cols-1 gap-6 animate-fade-in md:grid-cols-3 md:items-stretch"
       role="list"
       aria-label={t("home.trust.aria")}
     >

@@ -34,6 +34,7 @@ class PlatformProfitService:
 
     async def _compute(self) -> dict[str, Decimal]:
         released = _q(await self._repo.released_commission_total())
+        held = _q(await self._repo.held_commission_total())
         totals = await self._repo.profit_sweep_totals()
         pending = _q(totals[PlatformProfitSweepStatus.PENDING.value])
         completed = _q(totals[PlatformProfitSweepStatus.COMPLETED.value])
@@ -42,6 +43,7 @@ class PlatformProfitService:
             withdrawable = ZERO
         return {
             "earned_released": released,
+            "held_escrow": held,
             "pending": pending,
             "completed": completed,
             "withdrawable": withdrawable,
@@ -51,9 +53,11 @@ class PlatformProfitService:
         c = await self._compute()
         return {
             "earned_profit_uzs": float(c["earned_released"]),
+            "held_escrow_uzs": float(c["held_escrow"]),
             "swept_pending_uzs": float(c["pending"]),
             "swept_completed_uzs": float(c["completed"]),
             "withdrawable_uzs": float(c["withdrawable"]),
+            "settlement_provider": "click",
             "note": "Faqat yetkazilgan buyurtmalar komissiyasi. Escrow (do'konchilar puli) hisobga olinmaydi.",
         }
 
