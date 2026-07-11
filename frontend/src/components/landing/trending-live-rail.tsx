@@ -83,7 +83,7 @@ function LiveCard({ product, clip }: { product: Product; clip: string }) {
             autoPlay
             className="h-full w-full object-cover"
           />
-          <Image src={poster} alt="" fill className="pointer-events-none object-cover opacity-0" aria-hidden />
+          <Image src={poster} alt="" fill className="pointer-events-none object-cover opacity-0" aria-hidden unoptimized />
           <div className="absolute inset-0 bg-gradient-to-t from-canvas via-transparent to-transparent" />
           <div className="absolute left-3 top-3">
             <LivePill />

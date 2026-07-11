@@ -49,7 +49,7 @@ export function FlyToCartLayer() {
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="pointer-events-none fixed z-[80] h-16 w-16 overflow-hidden rounded-xl border border-border-subtle bg-white shadow-modal"
         >
-          <Image src={payload.image} alt="" fill className="object-cover" sizes="64px" />
+          <Image src={payload.image} alt="" fill className="object-cover" sizes="64px" unoptimized />
         </motion.div>
       ) : null}
     </AnimatePresence>
