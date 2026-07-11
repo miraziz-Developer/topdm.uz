@@ -164,13 +164,12 @@ export function resolveProductImageUrl(url?: string | null): string {
 }
 
 export function shouldUnoptimizeProductImage(url: string): boolean {
-  return (
-    url.startsWith("data:") ||
-    url.startsWith("/api/") ||
-    isLocalDevMedia(url) ||
-    url.includes("api.bozorliii.") ||
-    url.includes("media.bozorliii.")
-  );
+  if (!url || url.startsWith("/brand/") || url.startsWith("/placeholder")) return false;
+  // Always bypass Next.js image optimizer for external URLs
+  if (url.startsWith("http://") || url.startsWith("https://")) return true;
+  if (url.startsWith("data:") || url.startsWith("blob:")) return true;
+  if (url.startsWith("/api/")) return true;
+  return false;
 }
 
 export function hasProductImage(images?: string[] | null): boolean {
