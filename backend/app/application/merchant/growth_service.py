@@ -38,12 +38,11 @@ class MerchantGrowthService:
             )
             if exists.scalar_one_or_none() is None:
                 shop.referral_code = code
-                await self._session.commit()
-                await self._session.refresh(shop)
+                await self._session.flush()
                 return code
         code = _slug_code(shop.name) + secrets.token_hex(1).upper()
         shop.referral_code = code
-        await self._session.commit()
+        await self._session.flush()
         return code
 
     async def referral_panel(self, shop_id: uuid.UUID) -> dict[str, Any]:
@@ -91,7 +90,7 @@ class MerchantGrowthService:
         if referrer.owner_phone == new_shop.owner_phone:
             return
         new_shop.referred_by_shop_id = referrer.id
-        await self._session.commit()
+        await self._session.flush()
 
     async def try_reward_referral(self, shop_id: uuid.UUID) -> dict[str, Any] | None:
         """Birinchi yakunlangan buyurtmada ikkala tomonga coin."""

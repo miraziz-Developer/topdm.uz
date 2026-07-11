@@ -1,0 +1,18 @@
+{
+  "models": [
+    {
+      "title": "Gemini 3.5 Coder",
+      "provider": "vertexai",
+      "model": "gemini-3.5-coder",
+      "config": {
+        "project_id": "project-0202b3c1-3122-43c1-944",
+        "location": "us-central1"
+      },
+      "parameters": {
+        "temperature": 0.4,
+        "max_output_tokens": 4096,
+        "top_p": 0.4
+      }
+    }
+  ]
+}

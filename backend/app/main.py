@@ -137,15 +137,17 @@ app.include_router(vendors_router, prefix=settings.api_prefix)
 app.include_router(reels_router, prefix=settings.api_prefix)
 app.include_router(ws_router)
 
-# SQLAdmin web panel (faqat platforma egasi uchun — /admin)
-try:
-    from app.interfaces.admin_panel import setup_admin_panel
-
-    setup_admin_panel(app, settings)
-except Exception as exc:  # noqa: BLE001
+# Admin panel disabled in production for security
+if settings.app_debug:
+    try:
+        from app.interfaces.admin_panel import setup_admin_panel
+        setup_admin_panel(app, settings)
+    except Exception as exc:
+        from loguru import logger
+        logger.warning("Admin panel ulanmadi: {}", exc)
+else:
     from loguru import logger
-
-    logger.warning("Admin panel ulanmadi: {}", exc)
+    logger.info("Admin panel productionda o'chirilgan")
 
 
 async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:

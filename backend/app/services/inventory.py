@@ -106,7 +106,7 @@ def _increment_sku_stock(attributes: dict, *, color: str, size: str, quantity: i
 def _decrement_sku_stock(attributes: dict, *, color: str, size: str, quantity: int) -> tuple[dict, int]:
     skus = attributes.get("skus")
     if not isinstance(skus, list):
-        return attributes
+        return attributes, 0
     updated: list[dict] = []
     total = 0
     for row in skus:

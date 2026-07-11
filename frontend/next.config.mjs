@@ -23,10 +23,11 @@ const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   eslint: {
-    // Legacy codebase — lint in CI gradually; do not block production builds.
-    ignoreDuringBuilds: true,
+    // Enforce linting during builds
+    ignoreDuringBuilds: false,
   },
   typescript: {
+    // Fail build on TypeScript errors
     ignoreBuildErrors: false,
   },
   transpilePackages: ["maplibre-gl"],

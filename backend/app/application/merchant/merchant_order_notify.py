@@ -15,7 +15,8 @@ _ACTION_DEFS: dict[str, tuple[str, str]] = {
     "c": ("✅ Tasdiq", "confirmed"),
     "r": ("📦 Tayyor", "ready"),
     "x": ("❌ Rad", "cancelled"),
-    "d": ("✔️ Olib ketdi", "completed"),
+    "d": ("✔️ Yetkazildi", "completed"),
+    "p": ("📷 QR Skaner", "completed"),
 }
 
 _TERMINAL_STATUSES = frozenset({"completed", "cancelled"})
@@ -58,7 +59,7 @@ def allowed_order_bot_actions(
     if current in {"confirmed", "preparing"}:
         return ["r", "x"]
     if current == "ready":
-        return ["x"] if is_delivery else ["x"]
+        return ["d", "x"] if is_delivery else ["p", "x"]
     return ["x"]
 
 

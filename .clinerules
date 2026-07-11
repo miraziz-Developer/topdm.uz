@@ -12,4 +12,5 @@ ALLOW 152.42.204.27:443 (HTTPS)
 DENY ALL
 
 # SSH credentials
-SSH_USER: mirR@2007aziz
+SSH_USER: root
+ssh_password: mirR@2007aziz
