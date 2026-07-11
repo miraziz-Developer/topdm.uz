@@ -9,6 +9,7 @@ import {
   isUnreliableProductImage,
   PLACEHOLDER_CLOTHING,
   productImage,
+  shouldUnoptimizeProductImage,
 } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,7 @@ export function ProductPinImage({
   const src = productImage(images);
   const raw0 = images?.[0] ?? "";
   const usePlaceholder = failed || !hasReliableProductImage(images) || isUnreliableProductImage(raw0);
-  const unoptimized = src.startsWith("data:") || isLocalDevMedia(src) || src.includes("/api/");
+  const unoptimized = shouldUnoptimizeProductImage(src);
 
   return (
     <div className={cn("relative w-full overflow-hidden rounded-2xl bg-neutral-100", aspectClass)}>

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { productImage } from "@/lib/media";
+import { productImage, shouldUnoptimizeProductImage } from "@/lib/media";
 import { formatPrice } from "@/lib/utils";
 
 export type ChatProductPreview = {
@@ -31,6 +31,7 @@ export function ChatProductPreviewCard({ product }: ChatProductPreviewCardProps)
           fill
           className="object-cover"
           sizes="64px"
+          unoptimized={shouldUnoptimizeProductImage(productImage(product.images))}
         />
       </div>
       <div className="min-w-0 flex-1">

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LivePill } from "@/components/ui/live-pill";
 import { getShopStories } from "@/lib/api";
 import { isPlatformAdRing } from "@/lib/platform-story-ads";
-import { resolveMediaUrl } from "@/lib/media";
+import { resolveMediaUrl, shouldUnoptimizeProductImage } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import type { LiveStory, StoryDockRing } from "@/types";
 
@@ -254,6 +254,7 @@ export function StoryViewerModal({
               className="object-cover"
               sizes="(max-width: 512px) 100vw, 512px"
               priority
+              unoptimized={shouldUnoptimizeProductImage(imageSrc)}
             />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" />
 

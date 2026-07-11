@@ -31,7 +31,7 @@ import {
   useCrmMerchantWallet,
   useCrmMyBanners,
 } from "@/hooks/useMerchantBannerCrm";
-import { resolveMediaUrl } from "@/lib/media";
+import { resolveMediaUrl, shouldUnoptimizeProductImage } from "@/lib/media";
 import { cn, formatNumber } from "@/lib/utils";
 import type { BannerLifecycleStatus, CrmBannerCampaign, CrmTariff } from "@/types/crm-banner";
 import type { PremiumTariffCode } from "@/types/premium-banner";
@@ -155,7 +155,7 @@ function CampaignCard({
     >
       <motion.div className="flex gap-4">
         <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-ink-900">
-          <Image src={resolveMediaUrl(campaign.image_url)} alt="" fill className="object-cover" sizes="112px" />
+          <Image src={resolveMediaUrl(campaign.image_url)} alt="" fill className="object-cover" sizes="112px" unoptimized={shouldUnoptimizeProductImage(resolveMediaUrl(campaign.image_url))} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
