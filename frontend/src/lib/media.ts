@@ -168,7 +168,8 @@ export function shouldUnoptimizeProductImage(url: string): boolean {
     url.startsWith("data:") ||
     url.startsWith("/api/") ||
     isLocalDevMedia(url) ||
-    url.includes("api.bozorliii.")
+    url.includes("api.bozorliii.") ||
+    url.includes("media.bozorliii.")
   );
 }
 

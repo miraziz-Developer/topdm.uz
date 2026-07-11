@@ -10,7 +10,7 @@ import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 import { usePremiumBanners } from "@/hooks/usePremiumBanners";
 import { useT } from "@/i18n/locale-provider";
 import { trackPremiumBannerClick, trackPremiumBannerImpression } from "@/lib/api";
-import { resolveMediaUrl } from "@/lib/media";
+import { resolveMediaUrl, shouldUnoptimizeProductImage } from "@/lib/media";
 import { allowDevMocks } from "@/lib/runtime-flags";
 import { cn } from "@/lib/utils";
 import type { PremiumBannerSlide, PremiumTariffCode } from "@/types/premium-banner";
@@ -127,6 +127,7 @@ function BannerCard({ slide, onNavigate }: BannerCardProps) {
           alt={slide.shop_name}
           fill
           priority
+          unoptimized={shouldUnoptimizeProductImage(imageSrc)}
           onError={() => setImgFailed(true)}
           className="object-contain bg-ink-900/20 transition duration-700 group-hover:scale-[1.02]"
           sizes="(max-width: 768px) 100vw, 720px"
