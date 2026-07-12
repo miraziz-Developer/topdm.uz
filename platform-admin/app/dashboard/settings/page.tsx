@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Radio, Settings2, Percent, DollarSign, ShieldAlert, Tag, ToggleLeft, ToggleRight, Pencil, Trash2, Plus } from "lucide-react";
+import { Radio, Settings2, Percent, DollarSign, ShieldAlert, ShoppingCart, Truck, ToggleLeft, ToggleRight, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,12 @@ import {
   type BusinessRule,
 } from "@/lib/admin-api";
 
-// Tayyor platform sozlamalari
+// Tayyor platform sozlamalari — faqat real keraklilar
 const PRESET_CONFIGS = [
   {
     rule_key: "platform_product_markup_pct",
     label: "Mahsulot narx ustamasi",
-    description: "Barcha mahsulot narxlariga qo'shiladigan foiz. O'zgartirilganda 30 soniyada barcha narxlarga ta'sir qiladi.",
+    description: "Do'konchi narxiga qo'shiladigan foiz — bu bizning foydamiz. Masalan: 15 = 15%.",
     icon: Percent,
     unit: "%",
     type: "float",
@@ -32,21 +32,21 @@ const PRESET_CONFIGS = [
     borderColor: "border-blue-500/20",
   },
   {
-    rule_key: "group_discount_rate",
-    label: "Guruh chegirma foizi",
-    description: "Guruh buyurtmalarda beriladigan chegirma foizi (0-90%).",
-    icon: Tag,
+    rule_key: "platform_commission_pct",
+    label: "Platforma komissiyasi",
+    description: "Har bir buyurtmadan olinadigan komissiya foizi. Masalan: 5 = 5%.",
+    icon: DollarSign,
     unit: "%",
     type: "float",
-    defaultValue: "26.7",
-    color: "text-green-400",
-    bgColor: "bg-green-500/10",
-    borderColor: "border-green-500/20",
+    defaultValue: "5",
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-500/10",
+    borderColor: "border-yellow-500/20",
   },
   {
     rule_key: "merchant_debt_block_threshold_uzs",
     label: "Qarzdorlik bloklash chegarasi",
-    description: "Do'kon qancha qarzga kirsa bloklash. UZS da.",
+    description: "Do'kon qancha qarzga kirsa avtomatik bloklash. UZS da.",
     icon: ShieldAlert,
     unit: "UZS",
     type: "int",
@@ -56,16 +56,28 @@ const PRESET_CONFIGS = [
     borderColor: "border-red-500/20",
   },
   {
-    rule_key: "platform_commission_pct",
-    label: "Platforma komissiyasi",
-    description: "Har bir buyurtmadan olinadigan platforma komissiyasi foizi.",
-    icon: DollarSign,
-    unit: "%",
-    type: "float",
-    defaultValue: "5",
-    color: "text-yellow-400",
-    bgColor: "bg-yellow-500/10",
-    borderColor: "border-yellow-500/20",
+    rule_key: "min_order_amount_uzs",
+    label: "Minimal buyurtma summasi",
+    description: "Bundan kam summa bo'lsa buyurtma qabul qilinmaydi. UZS da.",
+    icon: ShoppingCart,
+    unit: "UZS",
+    type: "int",
+    defaultValue: "10000",
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/10",
+    borderColor: "border-purple-500/20",
+  },
+  {
+    rule_key: "default_delivery_fee_uzs",
+    label: "Standart yetkazib berish narxi",
+    description: "Yetkazib berish narxi belgilanmagan bo'lsa ishlatiladigan standart narx. UZS da.",
+    icon: Truck,
+    unit: "UZS",
+    type: "int",
+    defaultValue: "15000",
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-500/10",
+    borderColor: "border-cyan-500/20",
   },
 ];
 
@@ -88,15 +100,12 @@ function PresetCard({
   const exists = !!currentRule;
 
   const [localValue, setLocalValue] = useState(currentValue);
-  const [editing, setEditing] = useState(false);
-
-  const displayValue = editing ? localValue : currentValue;
 
   return (
     <div className={`rounded-xl border ${config.borderColor} ${config.bgColor} p-5 space-y-3`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg bg-background/50`}>
+          <div className="p-2 rounded-lg bg-background/50">
             <Icon className={`h-5 w-5 ${config.color}`} />
           </div>
           <div>
@@ -123,37 +132,36 @@ function PresetCard({
         <div className="relative flex-1">
           <Input
             type="number"
-            value={displayValue}
-            onChange={(e) => {
-              setLocalValue(e.target.value);
-              setEditing(true);
-            }}
-            className="pr-12 font-mono text-sm"
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            className="pr-14 font-mono text-sm"
             step={config.type === "float" ? "0.1" : "1000"}
+            min="0"
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium pointer-events-none">
             {config.unit}
           </span>
         </div>
         <Button
           size="sm"
-          onClick={() => {
-            onSave(config.rule_key, editing ? localValue : currentValue);
-            setEditing(false);
-          }}
+          onClick={() => onSave(config.rule_key, localValue)}
           disabled={isSaving}
           className="flex-shrink-0"
         >
-          {exists ? "Yangilash" : "Qo'shish"}
+          {exists ? "Saqlash" : "Qo'shish"}
         </Button>
       </div>
 
       {exists && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isActive ? "bg-green-500/15 text-green-400" : "bg-muted text-muted-foreground"}`}>
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              isActive ? "bg-green-500/15 text-green-400" : "bg-muted text-muted-foreground"
+            }`}
+          >
             {isActive ? "Faol" : "Nofaol"}
           </span>
-          <span className="font-mono">{config.rule_key}</span>
+          <span className="font-mono opacity-60">{config.rule_key}</span>
         </div>
       )}
     </div>
@@ -163,7 +171,12 @@ function PresetCard({
 export default function SettingsPage() {
   const qc = useQueryClient();
 
-  const rulesQ = useQuery({ queryKey: ["business-rules"], queryFn: getBusinessRules });
+  const rulesQ = useQuery({
+    queryKey: ["business-rules"],
+    queryFn: getBusinessRules,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
 
   const upsertMut = useMutation({
     mutationFn: upsertBusinessRule,
@@ -183,7 +196,7 @@ export default function SettingsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Custom qoida qo'shish
+  // Custom qoida
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -225,7 +238,7 @@ export default function SettingsPage() {
     upsertMut.mutate({
       rule_key: rule.rule_key,
       rule_value: rule.rule_value,
-      scope: rule.scope,
+      scope: rule.scope ?? "global",
       is_active: active,
       description: rule.description ?? undefined,
     });
@@ -240,7 +253,7 @@ export default function SettingsPage() {
           <h2 className="text-base font-semibold">Platform Sozlamalari</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Raqamni o&apos;zgartiring va &quot;Yangilash&quot; tugmasini bosing. O&apos;zgarishlar 30 soniyada barcha narxlarga ta&apos;sir qiladi.
+          Raqamni o&apos;zgartiring va &quot;Saqlash&quot; tugmasini bosing. O&apos;zgarishlar 30 soniyada barcha narxlarga ta&apos;sir qiladi.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -346,26 +359,26 @@ export default function SettingsPage() {
                         ) : (
                           <ToggleLeft className="h-5 w-5 text-muted-foreground" />
                         )}
-                        <span className={`text-xs ${r.is_active ? "text-green-400" : "text-muted-foreground"}`}>
+                        <span
+                          className={`text-xs ${r.is_active ? "text-green-400" : "text-muted-foreground"}`}
+                        >
                           {r.is_active ? "Faol" : "Nofaol"}
                         </span>
                       </button>
                     </td>
                     <td className="text-xs text-muted-foreground">{r.description ?? "—"}</td>
                     <td>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => {
-                            if (confirm("O'chirishni tasdiqlaysizmi?")) {
-                              deleteMut.mutate(r.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => {
+                          if (confirm("O'chirishni tasdiqlaysizmi?")) {
+                            deleteMut.mutate(r.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
