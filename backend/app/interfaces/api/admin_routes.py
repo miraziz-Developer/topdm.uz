@@ -907,3 +907,223 @@ async def admin_cancel_profit_sweep(
     except PlatformProfitError as exc:
         status = 404 if str(exc) == "sweep_not_found" else 400
         raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+
+# --- Do'kon qarzi (debt) boshqaruvi -------------------------------------------
+
+
+@router.get("/shops/{shop_id}/debt")
+async def admin_get_shop_debt(
+    shop_id: UUID,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Do'konning joriy qarz holati."""
+    from app.application.billing.merchant_debt_service import MerchantDebtService
+
+    try:
+        return await MerchantDebtService(db).get_shop_debt_status(shop_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class ClearDebtBody(BaseModel):
+    amount_uzs: int = Field(gt=0)
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/shops/{shop_id}/clear-debt")
+async def admin_clear_shop_debt(
+    shop_id: UUID,
+    body: ClearDebtBody,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Do'kon qarzini qo'lda kamaytirish (admin to'lovni tasdiqlaydi)."""
+    from app.application.billing.merchant_debt_service import MerchantDebtService
+
+    try:
+        return await MerchantDebtService(db).apply_debt_payment(
+            shop_id,
+            body.amount_uzs,
+            reference_type="admin_manual",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+# --- Pending mahsulotlar (admin moderatsiya) -----------------------------------
+
+
+@router.get("/products/pending")
+async def admin_list_pending_products(
+    limit: int = 50,
+    offset: int = 0,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Barcha do'konlardan pending mahsulotlar."""
+    from app.infrastructure.db.models import MerchantPendingProductModel, ShopModel
+
+    result = await db.execute(
+        select(MerchantPendingProductModel)
+        .where(MerchantPendingProductModel.status == "pending")
+        .order_by(MerchantPendingProductModel.created_at.desc())
+        .offset(offset)
+        .limit(min(limit, 200))
+    )
+    items = list(result.scalars().all())
+    shop_ids = {i.shop_id for i in items}
+    shops: dict = {}
+    if shop_ids:
+        shop_rows = await db.execute(select(ShopModel).where(ShopModel.id.in_(shop_ids)))
+        shops = {s.id: s for s in shop_rows.scalars().all()}
+    total = int(
+        (
+            await db.execute(
+                select(func.count()).select_from(MerchantPendingProductModel).where(
+                    MerchantPendingProductModel.status == "pending"
+                )
+            )
+        ).scalar_one()
+        or 0
+    )
+    return {
+        "items": [
+            {
+                "id": str(i.id),
+                "shop_id": str(i.shop_id),
+                "shop_name": shops.get(i.shop_id).name if shops.get(i.shop_id) else None,
+                "status": i.status,
+                "vision_attributes": i.vision_attributes,
+                "moderation_reason": i.moderation_reason,
+                "created_at": i.created_at.isoformat() if i.created_at else None,
+            }
+            for i in items
+        ],
+        "count": len(items),
+        "total": total,
+    }
+
+
+# --- Business rules (admin CRUD) ----------------------------------------------
+
+
+@router.get("/business-rules")
+async def admin_list_business_rules(
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Barcha biznes qoidalar."""
+    from app.application.billing.business_rule_service import BusinessRuleService
+
+    svc = BusinessRuleService(db)
+    return {"items": await svc.list_rules()}
+
+
+class AdminUpsertRuleBody(BaseModel):
+    rule_key: str = Field(..., min_length=2, max_length=64)
+    rule_value: str
+    scope: str = Field(default="global", pattern="^(global|category|product|shop)$")
+    is_active: bool = True
+    description: str | None = None
+
+
+@router.post("/business-rules")
+async def admin_upsert_business_rule(
+    body: AdminUpsertRuleBody,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Biznes qoidani yaratish yoki yangilash."""
+    from app.application.billing.business_rule_service import BusinessRuleService
+    from app.models.business_rule import BusinessRuleModel
+
+    result = await db.execute(
+        select(BusinessRuleModel).where(
+            BusinessRuleModel.rule_key == body.rule_key,
+            BusinessRuleModel.scope == body.scope,
+            BusinessRuleModel.scope_ref_id.is_(None),
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        row = BusinessRuleModel(
+            rule_key=body.rule_key,
+            rule_value=body.rule_value,
+            scope=body.scope,
+            is_active=body.is_active,
+            description=body.description,
+        )
+        db.add(row)
+    else:
+        row.rule_value = body.rule_value
+        row.is_active = body.is_active
+        row.description = body.description
+    await db.commit()
+    BusinessRuleService.invalidate_cache()
+    return {"status": "ok", "id": str(row.id), "rule_key": row.rule_key}
+
+
+@router.delete("/business-rules/{rule_id}")
+async def admin_delete_business_rule(
+    rule_id: UUID,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Biznes qoidani o'chirish."""
+    from app.application.billing.business_rule_service import BusinessRuleService
+    from app.models.business_rule import BusinessRuleModel
+
+    row = await db.get(BusinessRuleModel, rule_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    await db.delete(row)
+    await db.commit()
+    BusinessRuleService.invalidate_cache()
+    return {"status": "deleted", "id": str(rule_id)}
+
+
+# --- Broadcast (barcha do'konlarga xabar) -------------------------------------
+
+
+class BroadcastBody(BaseModel):
+    title: str = Field(..., min_length=2, max_length=200)
+    body: str = Field(..., min_length=2, max_length=2000)
+    target: str = Field(default="all", pattern="^(all|verified|blocked)$")
+
+
+@router.post("/broadcast")
+async def admin_broadcast(
+    payload: BroadcastBody,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Barcha (yoki tanlangan) do'konlarga push xabar yuborish."""
+    from app.infrastructure.db.models import ShopModel
+    from app.infrastructure.messaging.merchant_workspace_hub import MerchantWorkspaceHub
+
+    q = select(ShopModel).where(ShopModel.is_active.is_(True))
+    if payload.target == "verified":
+        q = q.where(ShopModel.is_verified.is_(True))
+    elif payload.target == "blocked":
+        q = q.where(ShopModel.is_blocked.is_(True))
+
+    result = await db.execute(q)
+    shops = list(result.scalars().all())
+    hub = MerchantWorkspaceHub(db)
+    sent = 0
+    for shop in shops:
+        try:
+            await hub.push_alert(
+                shop.id,
+                {
+                    "type": "admin_broadcast",
+                    "title": payload.title,
+                    "body": payload.body,
+                },
+            )
+            sent += 1
+        except Exception:
+            pass
+    return {"status": "ok", "sent": sent, "total": len(shops), "target": payload.target}

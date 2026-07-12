@@ -429,3 +429,92 @@ export function deactivatePremiumBanner(id: string) {
     method: "PATCH",
   });
 }
+
+// --- Do'kon qarzi (debt) ---------------------------------------------------
+
+export type ShopDebtStatus = {
+  shop_id: string;
+  debt_balance_uzs: number;
+  is_blocked: boolean;
+  block_threshold_uzs: number;
+  amount_until_block_uzs: number;
+  markup_pct: number;
+};
+
+export function getShopDebt(shopId: string) {
+  return adminFetch<ShopDebtStatus>(`/admin/shops/${shopId}/debt`);
+}
+
+export function clearShopDebt(shopId: string, amount_uzs: number, note?: string) {
+  return adminFetch(`/admin/shops/${shopId}/clear-debt`, {
+    method: "POST",
+    body: JSON.stringify({ amount_uzs, note }),
+  });
+}
+
+// --- Pending mahsulotlar (moderatsiya) ------------------------------------
+
+export type PendingProductItem = {
+  id: string;
+  shop_id: string;
+  shop_name?: string | null;
+  status: string;
+  vision_attributes?: Record<string, unknown>;
+  moderation_reason?: string | null;
+  created_at?: string | null;
+};
+
+export function getPendingProducts(opts?: { offset?: number }) {
+  const params = new URLSearchParams({ limit: "50" });
+  if (opts?.offset) params.set("offset", String(opts.offset));
+  return adminFetch<{ items: PendingProductItem[]; count: number; total: number }>(
+    `/admin/products/pending?${params}`,
+  );
+}
+
+// --- Business rules -------------------------------------------------------
+
+export type BusinessRule = {
+  id: string;
+  rule_key: string;
+  rule_value: string;
+  scope: string;
+  scope_ref_id?: string | null;
+  is_active: boolean;
+  description?: string | null;
+};
+
+export function getBusinessRules() {
+  return adminFetch<{ items: BusinessRule[] }>("/admin/business-rules");
+}
+
+export function upsertBusinessRule(body: {
+  rule_key: string;
+  rule_value: string;
+  scope?: string;
+  is_active?: boolean;
+  description?: string | null;
+}) {
+  return adminFetch<{ status: string; id: string; rule_key: string }>("/admin/business-rules", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteBusinessRule(id: string) {
+  return adminFetch<{ status: string; id: string }>(`/admin/business-rules/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// --- Broadcast ------------------------------------------------------------
+
+export function sendBroadcast(body: { title: string; body: string; target?: string }) {
+  return adminFetch<{ status: string; sent: number; total: number; target: string }>(
+    "/admin/broadcast",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}

@@ -5,6 +5,8 @@ import {
   LayoutDashboard,
   MessageSquare,
   Package,
+  Radio,
+  Settings,
   ShoppingBag,
   Store,
   TrendingUp,
@@ -75,6 +77,18 @@ export const ADMIN_NAV: AdminNavItem[] = [
     label: "Premium",
     description: "Reklama va tariflar",
     icon: TrendingUp,
+  },
+  {
+    href: "/dashboard/moderation",
+    label: "Moderatsiya",
+    description: "Pending mahsulotlar",
+    icon: Package,
+  },
+  {
+    href: "/dashboard/settings",
+    label: "Sozlamalar",
+    description: "Biznes qoidalar va broadcast",
+    icon: Settings,
   },
 ];
 
