@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Radio } from "lucide-react";
+import { Radio, Settings2, Percent, DollarSign, ShieldAlert, Tag, ToggleLeft, ToggleRight, Pencil, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/admin-empty-state";
 import { PageLoader } from "@/components/admin-page-loader";
-// EmptyState = { title, description? }
-// PageLoader = { rows? }
 import {
   getBusinessRules,
   upsertBusinessRule,
@@ -19,24 +17,158 @@ import {
   type BusinessRule,
 } from "@/lib/admin-api";
 
+// Tayyor platform sozlamalari
+const PRESET_CONFIGS = [
+  {
+    rule_key: "platform_product_markup_pct",
+    label: "Mahsulot narx ustamasi",
+    description: "Barcha mahsulot narxlariga qo'shiladigan foiz. O'zgartirilganda 30 soniyada barcha narxlarga ta'sir qiladi.",
+    icon: Percent,
+    unit: "%",
+    type: "float",
+    defaultValue: "15",
+    color: "text-blue-400",
+    bgColor: "bg-blue-500/10",
+    borderColor: "border-blue-500/20",
+  },
+  {
+    rule_key: "group_discount_rate",
+    label: "Guruh chegirma foizi",
+    description: "Guruh buyurtmalarda beriladigan chegirma foizi (0-90%).",
+    icon: Tag,
+    unit: "%",
+    type: "float",
+    defaultValue: "26.7",
+    color: "text-green-400",
+    bgColor: "bg-green-500/10",
+    borderColor: "border-green-500/20",
+  },
+  {
+    rule_key: "merchant_debt_block_threshold_uzs",
+    label: "Qarzdorlik bloklash chegarasi",
+    description: "Do'kon qancha qarzga kirsa bloklash. UZS da.",
+    icon: ShieldAlert,
+    unit: "UZS",
+    type: "int",
+    defaultValue: "500000",
+    color: "text-red-400",
+    bgColor: "bg-red-500/10",
+    borderColor: "border-red-500/20",
+  },
+  {
+    rule_key: "platform_commission_pct",
+    label: "Platforma komissiyasi",
+    description: "Har bir buyurtmadan olinadigan platforma komissiyasi foizi.",
+    icon: DollarSign,
+    unit: "%",
+    type: "float",
+    defaultValue: "5",
+    color: "text-yellow-400",
+    bgColor: "bg-yellow-500/10",
+    borderColor: "border-yellow-500/20",
+  },
+];
+
+function PresetCard({
+  config,
+  currentRule,
+  onSave,
+  onToggle,
+  isSaving,
+}: {
+  config: typeof PRESET_CONFIGS[0];
+  currentRule?: BusinessRule;
+  onSave: (key: string, value: string) => void;
+  onToggle: (rule: BusinessRule, active: boolean) => void;
+  isSaving: boolean;
+}) {
+  const Icon = config.icon;
+  const currentValue = currentRule?.rule_value ?? config.defaultValue;
+  const isActive = currentRule ? currentRule.is_active : false;
+  const exists = !!currentRule;
+
+  const [localValue, setLocalValue] = useState(currentValue);
+  const [editing, setEditing] = useState(false);
+
+  const displayValue = editing ? localValue : currentValue;
+
+  return (
+    <div className={`rounded-xl border ${config.borderColor} ${config.bgColor} p-5 space-y-3`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg bg-background/50`}>
+            <Icon className={`h-5 w-5 ${config.color}`} />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">{config.label}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
+          </div>
+        </div>
+        {exists && (
+          <button
+            onClick={() => onToggle(currentRule!, !isActive)}
+            className="flex-shrink-0 mt-0.5"
+            title={isActive ? "O'chirish" : "Yoqish"}
+          >
+            {isActive ? (
+              <ToggleRight className="h-7 w-7 text-green-400" />
+            ) : (
+              <ToggleLeft className="h-7 w-7 text-muted-foreground" />
+            )}
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Input
+            type="number"
+            value={displayValue}
+            onChange={(e) => {
+              setLocalValue(e.target.value);
+              setEditing(true);
+            }}
+            className="pr-12 font-mono text-sm"
+            step={config.type === "float" ? "0.1" : "1000"}
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+            {config.unit}
+          </span>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            onSave(config.rule_key, editing ? localValue : currentValue);
+            setEditing(false);
+          }}
+          disabled={isSaving}
+          className="flex-shrink-0"
+        >
+          {exists ? "Yangilash" : "Qo'shish"}
+        </Button>
+      </div>
+
+      {exists && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isActive ? "bg-green-500/15 text-green-400" : "bg-muted text-muted-foreground"}`}>
+            {isActive ? "Faol" : "Nofaol"}
+          </span>
+          <span className="font-mono">{config.rule_key}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const qc = useQueryClient();
 
-  // --- Business Rules ---
   const rulesQ = useQuery({ queryKey: ["business-rules"], queryFn: getBusinessRules });
-  const [editRule, setEditRule] = useState<Partial<BusinessRule> | null>(null);
-  const [newKey, setNewKey] = useState("");
-  const [newValue, setNewValue] = useState("");
-  const [newDesc, setNewDesc] = useState("");
 
   const upsertMut = useMutation({
     mutationFn: upsertBusinessRule,
     onSuccess: () => {
-      toast.success("Qoida saqlandi");
-      setEditRule(null);
-      setNewKey("");
-      setNewValue("");
-      setNewDesc("");
+      toast.success("Sozlama saqlandi");
       void qc.invalidateQueries({ queryKey: ["business-rules"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -51,7 +183,13 @@ export default function SettingsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // --- Broadcast ---
+  // Custom qoida qo'shish
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+
+  // Broadcast
   const [bcTitle, setBcTitle] = useState("");
   const [bcBody, setBcBody] = useState("");
   const [bcTarget, setBcTarget] = useState<"all" | "verified" | "blocked">("all");
@@ -69,81 +207,118 @@ export default function SettingsPage() {
   if (rulesQ.isLoading) return <PageLoader rows={4} />;
 
   const rules = rulesQ.data?.items ?? [];
+  const presetKeys = PRESET_CONFIGS.map((c) => c.rule_key);
+  const customRules = rules.filter((r) => !presetKeys.includes(r.rule_key));
+
+  const getRuleByKey = (key: string) => rules.find((r) => r.rule_key === key);
+
+  const handleSave = (key: string, value: string) => {
+    upsertMut.mutate({
+      rule_key: key,
+      rule_value: value,
+      scope: "global",
+      is_active: true,
+    });
+  };
+
+  const handleToggle = (rule: BusinessRule, active: boolean) => {
+    upsertMut.mutate({
+      rule_key: rule.rule_key,
+      rule_value: rule.rule_value,
+      scope: rule.scope,
+      is_active: active,
+      description: rule.description ?? undefined,
+    });
+  };
 
   return (
     <div className="space-y-8">
-      {/* ---- Business Rules ---- */}
+      {/* ---- Platform Sozlamalari ---- */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Settings2 className="h-5 w-5 text-primary" />
+          <h2 className="text-base font-semibold">Platform Sozlamalari</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Raqamni o&apos;zgartiring va &quot;Yangilash&quot; tugmasini bosing. O&apos;zgarishlar 30 soniyada barcha narxlarga ta&apos;sir qiladi.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {PRESET_CONFIGS.map((config) => (
+            <PresetCard
+              key={config.rule_key}
+              config={config}
+              currentRule={getRuleByKey(config.rule_key)}
+              onSave={handleSave}
+              onToggle={handleToggle}
+              isSaving={upsertMut.isPending}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* ---- Qo'shimcha (Custom) Qoidalar ---- */}
       <section className="admin-card space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Biznes qoidalar</h2>
+          <h2 className="text-base font-semibold">Qo&apos;shimcha qoidalar</h2>
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => setEditRule({ scope: "global", is_active: true })}
+            onClick={() => setShowCustomForm(!showCustomForm)}
           >
             <Plus className="h-4 w-4 mr-1" /> Yangi qoida
           </Button>
         </div>
 
-        {editRule !== null && (
+        {showCustomForm && (
           <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-3">
-            <h3 className="text-sm font-medium">
-              {editRule.id ? "Qoidani tahrirlash" : "Yangi qoida"}
-            </h3>
+            <h3 className="text-sm font-medium">Yangi qoida</h3>
             <div className="grid gap-2 sm:grid-cols-2">
               <Input
-                placeholder="rule_key (masalan: platform_product_markup_pct)"
-                value={editRule.rule_key ?? newKey}
-                onChange={(e) =>
-                  editRule.id
-                    ? setEditRule({ ...editRule, rule_key: e.target.value })
-                    : setNewKey(e.target.value)
-                }
+                placeholder="rule_key (masalan: my_custom_rule)"
+                value={newKey}
+                onChange={(e) => setNewKey(e.target.value)}
               />
               <Input
-                placeholder="rule_value (masalan: 0.15)"
-                value={editRule.rule_value ?? newValue}
-                onChange={(e) =>
-                  editRule.id
-                    ? setEditRule({ ...editRule, rule_value: e.target.value })
-                    : setNewValue(e.target.value)
-                }
+                placeholder="rule_value (masalan: 10)"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
               />
             </div>
             <Input
               placeholder="Tavsif (ixtiyoriy)"
-              value={editRule.description ?? newDesc}
-              onChange={(e) =>
-                editRule.id
-                  ? setEditRule({ ...editRule, description: e.target.value })
-                  : setNewDesc(e.target.value)
-              }
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
             />
             <div className="flex gap-2">
               <Button
                 size="sm"
-                onClick={() =>
+                onClick={() => {
                   upsertMut.mutate({
-                    rule_key: editRule.id ? (editRule.rule_key ?? "") : newKey,
-                    rule_value: editRule.id ? (editRule.rule_value ?? "") : newValue,
-                    scope: editRule.scope ?? "global",
-                    is_active: editRule.is_active ?? true,
-                    description: editRule.id ? editRule.description : newDesc || null,
-                  })
-                }
-                disabled={upsertMut.isPending}
+                    rule_key: newKey,
+                    rule_value: newValue,
+                    scope: "global",
+                    is_active: true,
+                    description: newDesc || null,
+                  });
+                  setNewKey("");
+                  setNewValue("");
+                  setNewDesc("");
+                  setShowCustomForm(false);
+                }}
+                disabled={!newKey.trim() || !newValue.trim() || upsertMut.isPending}
               >
                 Saqlash
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditRule(null)}>
+              <Button size="sm" variant="ghost" onClick={() => setShowCustomForm(false)}>
                 Bekor
               </Button>
             </div>
           </div>
         )}
 
-        {rules.length === 0 ? (
-          <EmptyState title="Hali qoida yo'q" description="Yangi qoida qo'shing" />
+        {customRules.length === 0 ? (
+          <EmptyState title="Qo'shimcha qoidalar yo'q" description="Yangi qoida qo'shing" />
         ) : (
           <div className="overflow-x-auto">
             <table className="admin-table">
@@ -151,35 +326,34 @@ export default function SettingsPage() {
                 <tr>
                   <th>Kalit</th>
                   <th>Qiymat</th>
-                  <th>Scope</th>
                   <th>Holat</th>
                   <th>Tavsif</th>
                   <th>Amallar</th>
                 </tr>
               </thead>
               <tbody>
-                {rules.map((r) => (
+                {customRules.map((r) => (
                   <tr key={r.id}>
                     <td className="font-mono text-xs">{r.rule_key}</td>
                     <td className="font-mono text-xs">{r.rule_value}</td>
-                    <td className="text-xs text-muted-foreground">{r.scope}</td>
                     <td>
-                      <span
-                        className={`admin-badge ${r.is_active ? "admin-badge-success" : "admin-badge-pending"}`}
+                      <button
+                        onClick={() => handleToggle(r, !r.is_active)}
+                        className="flex items-center gap-1"
                       >
-                        {r.is_active ? "Faol" : "Nofaol"}
-                      </span>
+                        {r.is_active ? (
+                          <ToggleRight className="h-5 w-5 text-green-400" />
+                        ) : (
+                          <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <span className={`text-xs ${r.is_active ? "text-green-400" : "text-muted-foreground"}`}>
+                          {r.is_active ? "Faol" : "Nofaol"}
+                        </span>
+                      </button>
                     </td>
                     <td className="text-xs text-muted-foreground">{r.description ?? "—"}</td>
                     <td>
                       <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setEditRule({ ...r })}
-                        >
-                          Tahrir
-                        </Button>
                         <Button
                           size="sm"
                           variant="danger"
