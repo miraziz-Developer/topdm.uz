@@ -21,8 +21,8 @@ import {
 const PRESET_CONFIGS = [
   {
     rule_key: "platform_product_markup_pct",
-    label: "Mahsulot narx ustamasi",
-    description: "Do'konchi narxiga qo'shiladigan foiz — bu bizning foydamiz. Masalan: 15 = 15%.",
+    label: "Platforma foydasi (narx ustamasi)",
+    description: "Har bir mahsulot narxiga qo'shiladigan foiz — bu bizning foydamiz. Do'konchi o'z narxini kiritadi, mijoz shu foiz qo'shilgan narxni to'laydi. Masalan: 20 = 20%.",
     icon: Percent,
     unit: "%",
     type: "float",
@@ -30,18 +30,6 @@ const PRESET_CONFIGS = [
     color: "text-blue-400",
     bgColor: "bg-blue-500/10",
     borderColor: "border-blue-500/20",
-  },
-  {
-    rule_key: "platform_commission_pct",
-    label: "Platforma komissiyasi",
-    description: "Har bir buyurtmadan olinadigan komissiya foizi. Masalan: 5 = 5%.",
-    icon: DollarSign,
-    unit: "%",
-    type: "float",
-    defaultValue: "5",
-    color: "text-yellow-400",
-    bgColor: "bg-yellow-500/10",
-    borderColor: "border-yellow-500/20",
   },
   {
     rule_key: "merchant_debt_block_threshold_uzs",
@@ -66,18 +54,6 @@ const PRESET_CONFIGS = [
     color: "text-purple-400",
     bgColor: "bg-purple-500/10",
     borderColor: "border-purple-500/20",
-  },
-  {
-    rule_key: "default_delivery_fee_uzs",
-    label: "Standart yetkazib berish narxi",
-    description: "Yetkazib berish narxi belgilanmagan bo'lsa ishlatiladigan standart narx. UZS da.",
-    icon: Truck,
-    unit: "UZS",
-    type: "int",
-    defaultValue: "15000",
-    color: "text-cyan-400",
-    bgColor: "bg-cyan-500/10",
-    borderColor: "border-cyan-500/20",
   },
 ];
 
