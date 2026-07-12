@@ -74,6 +74,8 @@ function PresetCard({
   const currentValue = currentRule?.rule_value ?? config.defaultValue;
   const isActive = currentRule ? currentRule.is_active : false;
   const exists = !!currentRule;
+  // markup_pct should always be active — no toggle for it
+  const showToggle = exists && config.rule_key !== "platform_product_markup_pct";
 
   const [localValue, setLocalValue] = useState(currentValue);
 
@@ -89,7 +91,7 @@ function PresetCard({
             <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
           </div>
         </div>
-        {exists && (
+        {showToggle && (
           <button
             onClick={() => onToggle(currentRule!, !isActive)}
             className="flex-shrink-0 mt-0.5"
