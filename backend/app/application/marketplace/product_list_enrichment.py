@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.billing.business_rule_service import BusinessRuleService
 from app.application.marketplace.product_review_service import ProductReviewService
 from app.infrastructure.db.models import CategoryModel, OrderModel
 from app.interfaces.api.serializers import product_to_dict
@@ -75,9 +76,11 @@ async def products_to_public_dicts(session: AsyncSession, products: list) -> lis
     category_meta = await _category_meta_map(session, products)
     ids: list[UUID] = [p.id for p in products]
     summaries = await ProductReviewService(session).batch_summaries(ids)
+    # Fetch markup_pct from DB business rules (so admin panel changes take effect)
+    markup_pct = await BusinessRuleService(session).platform_markup_pct()
     items: list[dict] = []
     for product in products:
-        row = product_to_dict(product, category_meta=category_meta.get(product.id))
+        row = product_to_dict(product, category_meta=category_meta.get(product.id), markup_pct=markup_pct)
         summary = summaries.get(str(product.id))
         if summary:
             row["review_summary"] = summary

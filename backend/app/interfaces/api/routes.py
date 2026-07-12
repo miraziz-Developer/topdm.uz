@@ -542,13 +542,15 @@ async def get_product(id: UUID, db: AsyncSession = Depends(get_db_session)) -> d
         )
     )
     setattr(p, "sold_count", int(sold_count or 0))
+    from app.application.billing.business_rule_service import BusinessRuleService
     from app.application.marketplace.product_review_service import ProductReviewService
 
     review_summary = await ProductReviewService(db).get_summary(id)
     from app.application.marketplace.product_list_enrichment import _category_meta_map
 
     category_meta = await _category_meta_map(db, [p])
-    payload = product_to_dict(p, category_meta=category_meta.get(p.id))
+    markup_pct = await BusinessRuleService(db).platform_markup_pct()
+    payload = product_to_dict(p, category_meta=category_meta.get(p.id), markup_pct=markup_pct)
     payload["review_summary"] = review_summary
     return payload
 

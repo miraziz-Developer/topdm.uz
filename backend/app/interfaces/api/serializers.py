@@ -79,12 +79,13 @@ def build_store_address_payload(shop) -> dict[str, str]:
     }
 
 
-def product_to_dict(product, *, for_merchant: bool = False, category_meta: dict | None = None) -> dict:
+def product_to_dict(product, *, for_merchant: bool = False, category_meta: dict | None = None, markup_pct: float | None = None) -> dict:
     from app.application.pricing.product_markup import (
         customer_sale_price_uzs,
         merchant_base_uzs,
         platform_markup_uzs,
     )
+    from app.core.config import Settings
 
     shop = product.shop if hasattr(product, "shop") else None
     attrs = getattr(product, "attributes", None) or {}
@@ -106,8 +107,11 @@ def product_to_dict(product, *, for_merchant: bool = False, category_meta: dict 
     pricing = resolve_product_pricing(product)
     sale_type = pricing["sale_type"]
     min_qty = pricing["min_order_quantity"]
+    # Use markup_pct from DB if provided (admin panel changes), else fall back to settings
+    effective_pct = markup_pct if markup_pct is not None else float(get_settings().platform_product_markup_pct)
+    _settings_override = Settings.model_construct(platform_product_markup_pct=effective_pct)
     base_merchant = merchant_base_uzs(int(product.price))
-    sale_uzs = customer_sale_price_uzs(base_merchant)
+    sale_uzs = customer_sale_price_uzs(base_merchant, _settings_override)
     display_price = float(base_merchant if for_merchant else sale_uzs)
     base = {
         "id": str(product.id),
@@ -115,8 +119,8 @@ def product_to_dict(product, *, for_merchant: bool = False, category_meta: dict 
         "price": display_price,
         "merchant_price_uzs": base_merchant,
         "sale_price_uzs": sale_uzs,
-        "platform_markup_uzs": platform_markup_uzs(base_merchant),
-        "platform_markup_pct": float(get_settings().platform_product_markup_pct),
+        "platform_markup_uzs": platform_markup_uzs(base_merchant, _settings_override),
+        "platform_markup_pct": effective_pct,
         "weight_kg": _as_number(getattr(product, "weight_kg", 0) or 0),
         "length_cm": int(getattr(product, "length_cm", 0) or 0),
         "width_cm": int(getattr(product, "width_cm", 0) or 0),
