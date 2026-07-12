@@ -485,7 +485,9 @@ export type BusinessRule = {
 };
 
 export function getBusinessRules() {
-  return adminFetch<{ items: BusinessRule[] }>("/admin/business-rules");
+  return adminFetch<{ items: BusinessRule[] }>("/admin/business-rules").catch(() =>
+    adminFetch<{ items: BusinessRule[] }>("/crm/business-rules"),
+  );
 }
 
 export function upsertBusinessRule(body: {
@@ -495,10 +497,16 @@ export function upsertBusinessRule(body: {
   is_active?: boolean;
   description?: string | null;
 }) {
-  return adminFetch<{ status: string; id: string; rule_key: string }>("/admin/business-rules", {
+  // Try admin endpoint first, fallback to crm endpoint
+  return adminFetch<{ status: string; id: string; rule_key?: string }>("/admin/business-rules", {
     method: "POST",
     body: JSON.stringify(body),
-  });
+  }).catch(() =>
+    adminFetch<{ status: string; id: string; rule_key?: string }>("/crm/business-rules", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 export function deleteBusinessRule(id: string) {
