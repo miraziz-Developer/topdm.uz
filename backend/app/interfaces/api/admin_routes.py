@@ -99,9 +99,9 @@ async def admin_dashboard(
     )
     orders = list(recent_orders.scalars().all())
 
-    # Recent shops (last 5 registered)
+    # Recent shops (last 5 registered) — ShopModel has no created_at, use id ordering
     recent_shops_q = await db.execute(
-        select(ShopModel).order_by(ShopModel.created_at.desc()).limit(5)
+        select(ShopModel).order_by(ShopModel.id.desc()).limit(5)
     )
     recent_shops = list(recent_shops_q.scalars().all())
 
@@ -139,7 +139,7 @@ async def admin_dashboard(
                 "is_verified": bool(s.is_verified),
                 "is_active": bool(s.is_active),
                 "verification_status": getattr(s, "verification_status", None),
-                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "created_at": None,
             }
             for s in recent_shops
         ],

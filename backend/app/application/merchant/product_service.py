@@ -207,11 +207,8 @@ class MerchantProductService:
         shop = await self._repo.get_shop(shop_id)
         if not shop:
             raise PublishPendingProductError("not_found", "Do'kon topilmadi")
-        if not shop.is_verified:
-            raise PublishPendingProductError(
-                "shop_not_verified",
-                "Do'kon hali tasdiqlanmagan. Moderator arizangizni ko'rib chiqmoqda (24 soat ichida).",
-            )
+        # Tasdiqlangan do'konlar uchun moderatsiya kerak emas — to'g'ridan-to'g'ri publish
+        # Tasdiqlanmagan do'konlar ham publish qila oladi (bot orqali kelgan mahsulotlar)
 
         from app.application.merchant.category_resolver import enrich_attrs_with_category
 
