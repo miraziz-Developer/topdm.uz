@@ -45,12 +45,26 @@ async def admin_dashboard(
     counts = await mod.dashboard_counts()
     profit = await PlatformProfitService(db).summary()
 
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
     total_shops = int((await db.execute(select(func.count()).select_from(ShopModel))).scalar_one() or 0)
     active_shops = int(
         (await db.execute(select(func.count()).select_from(ShopModel).where(ShopModel.is_active.is_(True)))).scalar_one()
         or 0
     )
+    verified_shops = int(
+        (await db.execute(select(func.count()).select_from(ShopModel).where(ShopModel.is_verified.is_(True)))).scalar_one()
+        or 0
+    )
+    blocked_shops = int(
+        (await db.execute(select(func.count()).select_from(ShopModel).where(ShopModel.is_blocked.is_(True)))).scalar_one()
+        or 0
+    )
     total_products = int((await db.execute(select(func.count()).select_from(ProductModel))).scalar_one() or 0)
+    available_products = int(
+        (await db.execute(select(func.count()).select_from(ProductModel).where(ProductModel.is_available.is_(True)))).scalar_one()
+        or 0
+    )
     total_users = int((await db.execute(select(func.count()).select_from(AppUserModel))).scalar_one() or 0)
     total_orders = int((await db.execute(select(func.count()).select_from(OrderModel))).scalar_one() or 0)
     pending_orders = int(
@@ -61,11 +75,35 @@ async def admin_dashboard(
         ).scalar_one()
         or 0
     )
+    today_orders = int(
+        (
+            await db.execute(
+                select(func.count()).select_from(OrderModel).where(OrderModel.created_at >= today_start)
+            )
+        ).scalar_one()
+        or 0
+    )
+    today_gmv = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(OrderModel.total_price), 0))
+                .where(OrderModel.created_at >= today_start)
+                .where(OrderModel.status.notin_(("cancelled", "refunded")))
+            )
+        ).scalar_one()
+        or 0
+    )
 
     recent_orders = await db.execute(
-        select(OrderModel).order_by(OrderModel.created_at.desc()).limit(8)
+        select(OrderModel).order_by(OrderModel.created_at.desc()).limit(10)
     )
     orders = list(recent_orders.scalars().all())
+
+    # Recent shops (last 5 registered)
+    recent_shops_q = await db.execute(
+        select(ShopModel).order_by(ShopModel.created_at.desc()).limit(5)
+    )
+    recent_shops = list(recent_shops_q.scalars().all())
 
     return {
         "counts": counts,
@@ -73,10 +111,15 @@ async def admin_dashboard(
         "totals": {
             "shops": total_shops,
             "active_shops": active_shops,
+            "verified_shops": verified_shops,
+            "blocked_shops": blocked_shops,
             "products": total_products,
+            "available_products": available_products,
             "users": total_users,
             "orders": total_orders,
             "pending_orders": pending_orders,
+            "today_orders": today_orders,
+            "today_gmv": today_gmv,
         },
         "recent_orders": [
             {
@@ -87,6 +130,18 @@ async def admin_dashboard(
                 "created_at": o.created_at.isoformat() if o.created_at else None,
             }
             for o in orders
+        ],
+        "recent_shops": [
+            {
+                "id": str(s.id),
+                "name": s.name,
+                "slug": s.slug,
+                "is_verified": bool(s.is_verified),
+                "is_active": bool(s.is_active),
+                "verification_status": getattr(s, "verification_status", None),
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in recent_shops
         ],
     }
 

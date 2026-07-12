@@ -35,16 +35,30 @@ export type DashboardData = {
   totals: {
     shops: number;
     active_shops: number;
+    verified_shops: number;
+    blocked_shops: number;
     products: number;
+    available_products: number;
     users: number;
     orders: number;
     pending_orders: number;
+    today_orders: number;
+    today_gmv: number;
   };
   recent_orders: Array<{
     id: string;
     status: string;
     total_uzs: number;
     shop_id: string | null;
+    created_at: string | null;
+  }>;
+  recent_shops: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    is_verified: boolean;
+    is_active: boolean;
+    verification_status: string | null;
     created_at: string | null;
   }>;
 };
