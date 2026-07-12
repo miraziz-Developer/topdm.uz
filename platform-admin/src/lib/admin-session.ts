@@ -5,9 +5,9 @@ const MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
 function sessionSecret(): string {
   return (
-    process.env.ADMIN_SESSION_SECRET ??
-    process.env.ADMIN_PANEL_SECRET ??
-    process.env.ADMIN_API_KEY ??
+    process.env.ADMIN_SESSION_SECRET ||
+    process.env.ADMIN_PANEL_SECRET ||
+    process.env.ADMIN_API_KEY ||
     "change-me"
   ).trim();
 }
