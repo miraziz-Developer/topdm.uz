@@ -79,7 +79,7 @@ http {
 
     upstream bozor_platform_admin {
         zone bozor_platform_admin 64k;
-        server platform-admin:3000 resolve max_fails=3 fail_timeout=30s;
+        server bozorliii-platform-admin-1:3000 resolve max_fails=3 fail_timeout=30s;
         keepalive 32;
     }
 
