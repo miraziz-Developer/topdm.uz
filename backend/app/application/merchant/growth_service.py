@@ -121,7 +121,7 @@ class MerchantGrowthService:
         wallet = WalletRepository(self._session)
         await wallet.add_coins(shop_id, REFERRAL_REWARD_COINS)
         await wallet.add_coins(shop.referred_by_shop_id, REFERRAL_REWARD_COINS)
-        await self._session.commit()
+        await self._session.flush()
         return {
             "rewarded": True,
             "coins_each": REFERRAL_REWARD_COINS,

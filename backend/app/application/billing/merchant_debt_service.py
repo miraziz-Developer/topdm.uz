@@ -132,7 +132,7 @@ class MerchantDebtService:
         )
         if commission <= 0:
             order.debt_commission_recorded = True
-            await self._session.commit()
+            await self._session.flush()
             return {"status": "skipped", "reason": "zero_commission"}
 
         idempotency = f"debt_commission:order:{order.id}"
@@ -155,7 +155,7 @@ class MerchantDebtService:
             shop.is_blocked = True
             blocked_now = True
 
-        await self._session.commit()
+        await self._session.flush()
 
         logger.info(
             "merchant_debt_accrued shop_id=%s order_id=%s commission=%s debt=%s blocked=%s",
@@ -192,7 +192,10 @@ class MerchantDebtService:
         if paid <= 0:
             raise ValueError("invalid_amount")
 
-        shop = await self._session.get(ShopModel, shop_id)
+        result = await self._session.execute(
+            select(ShopModel).where(ShopModel.id == shop_id).with_for_update()
+        )
+        shop = result.scalar_one_or_none()
         if shop is None:
             raise ValueError("shop_not_found")
         before = int(shop.debt_balance or 0)

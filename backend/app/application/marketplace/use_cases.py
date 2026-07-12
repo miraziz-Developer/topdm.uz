@@ -17,7 +17,7 @@ PHONE_PATTERN = re.compile(r"^\+998\d{9}$")
 PICKUP_TIME_LABELS = {
     "09:00": "09:00 - 11:00 (Ertalab)",
     "12:00": "11:00 - 14:00 (Tushlik)",
-    "15:00": "14:00 - 17:00 (Abaddan keyin)",
+    "15:00": "14:00 - 17:00 (Tushdan keyin)",
 }
 
 
@@ -358,6 +358,7 @@ class MarketplaceUseCases:
                 prev_status=prev_status,
             )
 
+        await self._repo._db.commit()
         return {"order_id": str(order.id), "status": order.status}
 
     @staticmethod

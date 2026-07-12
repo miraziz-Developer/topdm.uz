@@ -214,6 +214,7 @@ class OrderPickupCompletionService:
                 await MerchantGrowthService(self._session).try_reward_referral(shop_id)
             except Exception:
                 logger.debug("referral_reward_skipped", exc_info=True)
+            await self._session.commit()
             await self._clear_tracking(order_id, shop_id)
             hub = MerchantWorkspaceHub(self._session)
             await hub.push_alert(
