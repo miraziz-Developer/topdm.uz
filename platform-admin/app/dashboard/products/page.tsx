@@ -587,6 +587,7 @@ export default function ProductsPage() {
       {selected && (
         <div className="w-full lg:w-96 border-l border-white/10 bg-[#1a1f2e] flex-shrink-0 overflow-hidden flex flex-col">
           <ProductDetailPanel
+            key={selected.id}
             product={selected}
             onClose={() => setSelected(null)}
             onUpdated={handleUpdated}
