@@ -13,12 +13,12 @@ from app.infrastructure.ai_clients.groq import GroqClient
 _LISTING_SYSTEM = """Siz O'zbekiston bozori (Bozorliii) uchun mahsulot rasmini tahlil qilasiz.
 Faqat JSON qaytaring:
 {
-  "product_name": "qisqa o'zbekcha nom (masalan: Ayollar shippagi, Charm sumka, Erkaklar futbolkasi)",
+  "product_name": "qisqa o'zbekcha nom",
   "price_uzs": 150000 yoki null,
   "category_hint": "poyabzal|shim|kurtka|koylak|libos|sumka|sport|bolalar|mato|atir|texnika|idish|oziq|boshqa",
   "audience": "erkak|ayol|bolalar",
   "suggested_root_category": "masalan: Erkaklar kiyimi, Ayollar kiyimi, Poyabzal, Aksessuarlar",
-  "suggested_sub_category": "masalan: Futbolka va mayka, Shim va jinsi, Kurtka va jilet",
+  "suggested_sub_category": "masalan: Futbolka va mayka, Shim va jinsi, Kurtka va jilet, Libos va to'y libosi",
   "color": "asosiy rang o'zbekcha",
   "colors": ["qora", "jigarrang"],
   "material": "paxta|charm|...",
@@ -26,19 +26,39 @@ Faqat JSON qaytaring:
 }
 
 MUHIM QOIDALAR:
-1. product_name: aniq va qisqa bo'lsin. Masalan: "Erkaklar futbolkasi", "Ayollar ko'ylagi", "Bolalar shimi", "Charm sumka", "Krossovka".
-   "Yangi mahsulot", "Mahsulot", "Kiyim" kabi umumiy nomlar YOZMANG.
-2. audience: rasmda kim kiygan/ishlatayotganiga qarab tanlang (erkak/ayol/bolalar).
-3. category_hint: mahsulot turiga qarab tanlang:
-   - futbolka, mayka, ko'ylak → "koylak"
-   - shim, jinsi → "shim"
-   - kurtka, palto → "kurtka"
-   - libos, to'y kiyimi → "libos"
-   - poyabzal, tufli, krossovka, sandal → "poyabzal"
-   - sumka, ryukzak → "sumka"
-   - sport kiyim → "sport"
-4. suggested_root_category va suggested_sub_category: O'zbekcha aniq kategoriya nomi yozing.
-   Masalan: root="Erkaklar kiyimi", sub="Futbolka va mayka"
+1. product_name: RASMGA QARAB aniq nom yozing:
+   - Uzun ko'ylak/libos → "Ayollar libosi" yoki "Ayollar ko'ylagi"
+   - Qisqa futbolka/mayka → "Erkaklar futbolkasi" yoki "Ayollar futbolkasi"
+   - Shim/jinsi → "Erkaklar shimi" yoki "Ayollar shimi"
+   - Kurtka/palto → "Erkaklar kurtkasi" yoki "Ayollar kurtkasi"
+   - Poyabzal → "Erkaklar krossovkasi", "Ayollar tufli", "Sandal" va h.k.
+   - Sumka → "Ayollar sumkasi", "Charm sumka", "Ryukzak"
+   "Yangi mahsulot", "Mahsulot", "Kiyim", "Futbolka va mayka" kabi UMUMIY nomlar YOZMANG.
+
+2. audience: rasmda KIM kiygan/ishlatayotganiga qarab:
+   - Ayol kiyimi (libos, ko'ylak, bluzka, ayollar uchun) → "ayol"
+   - Erkak kiyimi → "erkak"
+   - Bolalar kiyimi → "bolalar"
+
+3. category_hint: mahsulot TURIGA qarab (audiencega emas):
+   - Uzun libos, ko'ylak, to'y kiyimi → "libos"
+   - Qisqa futbolka, mayka, bluzka, rubashka → "koylak"
+   - Shim, jinsi, short → "shim"
+   - Kurtka, palto, jilet → "kurtka"
+   - Poyabzal, tufli, krossovka, sandal, shippak → "poyabzal"
+   - Sumka, ryukzak, hamyon → "sumka"
+   - Sport kiyim (trening, sport to'plami) → "sport"
+
+4. suggested_root_category va suggested_sub_category: audience + category_hint ga qarab:
+   - ayol + libos → root="Ayollar kiyimi", sub="Libos va to'y libosi"
+   - ayol + koylak → root="Ayollar kiyimi", sub="Ko'ylak va bluzka"
+   - ayol + shim → root="Ayollar kiyimi", sub="Shim va jinsi"
+   - erkak + koylak → root="Erkaklar kiyimi", sub="Futbolka va mayka"
+   - erkak + shim → root="Erkaklar kiyimi", sub="Shim va jinsi"
+   - erkak + kurtka → root="Erkaklar kiyimi", sub="Kurtka va jilet"
+   - ayol + poyabzal → root="Poyabzal", sub="Ayollar poyabzali"
+   - erkak + poyabzal → root="Poyabzal", sub="Erkaklar poyabzali"
+
 5. Rasmdagi narx yozuvini o'qing: 150.000 yoki 150 000 = 150000 so'm.
 6. Bir nechta rang ko'rinsa colors massiviga yozing."""
 
@@ -180,12 +200,40 @@ def _merge_listing(base: dict[str, Any], payload: dict[str, Any]) -> dict[str, A
     return merged
 
 
+# Umumiy nomlar — bular bo'lsa Gemini ga ham so'raymiz
+_GENERIC_CATEGORY_NAMES = frozenset({
+    "futbolka va mayka",
+    "ko'ylak va bluzka",
+    "shim va jinsi",
+    "kurtka va jilet",
+    "kurtka va palto",
+    "oyoq kiyim",
+    "sport kiyim",
+    "kundalik kiyim",
+    "bolalar kiyimi",
+    "kiyim",
+    "mahsulot",
+    "yangi mahsulot",
+    "boshqa",
+})
+
+
+def _is_generic_name(name: str) -> bool:
+    """Nom umumiy (kategoriya nomi) bo'lsa True qaytaradi."""
+    n = name.strip().casefold()
+    return n in _GENERIC_CATEGORY_NAMES or is_generic_product_name(n)
+
+
 def _listing_sufficient(merged: dict[str, Any]) -> bool:
+    """Groq natijasi yetarli bo'lsa True — Gemini ga o'tmaymiz."""
     name = str(merged.get("product_name") or "").strip()
-    if is_generic_product_name(name):
+    # Nom umumiy yoki kategoriya nomi bo'lsa — yetarli emas
+    if _is_generic_name(name):
         return False
+    # Nom aniq + narx bor → yetarli
     if merged.get("price_uzs"):
         return True
+    # Nom aniq + kategoriya aniq → yetarli
     hint = str(merged.get("category_hint") or "").strip()
     return bool(hint and hint != "boshqa")
 
