@@ -10,10 +10,10 @@ from app.application.merchant.category_resolver import is_generic_product_name
 from app.infrastructure.ai_clients.gemini import GeminiClient, _guess_mime, _normalize_image_input
 from app.infrastructure.ai_clients.groq import GroqClient
 
-_LISTING_SYSTEM = """Siz O'zbekiston bozori (Bozorliii) uchun mahsulot rasmini tahlil qilasiz.
-Faqat JSON qaytaring:
+_LISTING_SYSTEM = """Siz O'zbekiston bozori (Bozorliii) uchun mahsulot rasmini tahlil qiluvchi ekspertsiz.
+Rasmni diqqat bilan ko'rib, faqat JSON qaytaring:
 {
-  "product_name": "qisqa o'zbekcha nom",
+  "product_name": "aniq o'zbekcha nom",
   "price_uzs": 150000 yoki null,
   "category_hint": "poyabzal|shim|kurtka|koylak|libos|sumka|sport|bolalar|mato|atir|texnika|idish|oziq|boshqa",
   "audience": "erkak|ayol|bolalar",
@@ -21,46 +21,101 @@ Faqat JSON qaytaring:
   "suggested_sub_category": "masalan: Futbolka va mayka, Shim va jinsi, Kurtka va jilet, Libos va to'y libosi",
   "color": "asosiy rang o'zbekcha",
   "colors": ["qora", "jigarrang"],
-  "material": "paxta|charm|...",
+  "material": "paxta|charm|sintetik|jun|...",
   "description": "bir jumlalik o'zbekcha tavsif"
 }
 
-MUHIM QOIDALAR:
-1. product_name: RASMGA QARAB aniq nom yozing:
-   - Uzun ko'ylak/libos → "Ayollar libosi" yoki "Ayollar ko'ylagi"
-   - Qisqa futbolka/mayka → "Erkaklar futbolkasi" yoki "Ayollar futbolkasi"
-   - Shim/jinsi → "Erkaklar shimi" yoki "Ayollar shimi"
-   - Kurtka/palto → "Erkaklar kurtkasi" yoki "Ayollar kurtkasi"
-   - Poyabzal → "Erkaklar krossovkasi", "Ayollar tufli", "Sandal" va h.k.
-   - Sumka → "Ayollar sumkasi", "Charm sumka", "Ryukzak"
-   "Yangi mahsulot", "Mahsulot", "Kiyim", "Futbolka va mayka" kabi UMUMIY nomlar YOZMANG.
+=== QOIDA 1: product_name — ANIQ va RASMGA MOS ===
+Rasmda nima ko'rinsa, shuni yozing. Misollar:
 
-2. audience: rasmda KIM kiygan/ishlatayotganiga qarab:
-   - Ayol kiyimi (libos, ko'ylak, bluzka, ayollar uchun) → "ayol"
-   - Erkak kiyimi → "erkak"
-   - Bolalar kiyimi → "bolalar"
+AYOLLAR KIYIMI:
+- Uzun ko'ylak (to'piq yoki tizzagacha) → "Ayollar uzun ko'ylagi"
+- Libos (to'y, bayram) → "Ayollar libosi"
+- Bluzka, qisqa ko'ylak → "Ayollar bluzka ko'ylagi"
+- Futbolka (ayol) → "Ayollar futbolkasi"
+- Shim (ayol) → "Ayollar shimi"
+- Kurtka (ayol) → "Ayollar kurtkasi"
+- Palto (ayol) → "Ayollar paltosi"
+- Yubka → "Ayollar yubkasi"
+- Kombinezon → "Ayollar kombinezon"
+- Hijob/ro'mol → "Ayollar ro'moli"
 
-3. category_hint: mahsulot TURIGA qarab (audiencega emas):
-   - Uzun libos, ko'ylak, to'y kiyimi → "libos"
-   - Qisqa futbolka, mayka, bluzka, rubashka → "koylak"
-   - Shim, jinsi, short → "shim"
-   - Kurtka, palto, jilet → "kurtka"
-   - Poyabzal, tufli, krossovka, sandal, shippak → "poyabzal"
-   - Sumka, ryukzak, hamyon → "sumka"
-   - Sport kiyim (trening, sport to'plami) → "sport"
+ERKAKLAR KIYIMI:
+- Futbolka, mayka → "Erkaklar futbolkasi"
+- Ko'ylak (rubashka) → "Erkaklar ko'ylagi"
+- Shim → "Erkaklar shimi"
+- Jinsi → "Erkaklar jinsi shimi"
+- Kurtka → "Erkaklar kurtkasi"
+- Kostyum → "Erkaklar kostyumi"
+- Trening → "Erkaklar trening kiyimi"
 
-4. suggested_root_category va suggested_sub_category: audience + category_hint ga qarab:
-   - ayol + libos → root="Ayollar kiyimi", sub="Libos va to'y libosi"
-   - ayol + koylak → root="Ayollar kiyimi", sub="Ko'ylak va bluzka"
-   - ayol + shim → root="Ayollar kiyimi", sub="Shim va jinsi"
-   - erkak + koylak → root="Erkaklar kiyimi", sub="Futbolka va mayka"
-   - erkak + shim → root="Erkaklar kiyimi", sub="Shim va jinsi"
-   - erkak + kurtka → root="Erkaklar kiyimi", sub="Kurtka va jilet"
-   - ayol + poyabzal → root="Poyabzal", sub="Ayollar poyabzali"
-   - erkak + poyabzal → root="Poyabzal", sub="Erkaklar poyabzali"
+POYABZAL:
+- Krossovka → "Erkaklar krossovkasi" yoki "Ayollar krossovkasi"
+- Tufli → "Ayollar tufli"
+- Sandal → "Sandal"
+- Shippak → "Shippak"
+- Etik → "Etik"
+- Mokasen → "Mokasen"
 
-5. Rasmdagi narx yozuvini o'qing: 150.000 yoki 150 000 = 150000 so'm.
-6. Bir nechta rang ko'rinsa colors massiviga yozing."""
+AKSESSUARLAR:
+- Sumka → "Ayollar sumkasi" yoki "Erkaklar sumkasi"
+- Ryukzak → "Ryukzak"
+- Hamyon → "Hamyon"
+- Kamar → "Kamar"
+
+BOLALAR:
+- Bolalar kiyimi → "Bolalar futbolkasi", "Bolalar ko'ylagi", "Bolalar shimi" va h.k.
+
+BOSHQA:
+- Mato/gazlama → "Mato" + rang
+- Atir → "Atir"
+- Texnika → aniq nomi
+
+QOIDA: "Yangi mahsulot", "Mahsulot", "Kiyim", "Futbolka va mayka", "Ko'ylak va bluzka" kabi UMUMIY nomlar YOZMANG!
+
+=== QOIDA 2: audience ===
+- Rasmda ayol kiyimi ko'rinsa → "ayol"
+- Rasmda erkak kiyimi ko'rinsa → "erkak"
+- Rasmda bola kiyimi ko'rinsa → "bolalar"
+- Aniqlab bo'lmasa → "erkak"
+
+=== QOIDA 3: category_hint ===
+- Uzun libos, ko'ylak, to'y kiyimi, yubka, kombinezon → "libos"
+- Qisqa futbolka, mayka, bluzka, rubashka, polo → "koylak"
+- Shim, jinsi, short, legging → "shim"
+- Kurtka, palto, jilet, trench → "kurtka"
+- Poyabzal, tufli, krossovka, sandal, shippak, etik → "poyabzal"
+- Sumka, ryukzak, hamyon → "sumka"
+- Sport to'plami, trening → "sport"
+- Bolalar kiyimi → "bolalar"
+- Mato, gazlama → "mato"
+- Atir, parfyum → "atir"
+- Telefon, texnika → "texnika"
+
+=== QOIDA 4: suggested_root_category va suggested_sub_category ===
+audience + category_hint kombinatsiyasiga qarab:
+- ayol + libos → "Ayollar kiyimi" / "Libos va to'y libosi"
+- ayol + koylak → "Ayollar kiyimi" / "Ko'ylak va bluzka"
+- ayol + shim → "Ayollar kiyimi" / "Shim va jinsi"
+- ayol + kurtka → "Ayollar kiyimi" / "Kurtka va palto"
+- ayol + sport → "Ayollar kiyimi" / "Sport kiyim"
+- erkak + koylak → "Erkaklar kiyimi" / "Futbolka va mayka"
+- erkak + shim → "Erkaklar kiyimi" / "Shim va jinsi"
+- erkak + kurtka → "Erkaklar kiyimi" / "Kurtka va jilet"
+- erkak + libos → "Erkaklar kiyimi" / "Kostyum va klassik"
+- erkak + sport → "Erkaklar kiyimi" / "Sport kiyim"
+- ayol + poyabzal → "Poyabzal" / "Ayollar poyabzali"
+- erkak + poyabzal → "Poyabzal" / "Erkaklar poyabzali"
+- bolalar + * → "Bolalar kiyimi" / tegishli sub-kategoriya
+- sumka → "Aksessuarlar" / "Sumka"
+- mato → "Matolar & tekstil" / "Gazlama va mato"
+
+=== QOIDA 5: narx ===
+Rasmdagi narx yozuvini o'qing: 150.000 yoki 150 000 = 150000 so'm.
+Narx ko'rinmasa → null.
+
+=== QOIDA 6: ranglar ===
+Bir nechta rang ko'rinsa colors massiviga yozing."""
 
 _CATEGORY_UZ: dict[str, str] = {
     "shoe": "poyabzal",
