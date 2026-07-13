@@ -66,6 +66,7 @@ _EDIT_ESCAPE_STATES = (
 )
 _EDIT_ESCAPE_TEXTS = {
     "Mahsulot yuklash (rasm)",
+    "📸 Mahsulot qo'shish",
     "Mahsulot qo'lda",
     "Ombor yangilash",
     "/start",
@@ -132,13 +133,49 @@ def _manual_fallback_attrs(*, reason: str | None = None) -> dict:
 
 
 def _parse_price_from_caption(caption: str | None) -> int | None:
+    """Izohdan narxni o'qiydi. Birinchi katta raqam (≥100) narx hisoblanadi."""
     if not caption:
         return None
-    digits = "".join(c for c in caption if c.isdigit())
-    if not digits:
+    import re
+    # Barcha raqam guruhlarini topamiz (bo'sh joy yoki vergul bilan ajratilgan ham)
+    numbers = [int(re.sub(r"[\s,_]", "", m)) for m in re.findall(r"\d[\d\s,_]*\d|\d", caption)]
+    # Narx ≥ 100 bo'lgan birinchi raqam
+    for n in numbers:
+        if n >= 100:
+            return n
+    return None
+
+
+def _parse_stock_from_caption(caption: str | None) -> int | None:
+    """Izohdan dona/miqdorni o'qiydi.
+    
+    Qo'llab-quvvatlanadigan formatlar:
+    - "10 dona", "10ta", "10 ta", "10 штук", "10 шт"
+    - "dona:10", "miqdor:10"
+    - Agar faqat 2 ta raqam bo'lsa — kichigi dona hisoblanadi
+    """
+    if not caption:
         return None
-    value = int(digits)
-    return value if value > 0 else None
+    import re
+    lower = caption.lower()
+    # "10 dona", "10ta", "10 ta", "10 шт", "10 штук", "10 piece"
+    m = re.search(r"(\d+)\s*(?:dona|ta\b|шт|штук|piece|pcs|нта|нтa)", lower)
+    if m:
+        val = int(m.group(1))
+        return val if 1 <= val <= 99_999 else None
+    # "dona:10" yoki "miqdor:10"
+    m = re.search(r"(?:dona|miqdor|qty|count)\s*[:\-]\s*(\d+)", lower)
+    if m:
+        val = int(m.group(1))
+        return val if 1 <= val <= 99_999 else None
+    # Agar 2 ta raqam bo'lsa va biri narx (≥100), ikkinchisi kichik (≤999) — kichigi dona
+    numbers = [int(re.sub(r"[\s,_]", "", x)) for x in re.findall(r"\d[\d\s,_]*\d|\d", caption)]
+    if len(numbers) == 2:
+        big = max(numbers)
+        small = min(numbers)
+        if big >= 100 and 1 <= small <= 999:
+            return small
+    return None
 
 
 async def _resolve_shop_id(state: FSMContext, chat_id: int) -> uuid.UUID | None:
@@ -381,7 +418,7 @@ async def _subcategory_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows), parent_label
 
 
-@prod_router.message(MerchantBotStates.ready, F.text == "Mahsulot yuklash (rasm)")
+@prod_router.message(MerchantBotStates.ready, F.text.in_({"Mahsulot yuklash (rasm)", "📸 Mahsulot qo'shish"}))
 async def on_product_upload_menu(message: Message, state: FSMContext) -> None:
     shop_id = await _resolve_shop_id(state, int(message.chat.id))
     if not shop_id:
@@ -392,9 +429,11 @@ async def on_product_upload_menu(message: Message, state: FSMContext) -> None:
         await message.answer(blocked)
         return
     await message.answer(
-        "Mahsulot rasmini yuboring — AI nom, kategoriya va narxni taxmin qiladi.\n"
-        "Keyin «+ Rang/rasm» bilan boshqa ranglar qo'shing, «Razmerlar» dan o'lcham tanlang.\n"
-        "Agar AI ishlamasa, qo'lda to'ldirish tugmalari chiqadi."
+        "📸 Mahsulot rasmini yuboring!\n\n"
+        "💡 Izohga narx va dona sonini yozing:\n"
+        "   Masalan: «150000 10 dona» yoki «150000»\n\n"
+        "AI nom, kategoriya va narxni avtomatik aniqlaydi.\n"
+        "Keyin «Yuklash» tugmasini bosasiz — tayyor!"
     )
 
 
@@ -548,6 +587,7 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
                 caption_price = _parse_price_from_caption(message.caption)
                 if caption_price and not attrs.get("price_uzs"):
                     attrs["price_uzs"] = caption_price
+                caption_stock = _parse_stock_from_caption(message.caption)
                 voice_applied = await _consume_voice_prefill(int(message.chat.id), attrs)
                 if voice_applied and not ai_note:
                     ai_note = "🎙 Ovozli ma'lumot qo'shildi — tekshirib, «Yuklash» bosing.\n\n"
@@ -556,6 +596,10 @@ async def on_product_photo(message: Message, state: FSMContext, bot: Bot) -> Non
                     telegram_file_id=photo.file_id,
                     color_name=str(attrs.get("color") or ""),
                 )
+                # Izohdan olingan dona sonini variant draft ga qo'shamiz
+                if caption_stock:
+                    draft_with_stock = set_fallback_stock(get_variant_draft(attrs), caption_stock)
+                    attrs = set_variant_draft(attrs, draft_with_stock)
                 attrs = await enrich_attrs_with_category(session, attrs)
                 if attrs.get("category_id"):
                     attrs = await _apply_category_size_presets(session, attrs, reset_sizes=False)

@@ -49,10 +49,9 @@ def merchant_menu_keyboard(shop_id: uuid.UUID) -> ReplyKeyboardMarkup:
             ),
         ],
         [
-            KeyboardButton(text="Mahsulot yuklash (rasm)"),
-            KeyboardButton(text="Mahsulot qo'lda"),
+            KeyboardButton(text="📸 Mahsulot qo'shish"),
+            KeyboardButton(text="Ombor yangilash"),
         ],
-        [KeyboardButton(text="Ombor yangilash")],
     ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
