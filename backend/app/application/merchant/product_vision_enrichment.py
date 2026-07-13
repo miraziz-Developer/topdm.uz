@@ -13,18 +13,34 @@ from app.infrastructure.ai_clients.groq import GroqClient
 _LISTING_SYSTEM = """Siz O'zbekiston bozori (Bozorliii) uchun mahsulot rasmini tahlil qilasiz.
 Faqat JSON qaytaring:
 {
-  "product_name": "qisqa o'zbekcha nom (masalan: Ayollar shippagi, Charm sumka)",
+  "product_name": "qisqa o'zbekcha nom (masalan: Ayollar shippagi, Charm sumka, Erkaklar futbolkasi)",
   "price_uzs": 150000 yoki null,
   "category_hint": "poyabzal|shim|kurtka|koylak|libos|sumka|sport|bolalar|mato|atir|texnika|idish|oziq|boshqa",
-  "suggested_root_category": "kiyim bo'lmasa — masalan Matolar & tekstil",
-  "suggested_sub_category": "masalan Pardabop va dekor mato",
+  "audience": "erkak|ayol|bolalar",
+  "suggested_root_category": "masalan: Erkaklar kiyimi, Ayollar kiyimi, Poyabzal, Aksessuarlar",
+  "suggested_sub_category": "masalan: Futbolka va mayka, Shim va jinsi, Kurtka va jilet",
   "color": "asosiy rang o'zbekcha",
   "colors": ["qora", "jigarrang"],
   "material": "paxta|charm|...",
   "description": "bir jumlalik o'zbekcha tavsif"
 }
-Rasmdagi narx yozuvini o'qing: 150.000 yoki 150 000 = 150000 so'm.
-Bir nechta rang ko'rinsa colors massiviga yozing."""
+
+MUHIM QOIDALAR:
+1. product_name: aniq va qisqa bo'lsin. Masalan: "Erkaklar futbolkasi", "Ayollar ko'ylagi", "Bolalar shimi", "Charm sumka", "Krossovka".
+   "Yangi mahsulot", "Mahsulot", "Kiyim" kabi umumiy nomlar YOZMANG.
+2. audience: rasmda kim kiygan/ishlatayotganiga qarab tanlang (erkak/ayol/bolalar).
+3. category_hint: mahsulot turiga qarab tanlang:
+   - futbolka, mayka, ko'ylak → "koylak"
+   - shim, jinsi → "shim"
+   - kurtka, palto → "kurtka"
+   - libos, to'y kiyimi → "libos"
+   - poyabzal, tufli, krossovka, sandal → "poyabzal"
+   - sumka, ryukzak → "sumka"
+   - sport kiyim → "sport"
+4. suggested_root_category va suggested_sub_category: O'zbekcha aniq kategoriya nomi yozing.
+   Masalan: root="Erkaklar kiyimi", sub="Futbolka va mayka"
+5. Rasmdagi narx yozuvini o'qing: 150.000 yoki 150 000 = 150000 so'm.
+6. Bir nechta rang ko'rinsa colors massiviga yozing."""
 
 _CATEGORY_UZ: dict[str, str] = {
     "shoe": "poyabzal",
@@ -126,6 +142,9 @@ def _merge_listing(base: dict[str, Any], payload: dict[str, Any]) -> dict[str, A
         merged["category_hint"] = _normalize_category_hint(str(payload["category_hint"]))
     elif payload.get("category"):
         merged["category_hint"] = _normalize_category_hint(str(payload["category"]))
+    # audience (erkak/ayol/bolalar) ni saqlash — kategoriya tanlashda ishlatiladi
+    if payload.get("audience"):
+        merged["audience"] = str(payload["audience"]).strip().lower()
     if payload.get("color"):
         merged["color"] = str(payload["color"]).strip()
     colors = payload.get("colors")

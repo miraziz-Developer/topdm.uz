@@ -147,11 +147,26 @@ def infer_audience(*parts: str | None) -> str:
         return "erkak"
     if any(token in text for token in ("bolalar", "bola ", "chaqaloq", "maktab formasi", "bolalar ")):
         return "bolalar"
-    if any(token in text for token in ("ayollar", "ayol ", "qizlar", "qiz ")):
+    if any(token in text for token in ("ayollar", "ayol ", "qizlar", "qiz ", "ayollar ")):
         return "ayol"
-    if any(token in text for token in ("erkaklar", "erkak ")):
+    if any(token in text for token in ("erkaklar", "erkak ", "erkaklar ")):
         return "erkak"
     return "erkak"
+
+
+def infer_audience_from_attrs(attrs: dict) -> str:
+    """attrs ichidagi audience, product_name, description, category_hint dan audience aniqlash."""
+    # AI to'g'ridan-to'g'ri audience bergan bo'lsa — ishlatamiz
+    ai_audience = str(attrs.get("audience") or "").strip().lower()
+    if ai_audience in {"erkak", "ayol", "bolalar"}:
+        return ai_audience
+    # Matndan aniqlash
+    return infer_audience(
+        str(attrs.get("product_name") or ""),
+        str(attrs.get("description") or ""),
+        str(attrs.get("category_hint") or ""),
+        str(attrs.get("category_label") or ""),
+    )
 
 
 def parse_category_label(label: str) -> tuple[str, str] | None:
@@ -171,7 +186,8 @@ def resolve_tree_names(attrs: dict[str, Any]) -> tuple[str, str] | None:
         str(attrs.get(key) or "")
         for key in ("product_name", "description", "category_label", "category_hint", "category")
     )
-    audience = infer_audience(text, hint)
+    # AI audience bergan bo'lsa — uni ishlatamiz, aks holda matndan aniqlaymiz
+    audience = infer_audience_from_attrs(attrs) if attrs.get("audience") else infer_audience(text, hint)
     if hint in _HINT_ROUTES:
         return _HINT_ROUTES[hint].get(audience) or _HINT_ROUTES[hint]["erkak"]
 
