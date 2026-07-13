@@ -466,6 +466,79 @@ export function clearShopDebt(shopId: string, amount_uzs: number, note?: string)
   });
 }
 
+// --- Mahsulotlar (admin CRUD) ------------------------------------
+
+export type AdminProductItem = {
+  id: string;
+  shop_id: string | null;
+  shop_name?: string | null;
+  shop_slug?: string | null;
+  category_id?: string | null;
+  name: string;
+  description?: string | null;
+  price: number;
+  stock_count: number;
+  is_available: boolean;
+  is_featured: boolean;
+  images: string[];
+  view_count: number;
+  lead_count: number;
+  attributes?: Record<string, unknown>;
+};
+
+export type AdminProductDetail = AdminProductItem & {
+  category_name?: string | null;
+  sale_type?: string | null;
+  min_order_quantity?: number | null;
+  pricing_unit?: string | null;
+  visit_count?: number;
+  weight_kg?: number | null;
+};
+
+export function getAdminProducts(opts?: {
+  q?: string;
+  shop_id?: string;
+  is_available?: boolean;
+  offset?: number;
+  limit?: number;
+}) {
+  const params = new URLSearchParams({ limit: String(opts?.limit ?? 50) });
+  if (opts?.q) params.set("q", opts.q);
+  if (opts?.shop_id) params.set("shop_id", opts.shop_id);
+  if (opts?.is_available !== undefined) params.set("is_available", String(opts.is_available));
+  if (opts?.offset) params.set("offset", String(opts.offset));
+  return adminFetch<{ items: AdminProductItem[]; count: number; total: number }>(
+    `/admin/products?${params}`,
+  );
+}
+
+export function getAdminProduct(id: string) {
+  return adminFetch<AdminProductDetail>(`/admin/products/${id}`);
+}
+
+export function updateAdminProduct(
+  id: string,
+  body: {
+    name?: string;
+    description?: string | null;
+    price?: number;
+    stock_count?: number;
+    is_available?: boolean;
+    is_featured?: boolean;
+  },
+) {
+  return adminFetch<{ id: string; name: string; price: number; stock_count: number; is_available: boolean; is_featured: boolean }>(
+    `/admin/products/${id}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+export function deleteAdminProduct(id: string) {
+  return adminFetch<{ status: string; id: string }>(`/admin/products/${id}`, {
+    method: "DELETE",
+  });
+}
+
 // --- Pending mahsulotlar (moderatsiya) ------------------------------------
 
 export type PendingProductItem = {

@@ -79,9 +79,9 @@ export const ADMIN_NAV: AdminNavItem[] = [
     icon: TrendingUp,
   },
   {
-    href: "/dashboard/moderation",
-    label: "Moderatsiya",
-    description: "Pending mahsulotlar",
+    href: "/dashboard/products",
+    label: "Mahsulotlar",
+    description: "Barcha mahsulotlar CRUD",
     icon: Package,
   },
   {

@@ -1007,6 +1007,186 @@ async def admin_clear_shop_debt(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+# --- Mahsulotlar (admin CRUD) -----------------------------------
+
+
+@router.get("/products")
+async def admin_list_products(
+    limit: int = 50,
+    offset: int = 0,
+    q: str | None = None,
+    shop_id: UUID | None = None,
+    is_available: bool | None = None,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Barcha mahsulotlar — filter, qidiruv, pagination."""
+    from app.infrastructure.db.models import ProductModel, ShopModel
+
+    base = select(ProductModel)
+    count_q = select(func.count()).select_from(ProductModel)
+
+    if shop_id is not None:
+        base = base.where(ProductModel.shop_id == shop_id)
+        count_q = count_q.where(ProductModel.shop_id == shop_id)
+    if is_available is not None:
+        base = base.where(ProductModel.is_available.is_(is_available))
+        count_q = count_q.where(ProductModel.is_available.is_(is_available))
+    if q and q.strip():
+        needle = f"%{q.strip()}%"
+        base = base.where(ProductModel.name.ilike(needle))
+        count_q = count_q.where(ProductModel.name.ilike(needle))
+
+    total = int((await db.execute(count_q)).scalar_one() or 0)
+    result = await db.execute(
+        base.order_by(ProductModel.is_featured.desc(), ProductModel.view_count.desc())
+        .offset(offset)
+        .limit(min(limit, 200))
+    )
+    products = list(result.scalars().all())
+
+    # Fetch shop names
+    s_ids = {p.shop_id for p in products if p.shop_id}
+    shops: dict = {}
+    if s_ids:
+        shop_rows = await db.execute(select(ShopModel).where(ShopModel.id.in_(s_ids)))
+        shops = {s.id: s for s in shop_rows.scalars().all()}
+
+    return {
+        "items": [
+            {
+                "id": str(p.id),
+                "shop_id": str(p.shop_id) if p.shop_id else None,
+                "shop_name": shops[p.shop_id].name if p.shop_id and p.shop_id in shops else None,
+                "shop_slug": shops[p.shop_id].slug if p.shop_id and p.shop_id in shops else None,
+                "category_id": str(p.category_id) if p.category_id else None,
+                "name": p.name,
+                "description": p.description,
+                "price": float(p.price or 0),
+                "stock_count": p.stock_count or 0,
+                "is_available": bool(p.is_available),
+                "is_featured": bool(p.is_featured),
+                "images": list(p.images or []),
+                "view_count": p.view_count or 0,
+                "lead_count": p.lead_count or 0,
+                "attributes": dict(p.attributes or {}),
+            }
+            for p in products
+        ],
+        "count": len(products),
+        "total": total,
+    }
+
+
+@router.get("/products/{product_id}")
+async def admin_get_product(
+    product_id: UUID,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Mahsulot to'liq detail."""
+    from app.infrastructure.db.models import CategoryModel, ProductModel, ShopModel
+
+    product = await db.get(ProductModel, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    shop = await db.get(ShopModel, product.shop_id) if product.shop_id else None
+    category = await db.get(CategoryModel, product.category_id) if product.category_id else None
+
+    return {
+        "id": str(product.id),
+        "shop_id": str(product.shop_id) if product.shop_id else None,
+        "shop_name": shop.name if shop else None,
+        "shop_slug": shop.slug if shop else None,
+        "category_id": str(product.category_id) if product.category_id else None,
+        "category_name": category.name if category else None,
+        "name": product.name,
+        "description": product.description,
+        "price": float(product.price or 0),
+        "sale_type": product.sale_type,
+        "min_order_quantity": product.min_order_quantity,
+        "pricing_unit": product.pricing_unit,
+        "stock_count": product.stock_count or 0,
+        "is_available": bool(product.is_available),
+        "is_featured": bool(product.is_featured),
+        "images": list(product.images or []),
+        "view_count": product.view_count or 0,
+        "lead_count": product.lead_count or 0,
+        "visit_count": product.visit_count or 0,
+        "weight_kg": float(product.weight_kg) if product.weight_kg else None,
+        "attributes": dict(product.attributes or {}),
+    }
+
+
+class AdminUpdateProductBody(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    description: str | None = Field(default=None, max_length=5000)
+    price: float | None = Field(default=None, gt=0)
+    stock_count: int | None = Field(default=None, ge=0)
+    is_available: bool | None = None
+    is_featured: bool | None = None
+
+
+@router.patch("/products/{product_id}")
+async def admin_update_product(
+    product_id: UUID,
+    body: AdminUpdateProductBody,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Mahsulotni yangilash (nom, narx, tavsif, stok, holat)."""
+    from app.infrastructure.db.models import ProductModel
+
+    product = await db.get(ProductModel, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if body.name is not None:
+        product.name = body.name.strip()
+    if body.description is not None:
+        product.description = body.description.strip() or None
+    if body.price is not None:
+        from decimal import Decimal
+        product.price = Decimal(str(body.price))
+    if body.stock_count is not None:
+        product.stock_count = body.stock_count
+        if body.is_available is None:
+            product.is_available = body.stock_count > 0
+    if body.is_available is not None:
+        product.is_available = body.is_available
+    if body.is_featured is not None:
+        product.is_featured = body.is_featured
+
+    await db.commit()
+    await db.refresh(product)
+    return {
+        "id": str(product.id),
+        "name": product.name,
+        "price": float(product.price or 0),
+        "stock_count": product.stock_count or 0,
+        "is_available": bool(product.is_available),
+        "is_featured": bool(product.is_featured),
+    }
+
+
+@router.delete("/products/{product_id}")
+async def admin_delete_product(
+    product_id: UUID,
+    _: None = Depends(require_admin_key),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Mahsulotni o'chirish."""
+    from app.infrastructure.db.models import ProductModel
+
+    product = await db.get(ProductModel, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    await db.delete(product)
+    await db.commit()
+    return {"status": "deleted", "id": str(product_id)}
+
+
 # --- Pending mahsulotlar (admin moderatsiya) -----------------------------------
 
 
