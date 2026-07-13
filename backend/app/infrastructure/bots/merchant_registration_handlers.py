@@ -275,6 +275,18 @@ async def reg_location(message: Message, state: FSMContext) -> None:
     )
 
 
+@reg_router.message(MerchantBotStates.reg_location, F.photo)
+async def reg_location_photo(message: Message, state: FSMContext) -> None:
+    """Joylashuv o'rniga rasm yuborilsa — aniq yo'riqnoma."""
+    await message.answer(
+        "📍 Joylashuv kerak, rasm emas.\n\n"
+        "📱 Mobil: pastdagi «Joylashuvni yuborish» tugmasini bosing\n"
+        "💻 Desktop: 📎 (Attach) → Location\n\n"
+        "Yoki «Keyinroq (CRM xaritadan)» tugmasini bosing — ro'yxatdan o'tgach xaritada belgilaysiz.",
+        reply_markup=location_keyboard(),
+    )
+
+
 @reg_router.message(MerchantBotStates.reg_location, F.text)
 async def reg_location_text(message: Message, state: FSMContext) -> None:
     text = (message.text or "").strip()
@@ -283,12 +295,23 @@ async def reg_location_text(message: Message, state: FSMContext) -> None:
         await state.clear()
         await message.answer("Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
         return
-    if lower.startswith("keyinroq") or lower in {"skip", "otkazib yuborish", "o'tkazib yuborish"}:
+    # "Keyinroq (CRM xaritadan)" tugmasi yoki shunga o'xshash
+    _SKIP_KEYWORDS = {
+        "keyinroq (crm xaritadan)",
+        "keyinroq",
+        "skip",
+        "otkazib yuborish",
+        "o'tkazib yuborish",
+        "o'tkazib",
+        "keyinroq (crm)",
+    }
+    if lower in _SKIP_KEYWORDS or lower.startswith("keyinroq"):
         data = await state.get_data()
         lat, lon = _default_coords_for_market(str(data.get("reg_market") or ""))
         await message.answer(
-            "Joylashuv vaqtincha bozor markaziga qo'yildi. "
-            "Ro'yxatdan o'tgach CRM → Xarita orqali aniq nuqtani belgilang."
+            "✅ Joylashuv vaqtincha bozor markaziga qo'yildi.\n"
+            "Ro'yxatdan o'tgach CRM → Xarita orqali aniq nuqtani belgilang.",
+            reply_markup=ReplyKeyboardRemove(),
         )
         await _advance_after_location(message, state, lat=lat, lon=lon, acc=None)
         return
@@ -300,10 +323,10 @@ async def reg_location_text(message: Message, state: FSMContext) -> None:
         )
         return
     await message.answer(
-        "Joylashuv qabul qilinmadi.\n"
-        "📱 Mobil: «Joylashuvni yuborish»\n"
-        "💻 Desktop: 📎 → Location\n"
-        "Yoki «Keyinroq (CRM xaritadan)»",
+        "📍 Joylashuv qabul qilinmadi.\n\n"
+        "📱 Mobil: «Joylashuvni yuborish» tugmasini bosing\n"
+        "💻 Desktop: 📎 (Attach) → Location\n\n"
+        "Yoki «Keyinroq (CRM xaritadan)» tugmasini bosing.",
         reply_markup=location_keyboard(),
     )
 
