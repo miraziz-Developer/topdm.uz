@@ -133,12 +133,29 @@ def _manual_fallback_attrs(*, reason: str | None = None) -> dict:
 
 
 def _parse_price_from_caption(caption: str | None) -> int | None:
-    """Izohdan narxni o'qiydi. Birinchi katta raqam (≥100) narx hisoblanadi."""
+    """Izohdan narxni o'qiydi. Birinchi katta raqam (≥100) narx hisoblanadi.
+
+    Qoidalar:
+    - Vergul/nuqta/pastki chiziq bilan ajratilgan raqamlar bitta son hisoblanadi:
+      "1,800,000" → 1800000, "1_800_000" → 1800000
+    - Bo'sh joy bilan ajratilgan raqamlar ALOHIDA son hisoblanadi:
+      "18000 10 dona" → [18000, 10] — 18000 narx, 10 dona
+    - Birinchi ≥100 bo'lgan raqam narx hisoblanadi.
+    """
     if not caption:
         return None
     import re
-    # Barcha raqam guruhlarini topamiz (bo'sh joy yoki vergul bilan ajratilgan ham)
-    numbers = [int(re.sub(r"[\s,_]", "", m)) for m in re.findall(r"\d[\d\s,_]*\d|\d", caption)]
+    # Faqat vergul, nuqta yoki pastki chiziq bilan ajratilgan raqamlarni bitta son deb o'qiymiz.
+    # Bo'sh joy bilan ajratilgan raqamlar alohida son hisoblanadi.
+    tokens = re.findall(r"\d[\d,._]*\d|\d", caption)
+    numbers = []
+    for t in tokens:
+        # Vergul/nuqta/pastki chiziqni olib tashlaymiz, lekin bo'sh joy yo'q bu yerda
+        cleaned = re.sub(r"[,._]", "", t)
+        try:
+            numbers.append(int(cleaned))
+        except ValueError:
+            pass
     # Narx ≥ 100 bo'lgan birinchi raqam
     for n in numbers:
         if n >= 100:
