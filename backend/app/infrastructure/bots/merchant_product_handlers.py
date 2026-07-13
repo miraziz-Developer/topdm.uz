@@ -873,8 +873,14 @@ async def prod_add_color_photo(message: Message, state: FSMContext, bot: Bot) ->
     await message.answer(f"Rasm qo'shildi ({images_line}). Yana rasm yuboring yoki /done bosing.")
 
 
-@prod_router.message(MerchantBotStates.product_add_color_photo, F.text == "/done")
+@prod_router.message(MerchantBotStates.product_add_color_photo, F.text)
 async def prod_add_color_done(message: Message, state: FSMContext) -> None:
+    text = (message.text or "").strip().lower()
+    if text not in {"/done", "tayyor", "bitdi", "tugatish", "✅ tayyor"}:
+        await message.answer(
+            "Yana rasm yuboring yoki «✅ Tayyor» deb yozing (yoki /done)."
+        )
+        return
     data = await state.get_data()
     pending_id = data.get("edit_pending_id")
     if not pending_id:
@@ -1056,6 +1062,9 @@ async def prod_save_price(message: Message, state: FSMContext) -> None:
         await message.answer("Faqat raqam kiriting.")
         return
     price = int(digits)
+    if price < 100:
+        await message.answer("Narx kamida 100 so'm bo'lishi kerak.")
+        return
     shop_id = await _resolve_shop_id(state, int(message.chat.id))
     if not shop_id:
         await message.answer("Chat do'konga ulanmagan. /start bilan qayta ulang.")
@@ -1073,8 +1082,10 @@ async def prod_save_price(message: Message, state: FSMContext) -> None:
         await repo.update_pending_product(row, vision_attributes=attrs)
         await session.commit()
     await state.set_state(MerchantBotStates.ready)
+    price_fmt = f"{price:,}".replace(",", " ")
     await message.answer(
-        _format_preview(attrs, category_name=attrs.get("category_label")),
+        f"✅ Narx saqlandi: {price_fmt} so'm\n\n"
+        + _format_preview(attrs, category_name=attrs.get("category_label")),
         reply_markup=_product_keyboard(pending_id, has_category=bool(attrs.get("category_id"))),
     )
 
@@ -1133,7 +1144,7 @@ async def prod_cancel(query: CallbackQuery, state: FSMContext) -> None:
                 payload=RejectPendingProductRequest(reason="merchant_cancelled"),
             )
         except Exception:
-            pass
+            logger.warning("prod_cancel_reject_failed pending_id=%s", pending_id, exc_info=True)
     if query.message:
         await query.message.edit_text("Mahsulot bekor qilindi.")
     await query.answer()
@@ -1198,8 +1209,10 @@ async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
                     await repo.update_pending_product(row, vision_attributes=attrs)
                     await session.commit()
                 price_raw = attrs.get("price_uzs")
-                if not price_raw:
-                    await query.message.answer("Avval narx kiriting.")
+                if not price_raw or int(price_raw) < 100:
+                    await query.message.answer(
+                        "Avval narx kiriting (kamida 100 so'm).\n«Narx» tugmasini bosing."
+                    )
                     return
                 price = int(price_raw)
                 draft = get_variant_draft(attrs)
