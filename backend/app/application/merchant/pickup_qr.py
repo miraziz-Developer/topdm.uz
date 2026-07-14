@@ -29,7 +29,7 @@ def _signing_secret(settings: Settings | None = None) -> str:
 
 def _compute_sig(order_id: UUID, shop_id: UUID, exp: int, *, settings: Settings | None = None) -> str:
     payload = f"{order_id}:{shop_id}:{exp}"
-    return hmac.new(
+    return hmac.HMAC(
         _signing_secret(settings).encode(),
         payload.encode(),
         hashlib.sha256,

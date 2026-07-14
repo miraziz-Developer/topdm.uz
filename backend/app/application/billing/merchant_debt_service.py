@@ -108,6 +108,11 @@ class MerchantDebtService:
         if fulfillment not in ("pickup", "delivery"):
             return {"status": "skipped", "reason": "not_fulfillment_order"}
 
+        # BUG FIX: delivery buyurtmalar uchun komissiya hisoblanmaydi
+        # (delivery to'lovi odatda onlayn bo'ladi va alohida hisoblanadi)
+        if fulfillment == "delivery":
+            return {"status": "skipped", "reason": "delivery_order_no_debt"}
+
         if order.debt_commission_recorded:
             return {"status": "skipped", "reason": "already_recorded"}
 
@@ -151,9 +156,12 @@ class MerchantDebtService:
         shop = await self._session.get(ShopModel, order.shop_id)
         threshold = await self.block_threshold_uzs()
         blocked_now = False
-        if shop and int(shop.debt_balance or 0) >= threshold:
-            shop.is_blocked = True
-            blocked_now = True
+        if shop:
+            # BUG FIX: debt_balance ni ledger balance_after_uzs bilan yangilash
+            shop.debt_balance = int(ledger_row.balance_after_uzs)
+            if int(shop.debt_balance) >= threshold:
+                shop.is_blocked = True
+                blocked_now = True
 
         await self._session.flush()
 

@@ -204,6 +204,9 @@ export async function getMerchantDashboard() {
       customer_phone?: string;
       pickup_date?: string | null;
       pickup_time?: string | null;
+      // BUG FIX: payment_method maydoni qo'shildi
+      payment_method?: string | null;
+      payment_method_label?: string | null;
       arrival_status?: string | null;
       dwell_minutes?: number | null;
       distance_label?: string | null;

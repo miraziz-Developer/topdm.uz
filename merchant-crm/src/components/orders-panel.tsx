@@ -4,8 +4,10 @@ import {
   MapPin,
   MoreHorizontal,
   Package,
+  Phone,
   Search,
   Truck,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +28,20 @@ import {
 import { notifyNewOrder } from "@/lib/order-alerts";
 import { shortId } from "@/lib/short-id";
 import { cn, formatPrice } from "@/lib/utils";
+
+// BUG FIX: Pickup vaqt labellari
+const PICKUP_TIME_LABELS: Record<string, string> = {
+  "09:00": "09:00 - 11:00 (Ertalab)",
+  "12:00": "11:00 - 14:00 (Tushlik)",
+  "15:00": "14:00 - 17:00 (Tushdan keyin)",
+};
+
+// BUG FIX: To'lov usuli labellari
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Naqd pul",
+  terminal: "Terminal",
+  click: "Click (onlayn)",
+};
 
 const STATUS_FLOW = [
   { value: "reserved", label: "Band qilingan" },
@@ -57,6 +73,9 @@ type OrderRow = {
   customer_phone?: string;
   pickup_date?: string | null;
   pickup_time?: string | null;
+  // BUG FIX: payment_method qo'shildi
+  payment_method?: string | null;
+  payment_method_label?: string | null;
   arrival_status?: string | null;
   dwell_minutes?: number | null;
   distance_label?: string | null;
@@ -72,9 +91,11 @@ const TABS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "Hammasi" },
 ];
 
+// BUG FIX: pickup_time label bilan ko'rsatish
 function formatPickup(when?: string | null, time?: string | null) {
   if (!when) return "—";
-  return time ? `${when} · ${time}` : when;
+  const timeLabel = time ? (PICKUP_TIME_LABELS[time] ?? time) : null;
+  return timeLabel ? `${when} · ${timeLabel}` : when;
 }
 
 function formatWalletAmount(raw: string): string {
@@ -100,22 +121,41 @@ function matchesFilter(order: OrderRow, filter: FilterKey): boolean {
   }
 }
 
+// BUG FIX: Telefon raqamini normalize qilish (qidiruv uchun)
+function normalizePhoneForSearch(phone: string): string {
+  return phone.replace(/[^\d]/g, "");
+}
+
+// BUG FIX: WhatsApp link
+function whatsappUrl(phone: string): string {
+  const digits = phone.replace(/[^\d]/g, "");
+  return `https://wa.me/${digits}`;
+}
+
+// BUG FIX: Telegram link
+function telegramUrl(phone: string): string {
+  return `https://t.me/${phone.replace(/[^\d+]/g, "")}`;
+}
+
 function OrderActionsMenu({
   order,
   busy,
   onDispatch,
   onSync,
   onWaybill,
+  onCancel,
 }: {
   order: OrderRow;
   busy: boolean;
   onDispatch: () => void;
   onSync: () => void;
   onWaybill: () => void;
+  onCancel: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const isDelivery = order.fulfillment_type === "delivery";
   const isDone = ["completed", "cancelled"].includes(order.status);
+  const canCancel = ["reserved", "confirmed", "pending"].includes(order.status);
 
   if (isDone) return null;
 
@@ -132,7 +172,7 @@ function OrderActionsMenu({
       {open ? (
         <>
           <button type="button" className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute right-0 z-20 mt-1 w-48 rounded-xl border border-border-subtle bg-surface py-1 shadow-lg">
+          <div className="absolute right-0 z-20 mt-1 w-52 rounded-xl border border-border-subtle bg-surface py-1 shadow-lg">
             {isDelivery ? (
               <>
                 <button
@@ -169,6 +209,21 @@ function OrderActionsMenu({
                   Yetkazish yorlig&apos;i
                 </button>
               </>
+            ) : null}
+            {/* BUG FIX: Bekor qilish tugmasi qo'shildi */}
+            {canCancel ? (
+              <button
+                type="button"
+                disabled={busy}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  setOpen(false);
+                  onCancel();
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+                Bekor qilish
+              </button>
             ) : null}
           </div>
         </>
@@ -211,7 +266,8 @@ export function OrdersPanel() {
         if (!cancelled) setLoading(false);
       }
     })();
-    const id = window.setInterval(() => void load(), 20_000);
+    // BUG FIX: Polling 20s → 10s (tezroq yangilanish)
+    const id = window.setInterval(() => void load(), 10_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -236,6 +292,7 @@ export function OrdersPanel() {
   }, [orders]);
 
   const counts = useMemo(() => {
+    // BUG FIX: active faqat faol buyurtmalar (completed/cancelled emas)
     const active = orders.filter((o) => !["completed", "cancelled"].includes(o.status)).length;
     const done = orders.filter((o) => ["completed", "cancelled"].includes(o.status)).length;
     const delivery = orders.filter(
@@ -249,14 +306,17 @@ export function OrdersPanel() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // BUG FIX: Telefon qidiruv normalize qilinadi
+    const qDigits = normalizePhoneForSearch(q);
     return orders
       .filter((o) => matchesFilter(o, filter))
       .filter((o) => {
         if (!q) return true;
+        const phoneDigits = normalizePhoneForSearch(o.customer_phone ?? "");
         return (
           o.product_name?.toLowerCase().includes(q) ||
           o.id.toLowerCase().includes(q) ||
-          o.customer_phone?.includes(q) ||
+          phoneDigits.includes(qDigits) ||
           shortId(o.id).toLowerCase().includes(q)
         );
       })
@@ -274,8 +334,25 @@ export function OrdersPanel() {
       const res = await updateMerchantOrder(orderId, status);
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: res.status } : o)));
       toast.success("Holat yangilandi");
-    } catch {
-      toast.error("Holatni yangilab bo'lmadi");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Holatni yangilab bo'lmadi";
+      toast.error(msg);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // BUG FIX: Bekor qilish funksiyasi
+  const cancelOrder = async (order: OrderRow) => {
+    if (!window.confirm(`"${order.product_name}" buyurtmasini bekor qilasizmi?`)) return;
+    setBusyId(order.id);
+    try {
+      const res = await updateMerchantOrder(order.id, "cancelled");
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: res.status } : o)));
+      toast.success("Buyurtma bekor qilindi");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Bekor qilib bo'lmadi";
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -403,7 +480,7 @@ export function OrdersPanel() {
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[800px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[900px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-border-subtle text-xs font-medium text-text-400">
                     <th className="px-4 py-3.5 sm:px-5">Buyurtma</th>
@@ -411,6 +488,8 @@ export function OrdersPanel() {
                     <th className="px-4 py-3.5">Tur</th>
                     <th className="px-4 py-3.5">Summa</th>
                     <th className="px-4 py-3.5">Olib ketish</th>
+                    {/* BUG FIX: To'lov ustuni qo'shildi */}
+                    <th className="px-4 py-3.5">To&apos;lov</th>
                     <th className="px-4 py-3.5">Holat</th>
                     <th className="w-12 px-4 py-3.5 sm:px-5" />
                   </tr>
@@ -420,7 +499,12 @@ export function OrdersPanel() {
                     const meta = STATUS_META[order.status] ?? { label: order.status, variant: "default" as const };
                     const isDelivery = order.fulfillment_type === "delivery";
                     const isDone = ["completed", "cancelled"].includes(order.status);
-                    const activeStatuses = STATUS_FLOW.filter((s) => !["completed", "cancelled"].includes(s.value));
+                    // BUG FIX: Delivery uchun completed ham ko'rsatiladi, pickup uchun emas
+                    const activeStatuses = STATUS_FLOW.filter((s) => {
+                      if (s.value === "cancelled") return false;
+                      if (s.value === "completed") return isDelivery; // faqat delivery uchun
+                      return true;
+                    });
 
                     return (
                       <tr
@@ -447,9 +531,21 @@ export function OrdersPanel() {
                         <td className="px-4 py-4">
                           {order.customer_phone ? (
                             <div className="space-y-1">
-                              <a href={`tel:${order.customer_phone}`} className="font-medium text-electric-600 hover:underline">
-                                {order.customer_phone}
-                              </a>
+                              {/* BUG FIX: WhatsApp va Telegram linklari qo'shildi */}
+                              <div className="flex items-center gap-1.5">
+                                <a href={`tel:${order.customer_phone}`} className="font-medium text-electric-600 hover:underline">
+                                  {order.customer_phone}
+                                </a>
+                                <a
+                                  href={whatsappUrl(order.customer_phone)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="WhatsApp"
+                                  className="rounded p-0.5 text-emerald-600 hover:bg-emerald-50"
+                                >
+                                  <Phone className="h-3 w-3" />
+                                </a>
+                              </div>
                               <CustomerPhoneInsight phone={order.customer_phone} />
                             </div>
                           ) : (
@@ -480,6 +576,12 @@ export function OrdersPanel() {
                         <td className="px-4 py-4 text-xs text-text-400">
                           {formatPickup(order.pickup_date, order.pickup_time)}
                         </td>
+                        {/* BUG FIX: To'lov usuli ko'rsatiladi */}
+                        <td className="px-4 py-4 text-xs text-text-400">
+                          {order.payment_method_label ??
+                            PAYMENT_METHOD_LABELS[order.payment_method ?? ""] ??
+                            (order.payment_method || "—")}
+                        </td>
                         <td className="px-4 py-4">
                           {isDone ? (
                             <Badge variant={meta.variant}>{meta.label}</Badge>
@@ -505,6 +607,7 @@ export function OrdersPanel() {
                             onDispatch={() => void dispatchCourier(order)}
                             onSync={() => void syncDelivery(order)}
                             onWaybill={() => void openWaybill(order)}
+                            onCancel={() => void cancelOrder(order)}
                           />
                         </td>
                       </tr>
@@ -519,6 +622,12 @@ export function OrdersPanel() {
                 const meta = STATUS_META[order.status] ?? { label: order.status, variant: "default" as const };
                 const isDone = ["completed", "cancelled"].includes(order.status);
                 const isDelivery = order.fulfillment_type === "delivery";
+                // BUG FIX: Delivery uchun completed ham ko'rsatiladi
+                const mobileStatuses = STATUS_FLOW.filter((s) => {
+                  if (s.value === "cancelled") return false;
+                  if (s.value === "completed") return isDelivery;
+                  return true;
+                });
                 return (
                   <li
                     key={order.id}
@@ -537,6 +646,30 @@ export function OrdersPanel() {
                           {shortId(order.id)} · {order.quantity} dona
                           {isDelivery ? " · Yetkazish" : " · Olib ketish"}
                         </p>
+                        {/* BUG FIX: To'lov usuli mobile'da ham ko'rsatiladi */}
+                        {order.payment_method ? (
+                          <p className="mt-0.5 text-xs text-text-400">
+                            {order.payment_method_label ??
+                              PAYMENT_METHOD_LABELS[order.payment_method] ??
+                              order.payment_method}
+                          </p>
+                        ) : null}
+                        {/* BUG FIX: Telefon + WhatsApp */}
+                        {order.customer_phone ? (
+                          <div className="mt-1 flex items-center gap-2">
+                            <a href={`tel:${order.customer_phone}`} className="text-xs font-medium text-electric-600">
+                              {order.customer_phone}
+                            </a>
+                            <a
+                              href={whatsappUrl(order.customer_phone)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-emerald-600 hover:underline"
+                            >
+                              WA
+                            </a>
+                          </div>
+                        ) : null}
                       </div>
                       <Badge variant={meta.variant}>{meta.label}</Badge>
                     </div>
@@ -547,7 +680,7 @@ export function OrdersPanel() {
                         onChange={(e) => void changeStatus(order.id, e.target.value)}
                         className="mt-3 h-11 w-full rounded-xl border-0 bg-surface px-3 text-sm font-medium text-text-100 ring-1 ring-border-subtle focus:ring-2 focus:ring-electric-500/20"
                       >
-                        {STATUS_FLOW.filter((s) => !["completed", "cancelled"].includes(s.value)).map((s) => (
+                        {mobileStatuses.map((s) => (
                           <option key={s.value} value={s.value}>
                             {s.label}
                           </option>
@@ -561,6 +694,7 @@ export function OrdersPanel() {
                         onDispatch={() => void dispatchCourier(order)}
                         onSync={() => void syncDelivery(order)}
                         onWaybill={() => void openWaybill(order)}
+                        onCancel={() => void cancelOrder(order)}
                       />
                     </div>
                   </li>

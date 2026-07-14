@@ -44,8 +44,10 @@ class CustomerOutboundNotifyService:
         title, body = tpl
         user = await self._resolve_user(order)
         order_url = f"{self._settings.site_url.rstrip('/')}/orders/{order.id}"
+        # BUG FIX: ready statusida QR sahifasiga to'g'ri URL yuboriladi
         if new_status == "ready":
-            body = f"{body}\n\nQR kodingiz: {order_url}"
+            qr_url = f"{self._settings.site_url.rstrip('/')}/orders/{order.id}/qr"
+            body = f"{body}\n\nQR kodingiz: {qr_url}"
 
         sent: dict[str, bool] = {"telegram": False, "email": False}
 

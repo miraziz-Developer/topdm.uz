@@ -33,7 +33,7 @@ def verify_telegram_login(data: dict[str, Any], bot_token: str, *, max_age_secon
         f"{k}={_telegram_field_value(payload[k])}" for k in sorted(payload.keys())
     )
     secret = hashlib.sha256(bot_token.encode()).digest()
-    computed = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+    computed = hmac.HMAC(secret, check_string.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(computed, received_hash)
 
 
@@ -58,8 +58,8 @@ def verify_telegram_webapp_init_data(
         return None
 
     check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
-    secret = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    calculated = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+    secret = hmac.HMAC(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    calculated = hmac.HMAC(secret, check_string.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(calculated, received_hash):
         return None
     return parsed

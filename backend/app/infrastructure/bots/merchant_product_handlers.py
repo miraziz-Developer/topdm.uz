@@ -488,7 +488,6 @@ async def on_manual_product_photo(message: Message, state: FSMContext, bot: Bot)
     except Exception:
         await message.answer("Rasmni yuklab bo'lmadi.")
         return
-    raw = buf.getvalue()
     async with AsyncSessionFactory() as session:
         attrs = _manual_fallback_attrs()
         caption_price = _parse_price_from_caption(message.caption)

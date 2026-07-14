@@ -12,11 +12,14 @@ NOTIF_TTL_SECONDS = 7 * 24 * 3600
 MAX_ITEMS = 40
 
 CUSTOMER_STATUS_MESSAGES: dict[str, tuple[str, str]] = {
-    "confirmed": ("Buyurtma tasdiqlandi", "Do'kon buyurtmangizni qabul qildi"),
-    "preparing": ("Tayyorlanmoqda", "Mahsulotingiz yig'ilmoqda"),
-    "ready": ("Olib ketishga tayyor!", "Do'konga keling — QR kodingiz ochildi"),
-    "completed": ("Buyurtma yakunlandi", "Mahsulot muvaffaqiyatli topshirildi"),
-    "cancelled": ("Buyurtma bekor qilindi", "Savdo bekor qilindi"),
+    # BUG FIX: reserved statusi uchun ham xabar qo'shildi (bron qilinganda mijoz xabar oladi)
+    "reserved": ("Bron qilindi! ✅", "Buyurtmangiz qabul qilindi. Do'kon tez orada tasdiqlaydi."),
+    "pending": ("Bron qilindi! ✅", "Buyurtmangiz qabul qilindi. Do'kon tez orada tasdiqlaydi."),
+    "confirmed": ("Buyurtma tasdiqlandi ✅", "Do'kon buyurtmangizni qabul qildi"),
+    "preparing": ("Tayyorlanmoqda 📦", "Mahsulotingiz yig'ilmoqda"),
+    "ready": ("Olib ketishga tayyor! 🎉", "Do'konga keling — QR kodingiz ochildi"),
+    "completed": ("Buyurtma yakunlandi ✅", "Mahsulot muvaffaqiyatli topshirildi. Rahmat!"),
+    "cancelled": ("Buyurtma bekor qilindi ❌", "Savdo bekor qilindi"),
 }
 
 

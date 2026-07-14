@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import time
 from typing import Any
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -512,3 +515,145 @@ async def merchant_shop_verify_otp(
         raise
     await clear_otp_verify_failures(scope="merchant", identity=login_code)
     return result
+
+
+# ─── Google OAuth ────────────────────────────────────────────────────────────
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str = Field(..., min_length=10)
+
+
+@router.post("/google")
+async def google_auth(
+    payload: GoogleAuthRequest,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Google id_token ni tekshirib, JWT qaytaradi."""
+    settings = get_settings()
+    client_id = settings.google_oauth_client_id
+    if not client_id:
+        raise HTTPException(status_code=503, detail="Google OAuth sozlanmagan")
+
+    # Google tokeninfo endpoint orqali tekshirish (google-auth paketi o'rniga httpx)
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": payload.id_token},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Google token yaroqsiz")
+
+    info = resp.json()
+    # Audience tekshiruvi
+    aud = info.get("aud", "")
+    if aud not in (client_id, f"{client_id}.apps.googleusercontent.com"):
+        raise HTTPException(status_code=401, detail="Google token audience noto'g'ri")
+    # Muddati tekshiruvi
+    exp = int(info.get("exp", 0))
+    if exp and time.time() > exp:
+        raise HTTPException(status_code=401, detail="Google token muddati tugagan")
+
+    email = (info.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Google hisobda email topilmadi")
+
+    display_name = (info.get("name") or "").strip() or None
+
+    repo = UserAuthRepository(db)
+    user = await repo.upsert_email_user(email=email, display_name=display_name)
+    shop_id = await resolve_merchant_shop_id(db, user)
+    role = "merchant" if shop_id else "consumer"
+    token = build_auth_token(user=user, role=role, shop_id=shop_id)
+    await db.commit()
+
+    return {"status": "ok", "token": token, **user_public_dict(user, role=role, shop_id=shop_id)}
+
+
+# ─── Apple OAuth ─────────────────────────────────────────────────────────────
+
+class AppleAuthUser(BaseModel):
+    name: str | None = None
+    email: str | None = None
+
+
+class AppleAuthRequest(BaseModel):
+    identity_token: str = Field(..., min_length=10)
+    user: AppleAuthUser | None = None
+
+
+@router.post("/apple")
+async def apple_auth(
+    payload: AppleAuthRequest,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Apple identity_token ni tekshirib, JWT qaytaradi."""
+    settings = get_settings()
+    apple_client_id = settings.apple_client_id
+    if not apple_client_id:
+        raise HTTPException(status_code=503, detail="Apple Sign In sozlanmagan")
+
+    # Apple public keys olish
+    async with httpx.AsyncClient(timeout=10) as client:
+        keys_resp = await client.get("https://appleid.apple.com/auth/keys")
+    if keys_resp.status_code != 200:
+        raise HTTPException(status_code=503, detail="Apple public keys olinmadi")
+
+    # JWT header dan kid olish
+    try:
+        header_part = payload.identity_token.split(".")[0]
+        # Base64 padding
+        padding = 4 - len(header_part) % 4
+        if padding != 4:
+            header_part += "=" * padding
+        import base64
+        header = json.loads(base64.urlsafe_b64decode(header_part))
+        kid = header.get("kid")
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Apple token formati noto'g'ri") from exc
+
+    # Matching key topish
+    keys_data = keys_resp.json()
+    matching_key = None
+    for k in keys_data.get("keys", []):
+        if k.get("kid") == kid:
+            matching_key = k
+            break
+    if not matching_key:
+        raise HTTPException(status_code=401, detail="Apple token kaliti topilmadi")
+
+    # JWT ni jose bilan tekshirish
+    try:
+        from jose import jwt as jose_jwt
+        from jose.backends import RSAKey
+        import json as _json
+
+        rsa_key = RSAKey(key=matching_key, algorithm="RS256")
+        claims = jose_jwt.decode(
+            payload.identity_token,
+            rsa_key.public_key().to_dict(),
+            algorithms=["RS256"],
+            audience=apple_client_id,
+            issuer="https://appleid.apple.com",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"Apple token tekshiruvi muvaffaqiyatsiz: {exc}") from exc
+
+    # Email olish (birinchi logindan keyin Apple email bermaydi)
+    email = (claims.get("email") or "").strip().lower()
+    if not email and payload.user and payload.user.email:
+        email = payload.user.email.strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Apple hisobdan email olinmadi")
+
+    display_name = None
+    if payload.user and payload.user.name:
+        display_name = payload.user.name.strip() or None
+
+    repo = UserAuthRepository(db)
+    user = await repo.upsert_email_user(email=email, display_name=display_name)
+    shop_id = await resolve_merchant_shop_id(db, user)
+    role = "merchant" if shop_id else "consumer"
+    token = build_auth_token(user=user, role=role, shop_id=shop_id)
+    await db.commit()
+
+    return {"status": "ok", "token": token, **user_public_dict(user, role=role, shop_id=shop_id)}

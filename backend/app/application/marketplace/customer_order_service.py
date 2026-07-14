@@ -21,12 +21,8 @@ from app.infrastructure.repositories.marketplace_repo import MarketplaceReposito
 from app.infrastructure.repositories.order_payment_repo import OrderPaymentRepository
 from app.services.inventory import ACTIVE_RESERVED_STATUSES, release_order_reserved_stock
 
-PICKUP_TIME_SLOTS = frozenset({"09:00", "12:00", "15:00"})
-PICKUP_TIME_LABELS = {
-    "09:00": "09:00 - 11:00 (Ertalab)",
-    "12:00": "11:00 - 14:00 (Tushlik)",
-    "15:00": "14:00 - 17:00 (Tushdan keyin)",
-}
+# BUG FIX: Markazlashtirilgan konstantadan import qilinadi
+from app.application.marketplace.pickup_time_constants import PICKUP_TIME_LABELS, PICKUP_TIME_SLOTS
 CUSTOMER_CANCELLABLE = frozenset({"reserved", "confirmed", "pending"})
 CUSTOMER_RESCHEDULABLE = frozenset({"reserved", "confirmed", "pending"})
 ONLINE_METHODS = frozenset({"click"})

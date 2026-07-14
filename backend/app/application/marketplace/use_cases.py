@@ -14,11 +14,8 @@ from app.interfaces.api.serializers import _ipadrom_name
 logger = logging.getLogger(__name__)
 
 PHONE_PATTERN = re.compile(r"^\+998\d{9}$")
-PICKUP_TIME_LABELS = {
-    "09:00": "09:00 - 11:00 (Ertalab)",
-    "12:00": "11:00 - 14:00 (Tushlik)",
-    "15:00": "14:00 - 17:00 (Tushdan keyin)",
-}
+# BUG FIX: Markazlashtirilgan konstantadan import qilinadi
+from app.application.marketplace.pickup_time_constants import PICKUP_TIME_LABELS
 
 
 class MarketplaceUseCases:
@@ -284,10 +281,12 @@ class MarketplaceUseCases:
 
         if status == "completed":
             fulfillment = (getattr(existing, "fulfillment_type", None) or "pickup").lower()
+            # BUG FIX: faqat pickup uchun QR talab qilinadi, delivery uchun emas
             if fulfillment == "pickup":
                 raise ValueError(
                     "pickup_requires_qr_scan: Olib ketish faqat QR skaner orqali tasdiqlanadi"
                 )
+            # delivery uchun completed ruxsat beriladi (kuryer yetkazgach)
 
         if status == "cancelled" and prev_status in ACTIVE_RESERVED_STATUSES:
             try:
@@ -372,7 +371,7 @@ class MarketplaceUseCases:
             "total_price": float(order.total_price),
             "note": order.note,
             "ref_token": order.ref_token,
-            "fulfillment_type": getattr(order, "fulfillment_type", "delivery"),
+            "fulfillment_type": getattr(order, "fulfillment_type", "pickup"),
             "pickup_date": order.pickup_date.isoformat() if getattr(order, "pickup_date", None) else None,
             "pickup_time": getattr(order, "pickup_time", None),
             "pickup_window_label": PICKUP_TIME_LABELS.get(getattr(order, "pickup_time", None) or ""),

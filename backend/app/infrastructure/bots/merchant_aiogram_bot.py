@@ -116,14 +116,23 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
 @router.message(Command("yordam"))
 async def cmd_help(message: Message) -> None:
     await message.answer(
-        "/register — yangi do'kon ro'yxatdan o'tish\n"
-        "/start shop_<UUID> — admin havolasi\n"
-        "/crm — CRM tugmalari\n"
-        "Rasm — mahsulot qo'shish\n"
-        "Mahsulot qo'lda — rasm + nom + narx\n"
+        "📋 Bozorliii Merchant Bot — Yordam\n\n"
+        "🏪 Do'kon:\n"
+        "/register — yangi do'kon ro'yxatdan o'tish (9 qadam)\n"
+        "/register tez — tez ro'yxat (3 qadam)\n"
+        "/start shop_<UUID> — admin havolasi orqali ulash\n"
+        "/crm — CRM tugmalari\n\n"
+        "📦 Mahsulot:\n"
+        "📸 Mahsulot qo'shish — rasm yuboring, AI to'ldiradi\n"
+        "Mahsulot qo'lda — rasm + nom + narx o'zingiz kiriting\n"
         "Ombor yangilash — tugagan mahsulotga zaxira qo'shish\n"
+        "🎙 Ovoz — tovar tavsifi (keyin rasm yuboring)\n\n"
+        "🛒 Buyurtma:\n"
         "QR Skaner — mijoz QR ni skaner qiling, buyurtma yopiladi\n"
-        "Ovoz — tovar tavsifi (keyin rasm yuboring)"
+        "✅ Tasdiq / 📦 Tayyor / ❌ Rad — inline tugmalar\n\n"
+        "💰 Chegirma:\n"
+        "/chegirma 10 — barcha mahsulotga 10% chegirma\n\n"
+        "ℹ️ Ariza holati — moderator ko'rib chiqish holati"
     )
 
 
@@ -341,6 +350,79 @@ async def _smart_alerts_loop() -> None:
                     logger.info("merchant_smart_alerts_sent", extra={"count": sent})
         except Exception:
             logger.exception("merchant_smart_alerts_loop_failed")
+
+
+@router.message(Command("savdo", "hisobot"))
+async def cmd_sales_report(message: Message, state: FSMContext) -> None:
+    """Haftalik savdo hisoboti."""
+    data = await state.get_data()
+    shop_raw = data.get("shop_id")
+    shop_id: uuid.UUID | None = None
+    if shop_raw:
+        try:
+            shop_id = uuid.UUID(str(shop_raw))
+        except ValueError:
+            pass
+    if shop_id is None:
+        shop = await _shop_for_chat(int(message.chat.id))
+        if shop:
+            shop_id = shop.id
+    if shop_id is None:
+        await message.answer("Avval /register bilan ro'yxatdan o'ting.")
+        return
+    try:
+        async with AsyncSessionFactory() as session:
+            from app.application.merchant.growth_service import MerchantGrowthService
+            svc = MerchantGrowthService(session)
+            report = await svc.sales_report_card(shop_id, period="week")
+        await message.answer(
+            f"📊 {report['period_label']} savdo hisoboti\n\n"
+            f"{report['headline']}\n"
+            f"Jami: {report['revenue_uzs']:,} so'm\n"
+            f"Buyurtmalar: {report['orders_count']} ta\n\n"
+            f"🔗 {report['shop_url']}".replace(",", " ")
+        )
+    except Exception:
+        logger.exception("sales_report_bot_failed")
+        await message.answer("Hisobot yuklanmadi. Keyinroq urinib ko'ring.")
+
+
+@router.message(Command("referral", "taklif"))
+async def cmd_referral(message: Message, state: FSMContext) -> None:
+    """Referral havola va statistika."""
+    data = await state.get_data()
+    shop_raw = data.get("shop_id")
+    shop_id: uuid.UUID | None = None
+    if shop_raw:
+        try:
+            shop_id = uuid.UUID(str(shop_raw))
+        except ValueError:
+            pass
+    if shop_id is None:
+        shop = await _shop_for_chat(int(message.chat.id))
+        if shop:
+            shop_id = shop.id
+    if shop_id is None:
+        await message.answer("Avval /register bilan ro'yxatdan o'ting.")
+        return
+    try:
+        async with AsyncSessionFactory() as session:
+            from app.application.merchant.growth_service import MerchantGrowthService
+            svc = MerchantGrowthService(session)
+            panel = await svc.referral_panel(shop_id)
+            await session.commit()
+        await message.answer(
+            f"🎁 Referral dasturi\n\n"
+            f"Sizning kodingiz: {panel['referral_code']}\n"
+            f"Havola: {panel['referral_link']}\n\n"
+            f"Taklif qilinganlar: {panel['referred_shops']} ta\n"
+            f"Mukofot olganlar: {panel['rewarded_shops']} ta\n"
+            f"Har bir taklif uchun: {panel['reward_coins_each']:,} coin\n\n"
+            f"Do'stingizni taklif qiling — ikkalangizga coin!".replace(",", " ")
+        )
+    except Exception:
+        logger.exception("referral_panel_bot_failed")
+        await message.answer("Referral ma'lumot yuklanmadi. Keyinroq urinib ko'ring.")
 
 
 async def run_merchant_bot_polling() -> None:

@@ -50,6 +50,9 @@ def merchant_menu_keyboard(shop_id: uuid.UUID) -> ReplyKeyboardMarkup:
         ],
         [
             KeyboardButton(text="📸 Mahsulot qo'shish"),
+            KeyboardButton(text="Mahsulot qo'lda"),
+        ],
+        [
             KeyboardButton(text="Ombor yangilash"),
         ],
     ]

@@ -49,17 +49,29 @@ export function DashboardHome() {
     let cancelled = false;
     (async () => {
       try {
-        const [dashboard, me, todayPanel] = await Promise.all([
+        // BUG FIX: Har bir API alohida try/catch — biri xato bo'lsa boshqalari ishlaydi
+        const [dashboardResult, meResult, todayResult] = await Promise.allSettled([
           getMerchantDashboard(),
           getMerchantMe(),
           getMerchantToday(),
         ]);
         if (cancelled) return;
-        setStats(dashboard.stats);
-        setOrderCount(dashboard.orders?.length ?? 0);
-        setShopName(me.shop?.name ?? null);
-        setShopSlug(me.shop?.slug ?? null);
-        setToday(todayPanel);
+
+        if (dashboardResult.status === "fulfilled") {
+          setStats(dashboardResult.value.stats);
+          // BUG FIX: orderCount faqat faol buyurtmalar (completed/cancelled emas)
+          const activeOrders = (dashboardResult.value.orders ?? []).filter(
+            (o) => !["completed", "cancelled"].includes(o.status),
+          );
+          setOrderCount(activeOrders.length);
+        }
+        if (meResult.status === "fulfilled") {
+          setShopName(meResult.value.shop?.name ?? null);
+          setShopSlug(meResult.value.shop?.slug ?? null);
+        }
+        if (todayResult.status === "fulfilled") {
+          setToday(todayResult.value);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

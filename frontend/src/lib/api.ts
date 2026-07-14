@@ -404,17 +404,6 @@ export async function buyCrmBannerWithCoins(payload: {
   }>("/crm/banners/buy-with-coins", { method: "POST", body: form, auth: true });
 }
 
-export async function sendTelegramOtp(telegram_username: string) {
-  return postJson<{ status: string; telegram_username: string; delivery: string; dev_otp?: string }>(
-    "/auth/send-otp",
-    { telegram_username },
-  );
-}
-
-export async function verifyTelegramOtp(payload: { telegram_username: string; otp: string; phone?: string }) {
-  return postJson<AuthTokenResponse>("/auth/verify-otp", payload);
-}
-
 export async function sendEmailOtp(email: string) {
   return postJson<{ status: string; email: string; delivery: string; dev_otp?: string }>(
     "/auth/email/send-otp",
@@ -428,6 +417,14 @@ export async function verifyEmailOtp(payload: { email: string; otp: string; phon
 
 export async function authTelegram(payload: Record<string, unknown>) {
   return postJson<AuthTokenResponse>("/auth/telegram", payload);
+}
+
+export async function authGoogle(id_token: string) {
+  return postJson<AuthTokenResponse>("/auth/google", { id_token });
+}
+
+export async function authApple(payload: { identity_token: string; user?: { name?: string; email?: string } }) {
+  return postJson<AuthTokenResponse>("/auth/apple", payload);
 }
 
 export async function linkTelegram(payload: Record<string, unknown>) {

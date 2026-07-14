@@ -11,6 +11,24 @@ function resolveShopIdFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get("shop_id");
 }
 
+/**
+ * BUG FIX: JWT exp ni decode qilib tekshiradi — network so'rovsiz.
+ * Muddati o'tgan bo'lsa false, hali amal qilsa true qaytaradi.
+ */
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const exp = payload.exp as number | undefined;
+    if (!exp) return false; // exp yo'q bo'lsa — cheksiz
+    // 30 soniya buffer qo'shamiz
+    return Date.now() / 1000 > exp - 30;
+  } catch {
+    return true;
+  }
+}
+
 async function probeMerchantMe(token: string): Promise<boolean> {
   const response = await fetch(apiUrl("/merchant/me"), {
     method: "GET",
@@ -20,10 +38,12 @@ async function probeMerchantMe(token: string): Promise<boolean> {
   return response.ok;
 }
 
-/** JWT hali amal qiladimi (401 bo'lmasa true). */
+/** JWT hali amal qiladimi — avval exp tekshiriladi, keyin network. */
 export async function isMerchantTokenValid(token?: string | null): Promise<boolean> {
   const candidate = token ?? getAccessToken();
   if (!candidate) return false;
+  // BUG FIX: Muddati o'tgan bo'lsa network so'rovsiz false
+  if (isJwtExpired(candidate)) return false;
   return probeMerchantMe(candidate);
 }
 

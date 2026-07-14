@@ -39,12 +39,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["orders"])
 
 PHONE_PATTERN = re.compile(r"^\+998\d{9}$")
-PICKUP_TIME_SLOTS = frozenset({"09:00", "12:00", "15:00"})
-PICKUP_TIME_LABELS = {
-    "09:00": "09:00 - 11:00 (Ertalab)",
-    "12:00": "11:00 - 14:00 (Tushlik)",
-    "15:00": "14:00 - 17:00 (Tushdan keyin)",
-}
+# BUG FIX: Markazlashtirilgan konstantadan import qilinadi
+from app.application.marketplace.pickup_time_constants import PICKUP_TIME_LABELS, PICKUP_TIME_SLOTS
 PAYMENT_METHOD_LABELS = {
     PaymentMethod.cash: "Naqd pul (do'konda)",
     PaymentMethod.terminal: "Terminal — Uzcard / Humo",
@@ -200,6 +196,24 @@ async def execute_pickup_reservation(
     dispatch_payloads: list[PickupDispatchPayload] = []
     primary_shop = None
     total_amount = 0
+
+    # BUG FIX: Bir telefon raqami bir mahsulotga bir kunda 3 tadan ko'p aktiv bron qila olmaydi
+    from sqlalchemy import func
+    from app.infrastructure.db.models import OrderModel as _OrderModel
+    active_statuses = ("reserved", "confirmed", "preparing", "ready", "pending")
+    for item in request.items:
+        existing_count = await db.scalar(
+            select(func.count()).select_from(_OrderModel).where(
+                _OrderModel.product_id == item.product_id,
+                _OrderModel.customer_phone == phone,
+                _OrderModel.status.in_(active_statuses),
+            )
+        )
+        if int(existing_count or 0) >= 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Bu mahsulotga allaqachon 3 ta aktiv broningiz bor. Avvalgi bronni bekor qiling.",
+            )
 
     product_ids = [item.product_id for item in request.items]
     shop_rows = await db.execute(

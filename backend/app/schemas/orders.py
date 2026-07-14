@@ -129,6 +129,15 @@ class LiveOrderSchema(BaseModel):
     pickup_date: str | None = None
     pickup_time: str | None = None
     pickup_window_label: str | None = None
+    # BUG FIX: payment maydonlari qo'shildi — mijoz to'lov holatini ko'rishi uchun
+    payment_method: str | None = None
+    payment_status: str | None = None
+    payment_method_label: str | None = None
+    online_checkout_url: str | None = None
+    checkout_id: str | None = None
+    can_cancel: bool = True
+    can_reschedule: bool = False
+    can_change_payment_method: bool = False
     created_at: str | None = None
     updated_at: str | None = None
     product: dict

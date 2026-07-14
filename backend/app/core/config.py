@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     enable_online_checkout: bool = False
     telegram_bot_token: str = ""
     telegram_bot_username: str = ""
+    google_oauth_client_id: str = ""
+    apple_client_id: str = ""
     """Platforma admini — AI hal qila olmasa CRM da ko'rsatiladi (@username, t.me/...)."""
     platform_support_telegram_username: str = ""
     resend_api_key: str = ""
