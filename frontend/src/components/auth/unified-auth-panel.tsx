@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OtpInput } from "@/components/ui/otp-input";
 import { useToast } from "@/components/ui/toast";
-import { authGoogle, authApple, sendEmailOtp, verifyEmailOtp } from "@/lib/api";
+import { authGoogle, authApple, authTelegram, sendEmailOtp, verifyEmailOtp } from "@/lib/api";
 import { ApiError } from "@/lib/http-client";
 import { authMetaFromTokenResponse, establishSession, setClientSession } from "@/lib/auth";
 import type { AuthTokenResponse } from "@/lib/api";
@@ -20,6 +20,7 @@ import { MARKET } from "@/components/brand/premium-market-ui";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+const TELEGRAM_BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
 
 type AuthMode = "primary" | "email" | "otp";
 
@@ -83,6 +84,7 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
   const [loading, setLoading] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
+  const telegramBtnRef = useRef<HTMLDivElement>(null);
 
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -97,6 +99,42 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
     },
     [onSuccess, push, redirectTo, refreshProfile, router],
   );
+
+  // Telegram Login Widget yuklash
+  useEffect(() => {
+    if (!TELEGRAM_BOT_USERNAME || !telegramBtnRef.current) return;
+    const container = telegramBtnRef.current;
+    container.innerHTML = "";
+    const script = document.createElement("script");
+    script.src = "https://telegram.org/js/telegram-widget.js?22";
+    script.setAttribute("data-telegram-login", TELEGRAM_BOT_USERNAME);
+    script.setAttribute("data-size", "large");
+    script.setAttribute("data-radius", "8");
+    script.setAttribute("data-request-access", "write");
+    script.setAttribute("data-userpic", "false");
+    script.setAttribute("data-lang", "uz");
+    script.async = true;
+    // Callback funksiyasini global scope ga qo'shamiz
+    const callbackName = "__tgAuthCallback";
+    (window as unknown as Record<string, unknown>)[callbackName] = async (user: Record<string, unknown>) => {
+      setLoading(true);
+      try {
+        const res = await authTelegram(user);
+        await finishLogin(res);
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : "Telegram orqali kirish muvaffaqiyatsiz";
+        push(message, "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    script.setAttribute("data-onauth", `${callbackName}(user)`);
+    container.appendChild(script);
+    return () => {
+      container.innerHTML = "";
+      delete (window as unknown as Record<string, unknown>)[callbackName];
+    };
+  }, [finishLogin, push]);
 
   // Google Sign In SDK yuklash
   useEffect(() => {
@@ -253,7 +291,7 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
             <BozorliiiLogo variant="icon" size="lg" href={null} className="rounded-2xl ring-2 ring-white/30" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Bozorliii.uz ga kirish</h1>
-          <p className="mt-2 text-sm text-white/85">Google, Apple yoki email — xavfsiz va tez</p>
+          <p className="mt-2 text-sm text-white/85">Google, Telegram, Apple yoki email — xavfsiz va tez</p>
         </motion.div>
 
         <div className="space-y-4 p-6">
@@ -296,6 +334,22 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
                 </div>
               ) : null}
 
+              {/* Telegram Login */}
+              {TELEGRAM_BOT_USERNAME ? (
+                <div className="space-y-2">
+                  {!GOOGLE_CLIENT_ID && (
+                    <p className="text-center text-xs font-semibold uppercase tracking-widest text-ink-500">
+                      Tezkor kirish
+                    </p>
+                  )}
+                  <div
+                    ref={telegramBtnRef}
+                    className="flex w-full items-center justify-center overflow-hidden rounded-xl"
+                    style={{ minHeight: 44 }}
+                  />
+                </div>
+              ) : null}
+
               {/* Apple Sign In */}
               {process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ? (
                 <Button
@@ -312,7 +366,7 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
                 </Button>
               ) : null}
 
-              {(GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) ? (
+              {(GOOGLE_CLIENT_ID || TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) ? (
                 <div className="relative flex items-center gap-3 py-1">
                   <div className="h-px flex-1 bg-border-subtle" />
                   <span className="text-xs font-medium text-ink-400">yoki</span>
