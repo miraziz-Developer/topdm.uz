@@ -255,8 +255,8 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
   };
 
   const verifyEmailCode = async () => {
-    if (otp.length < 4) {
-      push("4 xonali kodni kiriting", "error");
+    if (otp.length < 6) {
+      push("6 xonali kodni kiriting", "error");
       return;
     }
     setLoading(true);
@@ -415,10 +415,10 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
           {mode === "otp" ? (
             <div className="space-y-5">
               <p className="text-center text-sm text-ink-600">
-                <span className="font-semibold text-ink-900">{normalizedEmail}</span> manziliga 4 xonali kod yuborildi
+                <span className="font-semibold text-ink-900">{normalizedEmail}</span> manziliga 6 xonali kod yuborildi
               </p>
-              <OtpInput value={otp} onChange={setOtp} disabled={loading} />
-              <Button className="w-full" onClick={() => void verifyEmailCode()} isLoading={loading} disabled={otp.length < 4}>
+              <OtpInput value={otp} onChange={setOtp} disabled={loading} length={6} />
+              <Button className="w-full" onClick={() => void verifyEmailCode()} isLoading={loading} disabled={otp.length < 6}>
                 Tasdiqlash
               </Button>
               <button
