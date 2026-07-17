@@ -32,6 +32,7 @@ from app.infrastructure.auth.deps import AuthUser, get_optional_user
 from app.infrastructure.db.models import ProductModel
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
 from app.services.dispatcher import PickupDispatchPayload, ReservationCrmDispatcher
+from app.application.marketplace.pickup_time_constants import PICKUP_TIME_LABELS, PICKUP_TIME_SLOTS
 from app.services.inventory import InventoryError, reserve_pickup_line_locked
 
 logger = logging.getLogger(__name__)
@@ -39,8 +40,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["orders"])
 
 PHONE_PATTERN = re.compile(r"^\+998\d{9}$")
-# BUG FIX: Markazlashtirilgan konstantadan import qilinadi
-from app.application.marketplace.pickup_time_constants import PICKUP_TIME_LABELS, PICKUP_TIME_SLOTS
+
 PAYMENT_METHOD_LABELS = {
     PaymentMethod.cash: "Naqd pul (do'konda)",
     PaymentMethod.terminal: "Terminal — Uzcard / Humo",

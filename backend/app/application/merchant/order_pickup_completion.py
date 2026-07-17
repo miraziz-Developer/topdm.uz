@@ -22,7 +22,8 @@ ARRIVAL_TTL_SECONDS = 4 * 60 * 60
 
 from app.application.merchant.pickup_qr import QR_SCAN_ALLOWED_STATUSES
 
-MANUAL_PICKUP_ALLOWED_STATUSES = frozenset()
+# Manual pickup o'chirilgan — faqat QR scan orqali yakunlash mumkin (xavfsizlik)
+MANUAL_PICKUP_ALLOWED_STATUSES: frozenset[str] = frozenset()
 QR_PICKUP_ALLOWED_STATUSES = QR_SCAN_ALLOWED_STATUSES
 
 _PAYMENT_LABELS = {

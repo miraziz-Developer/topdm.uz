@@ -36,6 +36,4 @@ async def dispatch_customer_order_status_notify(
             prev_status=prev_status,
         )
     except Exception:
-        from loguru import logger
-
         logger.exception("customer_outbound_notify_failed", extra={"order_id": str(order.id)})

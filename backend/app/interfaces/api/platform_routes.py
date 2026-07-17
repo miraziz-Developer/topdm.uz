@@ -27,7 +27,8 @@ async def _merchant_shop(db: AsyncSession, user: AuthUser):
     shop = await resolve_merchant_shop(db, user)
     if not shop:
         raise HTTPException(status_code=403, detail="Merchant shop not found")
-    user.shop_id = shop.id
+    if not user.shop_id:
+        user.shop_id = shop.id
     return shop
 
 
