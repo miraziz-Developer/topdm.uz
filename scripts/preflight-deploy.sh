@@ -139,6 +139,8 @@ fi
 
 if docker compose version >/dev/null 2>&1; then
   ok "docker compose"
+elif docker-compose version >/dev/null 2>&1; then
+  ok "docker compose (standalone)"
 else
   die "docker compose plugin not found"
 fi
