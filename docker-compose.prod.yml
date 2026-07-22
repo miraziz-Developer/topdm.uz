@@ -157,8 +157,8 @@ services:
 
   platform-admin:
     build:
-      context: .
-      dockerfile: platform-admin/Dockerfile
+      context: ./platform-admin
+      dockerfile: Dockerfile
     restart: always
     env_file:
       - .env
