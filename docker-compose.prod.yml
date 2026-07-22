@@ -155,7 +155,38 @@ services:
       - db-network
       - backend-network
 
-  # ... (other services remain unchanged from previous valid version)
+  platform-admin:
+    build:
+      context: .
+      dockerfile: platform-admin/Dockerfile
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      BACKEND_API_URL: "http://backend:8000"
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in .env}
+      ADMIN_PANEL_USERNAME: ${ADMIN_PANEL_USERNAME:-admin}
+      ADMIN_PANEL_PASSWORD: ${ADMIN_PANEL_PASSWORD:?Set ADMIN_PANEL_PASSWORD in .env}
+      ADMIN_PANEL_SECRET: ${ADMIN_PANEL_SECRET:?Set ADMIN_PANEL_SECRET in .env}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-${ADMIN_PANEL_SECRET}}
+      NEXT_PUBLIC_SITE_URL: ${SITE_URL:-https://bozorliii.online}
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+      NEXT_PUBLIC_MERCHANT_CRM_URL: ${MERCHANT_CRM_WEBAPP_URL:-https://crm.bozorliii.online}
+      NEXT_PUBLIC_MEDIA_CDN_URL: ${NEXT_PUBLIC_MEDIA_CDN_URL:-}
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+      NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+      NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-yandex-maps-api}
+      NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
+    ports:
+      - "10.104.0.2:3004:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - backend-network
+      - frontend-network
 
 networks:
   db-network:
