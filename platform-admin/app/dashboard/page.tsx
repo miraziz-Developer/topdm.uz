@@ -73,8 +73,34 @@ export default function DashboardPage() {
   });
 
   if (isLoading) return <PageLoader />;
-  if (error || !data) {
-    return <p className="text-destructive">Dashboard yuklanmadi</p>;
+  if (error) {
+    console.error("Dashboard fetch error:", error);
+    return (
+      <div className="p-6 text-center space-y-4">
+        <p className="text-destructive font-semibold">Dashboard yuklanmadi</p>
+        <p className="text-muted-foreground text-sm">{String(error)}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          Qayta yuklash
+        </button>
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <p className="text-destructive font-semibold">Dashboard yuklanmadi</p>
+        <p className="text-muted-foreground text-sm">API javob qaytarmadi</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          Qayta yuklash
+        </button>
+      </div>
+    );
   }
 
   const chartData = (analyticsQ.data?.orders_series ?? []).map((r) => ({

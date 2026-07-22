@@ -20,12 +20,9 @@ import {
   type MerchantWallet,
 } from "@/lib/api";
 import {
-  BANNER_DAY_OPTIONS,
-  bannerDayLabel,
-  bannerPriceForDays,
-  bannerPricePerDay,
-  bannerTierPrices,
-  bannerTierUpsell,
+  bannerHoursLabel,
+  bannerPriceForHours,
+  bannerPricePerHour,
   formatUzs,
 } from "@/lib/banner-pricing";
 import { canAffordSom, formatSom, walletBalanceUzs } from "@/lib/money";
@@ -125,7 +122,7 @@ export function BannerCrmPanel() {
   const [tariffs, setTariffs] = useState<CrmTariff[]>([]);
   const [banners, setBanners] = useState<CrmBannerCampaign[]>([]);
   const [tariffCode, setTariffCode] = useState("gold");
-  const [bannerDays, setBannerDays] = useState<number>(7);
+  const [bannerHours, setBannerHours] = useState<number>(24);
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -170,14 +167,11 @@ export function BannerCrmPanel() {
   }, [previewUrl]);
 
   const selectedTariff = tariffs.find((t) => t.code === tariffCode);
-  const quote = selectedTariff ? bannerPriceForDays(selectedTariff, bannerDays) : null;
+  const quote = selectedTariff ? bannerPriceForHours(selectedTariff, bannerHours) : null;
   const amountUzs = quote?.amountUzs ?? 0;
   const balanceUzs = walletBalanceUzs(wallet);
   const canAfford = canAffordSom(balanceUzs, amountUzs);
-  const dayOptions =
-    selectedTariff?.day_options?.length ? selectedTariff.day_options : [...BANNER_DAY_OPTIONS];
-  const tierPrices = selectedTariff ? bannerTierPrices(selectedTariff) : null;
-  const upsell = selectedTariff ? bannerTierUpsell(selectedTariff, bannerDays) : null;
+  const pricePerHour = selectedTariff ? bannerPricePerHour(selectedTariff) : 0;
 
   const pickFile = async (next: File | null) => {
     if (!next) return;
@@ -225,7 +219,7 @@ export function BannerCrmPanel() {
     try {
       await buyCrmBannerWithCoins({
         tariff_code: tariffCode,
-        duration_days: bannerDays,
+        duration_hours: bannerHours,
         image: file,
         title: title.trim() || undefined,
       });
@@ -243,7 +237,7 @@ export function BannerCrmPanel() {
   const renew = async (bannerId: string) => {
     setSubmitting(true);
     try {
-      await renewCrmBanner({ banner_id: bannerId, tariff_code: tariffCode, duration_days: bannerDays });
+      await renewCrmBanner({ banner_id: bannerId, tariff_code: tariffCode, duration_hours: bannerHours });
       toast.success("Reklama uzaytirildi");
       await refresh();
     } catch (err) {
@@ -297,21 +291,21 @@ export function BannerCrmPanel() {
           <p className="mt-2 text-3xl font-bold tabular-nums text-text-100">{activeCount}</p>
           <p className="text-sm text-text-400">faol reklama</p>
         </div>
-        <div className="crm-surface-card p-4 sm:p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-text-400">Tanlangan paket</p>
-          <p className="mt-2 text-lg font-bold tabular-nums text-text-100">
-            {quote ? formatSom(amountUzs) : "—"}
-          </p>
-          <p className="text-sm text-text-400">
-            {quote ? `${bannerDayLabel(quote.days)} karuselda` : "Tarif va muddat tanlang"}
-            {quote && quote.effectivePerDay > 0 ? (
-              <span className="text-text-500">
-                {" "}
-                · kuniga ~{formatUzs(quote.effectivePerDay)} so&apos;m
-              </span>
-            ) : null}
-          </p>
-        </div>
+          <div className="crm-surface-card p-4 sm:p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-400">Tanlangan vaqt</p>
+            <p className="mt-2 text-lg font-bold tabular-nums text-text-100">
+              {quote ? formatSom(amountUzs) : "—"}
+            </p>
+            <p className="text-sm text-text-400">
+              {quote ? `${bannerHoursLabel(quote.hours)} karuselda` : "Tarif va vaqt tanlang"}
+              {quote && quote.effectivePerHour > 0 ? (
+                <span className="text-text-500">
+                  {" "}
+                  · soatiga ~{formatUzs(quote.effectivePerHour)} so'm
+                </span>
+              ) : null}
+            </p>
+          </div>
       </div>
 
       <div className="crm-surface-card overflow-hidden">
@@ -334,69 +328,44 @@ export function BannerCrmPanel() {
               >
                 {tariffs.map((t) => (
                   <option key={t.code} value={t.code}>
-                    {t.name_uz} — karusel {t.carousel_slot ?? t.priority_weight ?? 1}-o&apos;rin · ~
-                    {formatUzs(bannerPricePerDay(t))} so&apos;m/kun
+                    {t.name_uz} — karusel {t.carousel_slot ?? t.priority_weight ?? 1}-o'rin · ~
+                    {formatUzs(bannerPricePerHour(t))} so'm/soat
                   </option>
                 ))}
               </select>
             </div>
             <div className="sm:col-span-2">
-              <p className="text-xs font-semibold text-text-400">Qancha vaqt ko&apos;rinsin?</p>
+              <label htmlFor="banner-hours" className="text-xs font-semibold text-text-400">
+                Necha soat ko'rinsin?
+              </label>
               <p className="mt-0.5 text-[11px] text-text-500">
-                Har keyingi paket oldingisiga ozgina qo&apos;shiladi — uzoqroq tanlasangiz, kunlik narx
-                sezilarli arzonlashadi.
+                Istalgan vaqt belgilang — har bir soat uchun {formatUzs(pricePerHour)} so'mdan.
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {dayOptions.map((d) => {
-                  const price = tierPrices?.[d as keyof typeof tierPrices];
-                  const stepUpsell = selectedTariff ? bannerTierUpsell(selectedTariff, d) : null;
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setBannerDays(d)}
-                      className={cn(
-                        "flex min-w-[5.5rem] flex-col items-center rounded-2xl px-3.5 py-2 text-center transition",
-                        bannerDays === d
-                          ? "bg-electric-500 text-white shadow-md shadow-electric-500/25"
-                          : "border border-border-subtle bg-canvas text-text-400 hover:text-text-100",
-                      )}
-                    >
-                      <span className="text-sm font-bold">{bannerDayLabel(d)}</span>
-                      {price ? (
-                        <span
-                          className={cn(
-                            "mt-0.5 text-[10px] font-semibold tabular-nums",
-                            bannerDays === d ? "text-white/90" : "text-text-500",
-                          )}
-                        >
-                          {formatUzs(price)} so&apos;m
-                        </span>
-                      ) : null}
-                      {stepUpsell && bannerDays !== d ? (
-                        <span className="mt-0.5 text-[9px] font-medium text-emerald-600">
-                          +{formatUzs(stepUpsell.deltaUzs)} dan
-                        </span>
-                      ) : null}
-                      {d === 30 ? (
-                        <span
-                          className={cn(
-                            "mt-1 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide",
-                            bannerDays === d ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-700",
-                          )}
-                        >
-                          Eng foydali
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
+              <div className="mt-3 flex items-center gap-3">
+                <input
+                  id="banner-hours"
+                  type="number"
+                  min={1}
+                  max={720}
+                  value={bannerHours}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value || "0", 10);
+                    setBannerHours(Number.isFinite(v) ? Math.max(1, Math.min(720, v)) : 1);
+                  }}
+                  className="w-32 rounded-xl border border-border-subtle bg-canvas px-3 py-2.5 text-sm font-bold text-text-100 focus:border-electric-500/40 focus:outline-none focus:ring-2 focus:ring-electric-500/15"
+                />
+                <span className="text-sm text-text-400">soat</span>
               </div>
-              {upsell ? (
-                <p className="mt-2 text-xs text-emerald-700">
-                  {bannerDayLabel(bannerDays)} uchun {upsell.prevLabel} ga nisbatan atigi{" "}
-                  <strong>+{formatUzs(upsell.deltaUzs)} so&apos;m</strong> — qolgan kunlar deyarli bepul.
-                </p>
+              {quote ? (
+                <div className="mt-3 rounded-xl bg-canvas/80 px-3 py-2.5 text-sm">
+                  <p className="text-text-100">
+                    <strong>{bannerHoursLabel(quote.hours)}</strong>
+                    <span className="mx-1.5 text-text-400">·</span>
+                    {formatUzs(pricePerHour)} so'm/soat
+                    <span className="mx-1.5 text-text-400">=</span>
+                    <strong className="text-electric-500">{formatSom(amountUzs)}</strong>
+                  </p>
+                </div>
               ) : null}
             </div>
             <Input
@@ -453,14 +422,14 @@ export function BannerCrmPanel() {
           )}
 
           {selectedTariff && quote ? (
-            <div className="rounded-xl bg-canvas/80 px-3 py-3 text-sm text-text-400">
+          <div className="rounded-xl bg-canvas/80 px-3 py-3 text-sm text-text-400">
               <p>
                 <strong className="text-text-100">{selectedTariff.name_uz}</strong>
                 <span className="mx-1.5">·</span>
-                {quote.days} kun karuselda
+                {bannerHoursLabel(quote.hours)} karuselda
                 <span className="mx-1.5">·</span>
                 <strong className="text-text-100">{formatSom(amountUzs)}</strong>
-                <span className="text-text-400"> ({formatUzs(bannerPricePerDay(selectedTariff))} so&apos;m/kun)</span>
+                <span className="text-text-400"> ({formatUzs(pricePerHour)} so'm/soat)</span>
               </p>
               {!canAfford ? (
                 <p className="mt-2 text-amber-800">

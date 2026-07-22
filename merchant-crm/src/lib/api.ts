@@ -660,15 +660,13 @@ export async function updateMerchantLead(leadId: string, status: string, note?: 
 export type CrmTariff = {
   code: string;
   name_uz: string;
-  duration_days: number;
-  reference_days?: number;
-  reference_price_uzs?: number;
-  price_per_day_uzs?: number;
+  /** Soat narxi so'mda */
+  price_uzs_hourly: number | null;
+  /** Kuniga necha soat ko'rsatiladi */
+  hours_per_day: number | null;
   carousel_slot?: number;
   priority_weight?: number;
-  day_options?: number[];
   placement?: string;
-  price_uzs: number | null;
   badge_label: string | null;
 };
 
@@ -708,13 +706,13 @@ export async function getCrmMyBanners() {
 export async function buyCrmBannerWithCoins(payload: {
   title?: string;
   tariff_code: string;
-  duration_days?: number;
+  duration_hours?: number;
   image: File;
 }) {
   const form = new FormData();
   if (payload.title) form.append("title", payload.title);
   form.append("tariff_code", payload.tariff_code);
-  form.append("duration_days", String(payload.duration_days ?? 30));
+  form.append("duration_hours", String(payload.duration_hours ?? 24));
   form.append("image", payload.image);
   return postFormData<{ banner_id: string; status: string; balance_uzs: number; amount_uzs?: number }>(
     "/crm/banners/buy-with-coins",
@@ -725,7 +723,7 @@ export async function buyCrmBannerWithCoins(payload: {
 export async function renewCrmBanner(payload: {
   banner_id: string;
   tariff_code?: string;
-  duration_days?: number;
+  duration_hours?: number;
 }) {
   return postJson<{ banner_id: string; status: string }>("/crm/banners/renew", payload);
 }

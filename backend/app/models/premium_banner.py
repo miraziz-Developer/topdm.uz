@@ -29,6 +29,8 @@ class PremiumTariffModel(Base):
     frame_style: Mapped[str] = mapped_column(String(32), nullable=False, default="standard")
     price_uzs_monthly: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     coin_cost: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    price_uzs_hourly: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    hours_per_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
