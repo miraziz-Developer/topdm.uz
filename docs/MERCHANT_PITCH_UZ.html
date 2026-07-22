@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bozorliii — Do'konchilar uchun</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      line-height: 1.6;
+    }
+
+    /* HERO */
+    .hero {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      padding: 80px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 60%);
+      animation: pulse 4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(99,102,241,0.2);
+      border: 1px solid rgba(99,102,241,0.5);
+      color: #a5b4fc;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 6vw, 56px);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .hero h1 span { color: #818cf8; }
+    .hero p {
+      font-size: clamp(16px, 2.5vw, 20px);
+      color: #94a3b8;
+      max-width: 600px;
+      margin: 0 auto 40px;
+      position: relative;
+    }
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      text-decoration: none;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 0 30px rgba(99,102,241,0.4);
+    }
+    .hero-cta:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(99,102,241,0.6); }
+
+    /* SECTIONS */
+    .section { padding: 60px 20px; max-width: 900px; margin: 0 auto; }
+    .section-title {
+      font-size: clamp(22px, 4vw, 36px);
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .section-title span { color: #818cf8; }
+
+    /* PROBLEMS */
+    .problems { background: #111; }
+    .problems-inner { max-width: 900px; margin: 0 auto; padding: 60px 20px; }
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .problem-card {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .problem-card .icon { font-size: 28px; margin-bottom: 10px; }
+    .problem-card h3 { font-size: 15px; font-weight: 700; color: #fca5a5; margin-bottom: 6px; }
+    .problem-card p { font-size: 13px; color: #94a3b8; }
+
+    /* FEATURES */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: rgba(99,102,241,0.08);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 16px;
+      padding: 28px 24px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .feature-card:hover { transform: translateY(-4px); border-color: rgba(99,102,241,0.5); }
+    .feature-card .icon { font-size: 36px; margin-bottom: 14px; }
+    .feature-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: #e2e8f0; }
+    .feature-card p { font-size: 14px; color: #94a3b8; }
+
+    /* PRICING */
+    .pricing { background: #111; }
+    .pricing-inner { max-width: 900px; margin: 0 auto; padding: 60px 20px; }
+    .commission-box {
+      background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.08));
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 20px;
+      padding: 40px 32px;
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+    .commission-big {
+      font-size: clamp(48px, 8vw, 80px);
+      font-weight: 900;
+      color: #818cf8;
+      line-height: 1;
+      margin: 16px 0 8px;
+    }
+    .commission-sub {
+      font-size: 16px;
+      color: #94a3b8;
+      margin-bottom: 32px;
+    }
+    .commission-items {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .commission-item {
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 14px;
+      color: #86efac;
+    }
+    .commission-item .ci-icon { font-size: 22px; margin-bottom: 6px; }
+    .commission-item strong { display: block; font-size: 15px; color: #4ade80; margin-bottom: 2px; }
+
+    /* ROADMAP */
+    .roadmap-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .roadmap-card {
+      background: #1a1a2e;
+      border: 1px solid rgba(99,102,241,0.15);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .roadmap-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #818cf8;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .roadmap-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 14px;
+      color: #cbd5e1;
+    }
+    .roadmap-item .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-done { background: #22c55e; }
+    .dot-soon { background: #f59e0b; }
+    .dot-future { background: #6366f1; }
+
+    /* STEPS */
+    .steps { background: #111; }
+    .steps-inner { max-width: 700px; margin: 0 auto; padding: 60px 20px; }
+    .step {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 32px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .step-content h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .step-content p { font-size: 14px; color: #94a3b8; }
+    .step-content code {
+      display: inline-block;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: #a5b4fc;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    /* QUOTE */
+    .quote-section {
+      background: linear-gradient(135deg, #1a1a2e, #0f3460);
+      padding: 60px 20px;
+      text-align: center;
+    }
+    .quote-text {
+      font-size: clamp(18px, 3vw, 26px);
+      font-weight: 700;
+      max-width: 700px;
+      margin: 0 auto 30px;
+      color: #e2e8f0;
+      line-height: 1.5;
+    }
+    .quote-text span { color: #818cf8; }
+
+    /* CTA BOTTOM */
+    .cta-bottom {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      padding: 60px 20px;
+      text-align: center;
+    }
+    .cta-bottom h2 { font-size: clamp(22px, 4vw, 36px); font-weight: 800; margin-bottom: 12px; }
+    .cta-bottom p { font-size: 16px; opacity: 0.9; margin-bottom: 30px; }
+    .cta-btn {
+      display: inline-block;
+      background: white;
+      color: #6366f1;
+      padding: 16px 40px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 800;
+      text-decoration: none;
+      transition: transform 0.2s;
+    }
+    .cta-btn:hover { transform: scale(1.05); }
+
+    /* FOOTER */
+    footer {
+      background: #0a0a0a;
+      padding: 30px 20px;
+      text-align: center;
+      color: #475569;
+      font-size: 13px;
+    }
+    footer a { color: #818cf8; text-decoration: none; }
+
+    /* STATS */
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin: 40px 0;
+    }
+    .stat { text-align: center; }
+    .stat-num { font-size: 36px; font-weight: 800; color: #818cf8; }
+    .stat-label { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+    /* FREE BANNER */
+    .free-banner {
+      background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(16,185,129,0.1));
+      border: 1px solid rgba(34,197,94,0.3);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      margin: 30px 0;
+    }
+    .free-banner h3 { font-size: 22px; font-weight: 800; color: #4ade80; margin-bottom: 8px; }
+    .free-banner p { font-size: 15px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">🚀 Yangi platforma — Toshkent bozorlari uchun</div>
+  <h1>Siz bozorda o'tirasiz —<br><span>biz sizni butun O'zbekistonga</span><br>ko'rsatamiz</h1>
+  <p>Bozorliii — Abu Sahiy, Ippodrom, Kozgalovka do'konchilari uchun onlayn vitrina, buyurtma tizimi va CRM panel</p>
+  <a href="https://t.me/Bozorliiicrm_bot" class="hero-cta">
+    📲 Hoziroq boshlash — BEPUL
+  </a>
+</div>
+
+<!-- STATS -->
+<div style="background:#111; padding: 40px 20px;">
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">3</div>
+      <div class="stat-label">Bozor hududi</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">0 so'm</div>
+      <div class="stat-label">Hozirgi narx</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">24/7</div>
+      <div class="stat-label">Onlayn vitrina</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">1 daqiqa</div>
+      <div class="stat-label">Ro'yxatdan o'tish</div>
+    </div>
+  </div>
+</div>
+
+<!-- PROBLEMS -->
+<div class="problems">
+  <div class="problems-inner">
+    <h2 class="section-title">🔴 Hozir qanday <span>muammo</span> bor?</h2>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="icon">😔</div>
+        <h3>Faqat kelgan mijoz ko'radi</h3>
+        <p>Bozorga kelmagan odam mahsulotingizni bilmaydi. Savdo cheklangan.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">📞</div>
+        <h3>Telefon raqamingiz yo'qoladi</h3>
+        <p>Mijoz raqamingizni unutadi, yo'qotadi. Qayta topib bo'lmaydi.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">📝</div>
+        <h3>Buyurtmalar tartibsiz</h3>
+        <p>Qog'ozda yoki xotirada. Unutish, aralashish, yo'qotish.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">📱</div>
+        <h3>Raqobatchilar onlaynda</h3>
+        <p>Instagram, Telegram kanallar. Siz orqada qolasiz.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">❓</div>
+        <h3>Narx va mavjudlik noaniq</h3>
+        <p>Mijoz qo'ng'iroq qiladi, siz band bo'lasiz. U boshqasiga ketadi.</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">🗺️</div>
+        <h3>Do'konni topish qiyin</h3>
+        <p>Bozor katta. Yangi mijoz adashadi, topa olmaydi.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<div class="section">
+  <h2 class="section-title">✅ Bozorliii <span>nima qiladi?</span></h2>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="icon">🌐</div>
+      <h3>Onlayn vitrina</h3>
+      <p>Mahsulotlaringiz <strong>bozorliii.online</strong> da ko'rinadi. Toshkentdan, boshqa shaharlardan ham ko'radi.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔔</div>
+      <h3>Buyurtma — Telegramga</h3>
+      <p>Mijoz buyurtma beradi → Telegram botingizga darhol xabar keladi. Avtomatik.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📊</div>
+      <h3>CRM Panel</h3>
+      <p>Mahsulot qo'shish, buyurtma ko'rish, savdo statistikasi, mijozlar bilan chat — barchasi bir joyda.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🗺️</div>
+      <h3>Xarita — aniq joylashuv</h3>
+      <p>Bozor ichida do'koningizning aniq joyi. Mijoz "qayerda?" deb so'ramaydi.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📸</div>
+      <h3>Stories va Reels</h3>
+      <p>Instagram kabi — mahsulot stories va video qo'shing. Mijozlar ko'radi, buyurtma beradi.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🤖</div>
+      <h3>AI Yordamchi</h3>
+      <p>Rasm orqali mahsulot qidirish. Mijoz rasmni yuboradi — o'xshash mahsulotlar chiqadi.</p>
+    </div>
+  </div>
+</div>
+
+<!-- PRICING -->
+<div class="pricing">
+  <div class="pricing-inner">
+    <h2 class="section-title">💰 <span>Qancha</span> turadi?</h2>
+
+    <div class="commission-box">
+      <div style="font-size:15px; color:#a5b4fc; font-weight:600; letter-spacing:1px; text-transform:uppercase;">Bizning model</div>
+      <div class="commission-big">BEPUL</div>
+      <div style="font-size:22px; font-weight:800; color:#e2e8f0; margin-bottom:8px;">Obuna yo'q · Oylik to'lov yo'q</div>
+      <div class="commission-sub">
+        Ro'yxatdan o'tish bepul. Mahsulot qo'shish bepul.<br>
+        Platforma faqat <strong style="color:#c4b5fd;">muvaffaqiyatli sotuvdan</strong> kichik komissiya oladi.<br>
+        <span style="color:#64748b; font-size:14px;">Sotmadingizmi — hech narsa to'lamaysiz.</span>
+      </div>
+
+      <div class="commission-items">
+        <div class="commission-item">
+          <div class="ci-icon">🆓</div>
+          <strong>Ro'yxatdan o'tish</strong>
+          Bepul
+        </div>
+        <div class="commission-item">
+          <div class="ci-icon">📦</div>
+          <strong>Mahsulot qo'shish</strong>
+          Bepul
+        </div>
+        <div class="commission-item">
+          <div class="ci-icon">🔔</div>
+          <strong>Buyurtma olish</strong>
+          Bepul
+        </div>
+        <div class="commission-item">
+          <div class="ci-icon">💸</div>
+          <strong>Sotuvdan komissiya</strong>
+          Kichik foiz
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top:28px; color:#4ade80; font-size:15px; font-weight:700;">
+      💡 Birinchi 100 do'konchi uchun — komissiya ham yo'q, to'liq bepul!
+    </div>
+  </div>
+</div>
+
+<!-- ROADMAP -->
+<div class="section">
+  <h2 class="section-title">📈 Keyingi <span>rejalar</span></h2>
+  <div class="roadmap-grid">
+    <div class="roadmap-card">
+      <h3>✅ Hozir ishlaydi</h3>
+      <div class="roadmap-item"><div class="dot dot-done"></div>Sayt va CRM</div>
+      <div class="roadmap-item"><div class="dot dot-done"></div>Buyurtma + QR pickup</div>
+      <div class="roadmap-item"><div class="dot dot-done"></div>Telegram bot</div>
+      <div class="roadmap-item"><div class="dot dot-done"></div>Xarita va navigatsiya</div>
+      <div class="roadmap-item"><div class="dot dot-done"></div>Stories va Reels</div>
+      <div class="roadmap-item"><div class="dot dot-done"></div>Mijozlar bilan chat</div>
+    </div>
+    <div class="roadmap-card">
+      <h3>🔜 2026 Q4</h3>
+      <div class="roadmap-item"><div class="dot dot-soon"></div>Click/Payme onlayn to'lov</div>
+      <div class="roadmap-item"><div class="dot dot-soon"></div>BTS Express yetkazib berish</div>
+      <div class="roadmap-item"><div class="dot dot-soon"></div>AI rasm qidiruv</div>
+      <div class="roadmap-item"><div class="dot dot-soon"></div>Loyalty coins (bonus)</div>
+      <div class="roadmap-item"><div class="dot dot-soon"></div>Optom buyurtmalar</div>
+    </div>
+    <div class="roadmap-card">
+      <h3>🚀 2027</h3>
+      <div class="roadmap-item"><div class="dot dot-future"></div>Android / iOS ilova</div>
+      <div class="roadmap-item"><div class="dot dot-future"></div>Samarqand, Namangan, Andijon</div>
+      <div class="roadmap-item"><div class="dot dot-future"></div>B2B optom platforma</div>
+      <div class="roadmap-item"><div class="dot dot-future"></div>Qozog'iston, Rossiya bozori</div>
+      <div class="roadmap-item"><div class="dot dot-future"></div>Eksport logistika</div>
+    </div>
+  </div>
+</div>
+
+<!-- STEPS -->
+<div class="steps">
+  <div class="steps-inner">
+    <h2 class="section-title" style="text-align:center;">🚀 Boshlash — <span>3 qadam</span></h2>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>Telegram botga yozing</h3>
+        <p>Telefon raqamingizni yuboring — do'koningiz avtomatik yaratiladi</p>
+        <code>@Bozorliiicrm_bot → /start</code>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>Mahsulotlaringizni qo'shing</h3>
+        <p>CRM panelga kiring, rasm va narx qo'shing — 5 daqiqa</p>
+        <code>crm.bozorliii.online</code>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>Buyurtmalar keladi!</h3>
+        <p>Saytda ko'rinasiz → Mijozlar buyurtma beradi → Telegramga xabar keladi</p>
+        <code>bozorliii.online</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QUOTE -->
+<div class="quote-section">
+  <div class="quote-text">
+    "Instagram do'kon ochish qiyin.<br>
+    Telegram kanal boshqarish vaqt oladi.<br>
+    <span>Bozorliii — bozor do'konchisi uchun maxsus,<br>o'zbek tilida, oddiy va bepul.</span>"
+  </div>
+</div>
+
+<!-- CTA BOTTOM -->
+<div class="cta-bottom">
+  <h2>Hoziroq boshlang!</h2>
+  <p>Birinchi 100 do'konchi uchun maxsus imtiyozlar — 6 oy bepul Pro</p>
+  <a href="https://t.me/Bozorliiicrm_bot" class="cta-btn">
+    📲 @Bozorliiicrm_bot
+  </a>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <p>
+    <a href="https://bozorliii.online">bozorliii.online</a> &nbsp;|&nbsp;
+    <a href="https://crm.bozorliii.online">crm.bozorliii.online</a> &nbsp;|&nbsp;
+    <a href="https://t.me/Bozorliiicrm_bot">@Bozorliiicrm_bot</a>
+  </p>
+  <p style="margin-top:8px;">© 2026 Bozorliii — Abu Sahiy · Ippodrom · Kozgalovka</p>
+</footer>
+
+</body>
+</html>

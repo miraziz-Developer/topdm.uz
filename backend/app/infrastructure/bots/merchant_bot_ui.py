@@ -68,15 +68,36 @@ def pending_approval_keyboard() -> ReplyKeyboardMarkup:
 
 def start_inline_keyboard(shop_id: uuid.UUID | None) -> InlineKeyboardMarkup:
     crm_base = get_settings().merchant_crm_webapp_url.rstrip("/")
-    rows: list[list[InlineKeyboardButton]] = [
-        [
-            InlineKeyboardButton(
-                text="CRM ochish",
-                web_app=WebAppInfo(url=crm_url("/telegram", shop_id)),
-            ),
-        ],
-    ]
-    if shop_id:
+    rows: list[list[InlineKeyboardButton]] = []
+
+    if shop_id is None:
+        # Yangi foydalanuvchi — ro'yxatdan o'tish tugmasi birinchi
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="📝 Ro'yxatdan o'tish",
+                    web_app=WebAppInfo(url=crm_url("/telegram", shop_id)),
+                ),
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="📖 Yo'riqnoma",
+                    callback_data="show_yordam",
+                ),
+            ]
+        )
+        rows.append([InlineKeyboardButton(text="🌐 Saytni ko'rish", url="https://bozorliii.online")])
+    else:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="CRM ochish",
+                    web_app=WebAppInfo(url=crm_url("/telegram", shop_id)),
+                ),
+            ]
+        )
         rows.append(
             [
                 InlineKeyboardButton(
@@ -89,16 +110,7 @@ def start_inline_keyboard(shop_id: uuid.UUID | None) -> InlineKeyboardMarkup:
                 ),
             ]
         )
-    else:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text="Xarita",
-                    web_app=WebAppInfo(url=crm_url("/mini", shop_id)),
-                ),
-            ]
-        )
-    rows.append([InlineKeyboardButton(text="CRM login (brauzer)", url=f"{crm_base}/login")])
+        rows.append([InlineKeyboardButton(text="CRM login (brauzer)", url=f"{crm_base}/login")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

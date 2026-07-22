@@ -11,7 +11,7 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from app.infrastructure.bots.fsm_storage import build_fsm_storage
 from aiogram.enums import ChatAction
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 from app.application.merchant.smart_alerts import run_merchant_smart_alerts
 from app.application.merchant.voice_handler import MerchantVoiceHandler
@@ -93,11 +93,23 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         # Tugallanmagan ro'yxatdan o'tish/qoralama holatini tozalaymiz
         await state.clear()
         await message.answer(
-            "Bozorliii Merchant bot\n\n"
-            "Yangi do'kon: /register tez — 3 daqiqada\n"
-            "To'liq ro'yxat: /register\n"
-            "Admin havolasi: /start shop_<UUID> + kontakt\n\n"
-            "CRM: login + parol yoki Telegram OTP",
+            "👋 Xush kelibsiz — Bozorliii Merchant Bot!\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🏪 BU BOT NIMA QILADI?\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Bozorliii — Toshkent bozorlarining raqamli platformasi.\n"
+            "Siz do'koningizni bu botga ulasangiz:\n"
+            "✅ Mahsulotlaringiz onlayn ko'rinadi\n"
+            "✅ Mijozlar buyurtma beradi\n"
+            "✅ Siz CRM orqali boshqarasiz\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "📋 BOSHLASH UCHUN:\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "1️⃣ /register — Do'konni ro'yxatdan o'tkazing (3 daqiqa)\n"
+            "2️⃣ Moderator tasdiqlaydi (24 soat)\n"
+            "3️⃣ Login + parol keladi → CRM ochiladi\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "❓ Yordam: /yordam",
             reply_markup=start_inline_keyboard(None),
         )
         return
@@ -116,23 +128,101 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
 @router.message(Command("yordam"))
 async def cmd_help(message: Message) -> None:
     await message.answer(
-        "📋 Bozorliii Merchant Bot — Yordam\n\n"
-        "🏪 Do'kon:\n"
-        "/register — yangi do'kon ro'yxatdan o'tish (9 qadam)\n"
-        "/register tez — tez ro'yxat (3 qadam)\n"
-        "/start shop_<UUID> — admin havolasi orqali ulash\n"
-        "/crm — CRM tugmalari\n\n"
-        "📦 Mahsulot:\n"
-        "📸 Mahsulot qo'shish — rasm yuboring, AI to'ldiradi\n"
-        "Mahsulot qo'lda — rasm + nom + narx o'zingiz kiriting\n"
-        "Ombor yangilash — tugagan mahsulotga zaxira qo'shish\n"
-        "🎙 Ovoz — tovar tavsifi (keyin rasm yuboring)\n\n"
-        "🛒 Buyurtma:\n"
-        "QR Skaner — mijoz QR ni skaner qiling, buyurtma yopiladi\n"
-        "✅ Tasdiq / 📦 Tayyor / ❌ Rad — inline tugmalar\n\n"
-        "💰 Chegirma:\n"
-        "/chegirma 10 — barcha mahsulotga 10% chegirma\n\n"
-        "ℹ️ Ariza holati — moderator ko'rib chiqish holati"
+        "📖 BOZORLIII — TO'LIQ YO'RIQNOMA\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "1️⃣ RO'YXATDAN O'TISH\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "/register — Do'konni ro'yxatdan o'tkazing\n"
+        "• Do'kon nomi, telefon, joylashuv kiriting\n"
+        "• Moderator 24 soat ichida tasdiqlaydi\n"
+        "• Tasdiqlangach login + parol Telegram orqali keladi\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "2️⃣ MAHSULOT QO'SHISH\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📸 Rasm yuboring → AI nom, narx, kategoriyani o'zi to'ldiradi\n"
+        "   Izohda narx yozsangiz tezroq: «150000» yoki «150k»\n"
+        "✍️ «Mahsulot qo'lda» tugmasi → nom va narxni o'zingiz kiriting\n"
+        "🎙 Ovoz yuboring → AI tavsif yozadi → keyin rasm yuboring\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "3️⃣ CRM — BOSHQARUV PANELI\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📱 «CRM Panel» tugmasi → brauzer ochiladi\n"
+        "• Buyurtmalar ro'yxati\n"
+        "• Mahsulotlarni tahrirlash\n"
+        "• Statistika va daromad\n"
+        "• Mijozlar bilan chat\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "4️⃣ ZAKAZ KELGANDA NIMA QILISH?\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🔔 Bot sizga xabar yuboradi: «Yangi buyurtma!\"\n"
+        "✅ «Tasdiqlayman» — buyurtmani qabul qiling\n"
+        "📦 «Tayyor» — mahsulot tayyor, mijoz olishga kelsin\n"
+        "❌ «Rad etish» — buyurtmani bekor qiling (sabab yozing)\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "5️⃣ MIJOZ KELGANDA NIMA QILISH?\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📷 «QR Skaner» tugmasi → kamera ochiladi\n"
+        "   Mijozning telefonidagi QR kodni skaner qiling\n"
+        "   → Buyurtma avtomatik yopiladi ✅\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "6️⃣ BOSHQA BUYRUQLAR\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "/chegirma 10 — barcha mahsulotga 10% chegirma\n"
+        "/savdo — haftalik savdo hisoboti\n"
+        "/crm — CRM tugmalarini ko'rsatish\n"
+        "«Ombor yangilash» — zaxira miqdorini yangilash\n\n"
+        "❓ Muammo bo'lsa: @bozorliii_support"
+    )
+
+
+@router.callback_query(F.data == "show_yordam")
+async def cb_show_yordam(query: CallbackQuery) -> None:
+    await query.answer()
+    await query.message.answer(
+        "📖 BOZORLIII — TO'LIQ YO'RIQNOMA\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "1️⃣ RO'YXATDAN O'TISH\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "/register — Do'konni ro'yxatdan o'tkazing\n"
+        "• Do'kon nomi, telefon, joylashuv kiriting\n"
+        "• Moderator 24 soat ichida tasdiqlaydi\n"
+        "• Tasdiqlangach login + parol Telegram orqali keladi\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "2️⃣ MAHSULOT QO'SHISH\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📸 Rasm yuboring → AI nom, narx, kategoriyani o'zi to'ldiradi\n"
+        "   Izohda narx yozsangiz tezroq: «150000» yoki «150k»\n"
+        "✍️ «Mahsulot qo'lda» tugmasi → nom va narxni o'zingiz kiriting\n"
+        "🎙 Ovoz yuboring → AI tavsif yozadi → keyin rasm yuboring\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "3️⃣ CRM — BOSHQARUV PANELI\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📱 «CRM Panel» tugmasi → brauzer ochiladi\n"
+        "• Buyurtmalar ro'yxati\n"
+        "• Mahsulotlarni tahrirlash\n"
+        "• Statistika va daromad\n"
+        "• Mijozlar bilan chat\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "4️⃣ ZAKAZ KELGANDA NIMA QILISH?\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🔔 Bot sizga xabar yuboradi: «Yangi buyurtma!\"\n"
+        "✅ «Tasdiqlayman» — buyurtmani qabul qiling\n"
+        "📦 «Tayyor» — mahsulot tayyor, mijoz olishga kelsin\n"
+        "❌ «Rad etish» — buyurtmani bekor qiling (sabab yozing)\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "5️⃣ MIJOZ KELGANDA NIMA QILISH?\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📷 «QR Skaner» tugmasi → kamera ochiladi\n"
+        "   Mijozning telefonidagi QR kodni skaner qiling\n"
+        "   → Buyurtma avtomatik yopiladi ✅\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "6️⃣ BOSHQA BUYRUQLAR\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "/chegirma 10 — barcha mahsulotga 10% chegirma\n"
+        "/savdo — haftalik savdo hisoboti\n"
+        "/crm — CRM tugmalarini ko'rsatish\n"
+        "«Ombor yangilash» — zaxira miqdorini yangilash\n\n"
+        "❓ Muammo bo'lsa: @bozorliii_support"
     )
 
 

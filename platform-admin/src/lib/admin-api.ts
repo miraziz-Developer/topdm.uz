@@ -1,20 +1,54 @@
 "use client";
 
+const API_RETRY_COUNT = 3;
+const API_RETRY_DELAY = 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isRetryableError(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 export async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/v1${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { detail?: string }).detail ?? `HTTP ${res.status}`);
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < API_RETRY_COUNT; attempt++) {
+    try {
+      const res = await fetch(`/api/v1${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const message = (body as { detail?: string }).detail ?? `HTTP ${res.status}`;
+        if (isRetryableError(res.status) && attempt < API_RETRY_COUNT - 1) {
+          lastError = new Error(message);
+          await sleep(API_RETRY_DELAY * (attempt + 1));
+          continue;
+        }
+        throw new Error(message);
+      }
+
+      if (res.status === 204) return undefined as T;
+      return res.json() as Promise<T>;
+    } catch (err) {
+      if (attempt < API_RETRY_COUNT - 1 && (err instanceof Error && !err.message.startsWith("HTTP 4"))) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        await sleep(API_RETRY_DELAY * (attempt + 1));
+        continue;
+      }
+      throw err;
+    }
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+
+  throw lastError ?? new Error("Unknown fetch error");
 }
 
 export type DashboardData = {

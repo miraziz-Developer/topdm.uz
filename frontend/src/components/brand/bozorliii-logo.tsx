@@ -1,33 +1,38 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 
-import { BRAND } from "@/components/brand/brand-tokens";
 import { cn } from "@/lib/utils";
 
 export type BozorliiiLogoVariant = "icon" | "wordmark" | "full";
 export type BozorliiiLogoSize = "xs" | "sm" | "md" | "lg";
 
-const ICON_H: Record<BozorliiiLogoSize, string> = {
-  xs: "h-7 w-7",
-  sm: "h-8 w-8",
-  md: "h-9 w-9",
-  lg: "h-11 w-11",
+const ICON_SIZE: Record<BozorliiiLogoSize, string> = {
+  xs: "h-7 w-7 rounded-[8px] text-[15px]",
+  sm: "h-8 w-8 rounded-[9px] text-[17px]",
+  md: "h-10 w-10 rounded-[11px] text-[19px]",
+  lg: "h-12 w-12 rounded-[13px] text-[22px]",
 };
 
-const WORDMARK_H: Record<BozorliiiLogoSize, string> = {
-  xs: "h-6",
-  sm: "h-7",
-  md: "h-8",
-  lg: "h-10",
+const TEXT_SIZE: Record<BozorliiiLogoSize, string> = {
+  xs: "text-[15px]",
+  sm: "text-[17px]",
+  md: "text-[20px]",
+  lg: "text-[24px]",
 };
 
-const LOGO_H: Record<BozorliiiLogoSize, string> = {
-  xs: "h-10",
-  sm: "h-12",
-  md: "h-14",
-  lg: "h-[4.5rem]",
+const BADGE_SIZE: Record<BozorliiiLogoSize, string> = {
+  xs: "text-[8px] px-1.5 py-px",
+  sm: "text-[9px] px-1.5 py-px",
+  md: "text-[10px] px-2 py-0.5",
+  lg: "text-[11px] px-2 py-0.5",
+};
+
+const TAGLINE_SIZE: Record<BozorliiiLogoSize, string> = {
+  xs: "text-[7px]",
+  sm: "text-[8px]",
+  md: "text-[9px]",
+  lg: "text-[10px]",
 };
 
 type Props = {
@@ -37,49 +42,9 @@ type Props = {
   showTagline?: boolean;
   badge?: string;
   framed?: boolean;
+  theme?: "light" | "dark";
   className?: string;
 };
-
-function DomainCapsule({ label, size }: { label: string; size: BozorliiiLogoSize }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-100",
-        "px-1.5 py-px font-semibold leading-none text-slate-600",
-        size === "xs" ? "text-[9px]" : "text-[10px]",
-        !label.startsWith(".") && "uppercase tracking-[0.12em]",
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
-function BrandImage({
-  src,
-  alt,
-  className,
-  width,
-  height,
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-  width: number;
-  height: number;
-}) {
-  return (
-    <Image
-      src={src}
-      alt={alt}
-      width={width}
-      height={height}
-      unoptimized
-      className={cn("w-auto max-w-none object-contain object-left", className)}
-      priority={false}
-    />
-  );
-}
 
 export function BozorliiiLogo({
   variant = "full",
@@ -88,40 +53,87 @@ export function BozorliiiLogo({
   showTagline = false,
   badge,
   framed = false,
+  theme = "light",
   className,
 }: Props) {
   const capsuleLabel = badge?.trim() ?? "";
+  const onDark = theme === "dark";
 
   const lockup = (
-    <div className={cn("group/logo inline-flex max-w-full items-center gap-2", className)}>
-      {variant === "icon" ? (
-        <BrandImage src={BRAND.assets.icon} alt={BRAND.name} className={ICON_H[size]} width={141} height={141} />
+    <div
+      className={cn(
+        "inline-flex items-center gap-2.5",
+        framed && (onDark
+          ? "rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/15 backdrop-blur-sm"
+          : "rounded-2xl bg-white px-3 py-2 ring-1 ring-slate-200 shadow-sm"),
+        className,
+      )}
+    >
+      {/* Gradient icon — orange → pink → purple */}
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-center font-black text-white select-none",
+          "shadow-[0_2px_12px_rgba(233,30,140,0.45)]",
+          ICON_SIZE[size],
+        )}
+        style={{
+          background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)",
+        }}
+        aria-hidden="true"
+      >
+        B
+      </div>
+
+      {/* Wordmark + tagline */}
+      {variant !== "icon" ? (
+        <div className="flex flex-col justify-center leading-none">
+          <span
+            className={cn(
+              "font-black tracking-tight leading-none",
+              TEXT_SIZE[size],
+              onDark ? "text-white" : "text-[#0B0B0B]",
+            )}
+          >
+            <span>Bozor</span>
+            <span
+              style={{
+                background: "linear-gradient(90deg, #E91E8C, #7B2FE4)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              liii
+            </span>
+          </span>
+          {showTagline ? (
+            <span
+              className={cn(
+                "mt-0.5 font-bold tracking-[0.15em] uppercase",
+                TAGLINE_SIZE[size],
+                onDark ? "text-white/50" : "text-slate-400",
+              )}
+            >
+              INNOVATSION BOZOR PLATFORMASI
+            </span>
+          ) : null}
+        </div>
       ) : null}
 
-      {variant === "wordmark" ? (
-        <BrandImage
-          src={showTagline ? BRAND.assets.logo : BRAND.assets.wordmarkCompact}
-          alt={BRAND.shortName}
-          className={cn(showTagline ? LOGO_H[size] : WORDMARK_H[size], !showTagline && "max-w-[min(100%,9.5rem)] sm:max-w-[11rem]")}
-          width={showTagline ? 1779 : 593}
-          height={showTagline ? 442 : 128}
-        />
-      ) : null}
-
-      {variant === "full" ? (
-        <BrandImage
-          src={showTagline ? BRAND.assets.logo : BRAND.assets.logoLockup}
-          alt={BRAND.name}
+      {/* Badge */}
+      {capsuleLabel ? (
+        <span
           className={cn(
-            showTagline ? LOGO_H[size] : WORDMARK_H[size],
-            showTagline ? "max-w-[min(100%,14rem)]" : "max-w-[min(100%,9.5rem)] sm:max-w-[11rem]",
+            "inline-flex shrink-0 items-center rounded-full border font-bold leading-none uppercase tracking-wide",
+            onDark
+              ? "border-pink-400/30 bg-pink-500/15 text-pink-300"
+              : "border-pink-200 bg-pink-50 text-pink-600",
+            BADGE_SIZE[size],
           )}
-          width={showTagline ? 1779 : 593}
-          height={showTagline ? 442 : 128}
-        />
+        >
+          {capsuleLabel}
+        </span>
       ) : null}
-
-      {capsuleLabel ? <DomainCapsule label={capsuleLabel} size={size} /> : null}
     </div>
   );
 
@@ -129,8 +141,8 @@ export function BozorliiiLogo({
     return (
       <Link
         href={href}
-        className="inline-flex shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/35 focus-visible:ring-offset-2"
-        aria-label={BRAND.name}
+        className="inline-flex shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/40 focus-visible:ring-offset-2"
+        aria-label="Bozorliii"
       >
         {lockup}
       </Link>

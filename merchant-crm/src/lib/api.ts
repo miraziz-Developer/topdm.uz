@@ -6,6 +6,17 @@ function apiUrl(path: string): string {
   return `${resolveApiBase()}${path}`;
 }
 
+const API_RETRY_COUNT = 3;
+const API_RETRY_DELAY = 800;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isRetryableError(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 function handleUnauthorized(response: Response): void {
   if (response.status !== 401 || typeof window === "undefined") return;
   void (async () => {
@@ -43,6 +54,44 @@ async function parseError(response: Response): Promise<string> {
   return `API error: ${response.status} — ${detail.slice(0, 200)}`;
 }
 
+async function fetchWithRetry<T>(url: string, init: RequestInit, auth = true): Promise<T> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < API_RETRY_COUNT; attempt++) {
+    try {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          ...(init.headers ?? {}),
+          ...authHeaders(),
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        if (isRetryableError(response.status) && attempt < API_RETRY_COUNT - 1) {
+          lastError = new Error(await parseError(response));
+          await sleep(API_RETRY_DELAY * (attempt + 1));
+          continue;
+        }
+        throw new Error(await parseError(response));
+      }
+
+      if (response.status === 204) return undefined as T;
+      return response.json() as Promise<T>;
+    } catch (err) {
+      if (attempt < API_RETRY_COUNT - 1 && (err instanceof Error && !err.message.includes("401"))) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        await sleep(API_RETRY_DELAY * (attempt + 1));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError ?? new Error("Unknown fetch error");
+}
+
 export async function postJson<TResponse>(path: string, body: unknown, auth?: boolean): Promise<TResponse> {
   const useAuth =
     auth ??
@@ -62,13 +111,7 @@ export async function postJson<TResponse>(path: string, body: unknown, auth?: bo
 }
 
 export async function getJson<TResponse>(path: string, auth = true): Promise<TResponse> {
-  const response = await fetch(apiUrl(path), {
-    method: "GET",
-    cache: "no-store",
-    headers: authHeaders(),
-  });
-  if (!response.ok) throw new Error(await parseError(response));
-  return response.json() as Promise<TResponse>;
+  return fetchWithRetry<TResponse>(apiUrl(path), { method: "GET" }, auth);
 }
 
 export async function patchJson<TResponse>(path: string, body: unknown): Promise<TResponse> {
