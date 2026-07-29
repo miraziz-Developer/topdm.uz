@@ -1,5 +1,13 @@
 /** Bosh sahifa karusel banner — soat bo‘yicha narx (har qanday soat tanlash mumkin). */
 
+export type BannerPricingArgs = {
+  code: string;
+  name_uz: string;
+  price_uzs?: number;
+  duration_days?: number;
+  price_per_day_uzs?: number | null;
+};
+
 export type BannerTariffLike = {
   code: string;
   name_uz: string;
@@ -55,4 +63,20 @@ export function bannerHoursLabel(hours: number): string {
 
 export function formatUzs(n: number): string {
   return new Intl.NumberFormat("uz-UZ").format(Math.round(n));
+}
+
+/**
+ * Banner kunlik narxi (sovutma tariff tariflaridan foydalanuvchi).
+ * Avval `price_per_day_uzs` → keyin `price_uzs / duration_days` → fallback 0.
+ */
+export function bannerPricePerDay(args: BannerPricingArgs): number {
+  if (typeof args.price_per_day_uzs === "number" && !isNaN(args.price_per_day_uzs)) {
+    return Math.max(0, args.price_per_day_uzs);
+  }
+  const price = args.price_uzs ?? 0;
+  const days = args.duration_days ?? 0;
+  if (price > 0 && days > 0) {
+    return roundPrice(price / days);
+  }
+  return 0;
 }

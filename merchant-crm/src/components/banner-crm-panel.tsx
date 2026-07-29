@@ -40,13 +40,13 @@ const STATUS_UZ: Record<string, { label: string; variant: "default" | "success" 
 function bannerErrorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : "";
   if (/Insufficient Coin/i.test(msg) || /insufficient_coins/i.test(msg)) {
-    return "Balans yetarli emas — Do'kon → Reja bo'limida to'ldiring.";
+    return "Balans yetarli emas — Do&apos;kon → Reja bo&apos;limida to&apos;ldiring.";
   }
   if (/image_required|empty_image/i.test(msg)) {
     return "Reklama rasmini tanlang (JPG yoki PNG).";
   }
   if (/unknown_tariff/i.test(msg)) return "Tarif topilmadi — sahifani yangilang.";
-  return msg || "Saqlab bo'lmadi";
+  return msg || "Saqlab bo&apos;lmadi";
 }
 
 function BannerJournalRow({
@@ -150,7 +150,7 @@ export function BannerCrmPanel() {
       try {
         await refresh();
       } catch {
-        if (!cancelled) toast.error("Ma'lumot yuklanmadi");
+        if (!cancelled) toast.error("Ma&apos;lumot yuklanmadi");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -191,7 +191,7 @@ export function BannerCrmPanel() {
         toast.success("Rasm avtomatik siqildi — yuklash mumkin");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Rasmni tayyorlab bo'lmadi");
+      toast.error(err instanceof Error ? err.message : "Rasmni tayyorlab bo&apos;lmadi");
     } finally {
       setPreparingImage(false);
     }
@@ -301,7 +301,7 @@ export function BannerCrmPanel() {
               {quote && quote.effectivePerHour > 0 ? (
                 <span className="text-text-500">
                   {" "}
-                  · soatiga ~{formatUzs(quote.effectivePerHour)} so'm
+                  · soatiga ~{formatUzs(quote.effectivePerHour)} so&apos;m
                 </span>
               ) : null}
             </p>
@@ -328,18 +328,18 @@ export function BannerCrmPanel() {
               >
                 {tariffs.map((t) => (
                   <option key={t.code} value={t.code}>
-                    {t.name_uz} — karusel {t.carousel_slot ?? t.priority_weight ?? 1}-o'rin · ~
-                    {formatUzs(bannerPricePerHour(t))} so'm/soat
+                    {t.name_uz} — karusel {t.carousel_slot ?? t.priority_weight ?? 1}-o&apos;rin · ~
+                    {formatUzs(bannerPricePerHour(t))} so&apos;m/soat
                   </option>
                 ))}
               </select>
             </div>
             <div className="sm:col-span-2">
               <label htmlFor="banner-hours" className="text-xs font-semibold text-text-400">
-                Necha soat ko'rinsin?
+                Necha soat ko&apos;rinsin?
               </label>
               <p className="mt-0.5 text-[11px] text-text-500">
-                Istalgan vaqt belgilang — har bir soat uchun {formatUzs(pricePerHour)} so'mdan.
+                Istalgan vaqt belgilang — har bir soat uchun {formatUzs(pricePerHour)} so&apos;mdan.
               </p>
               <div className="mt-3 flex items-center gap-3">
                 <input
@@ -361,7 +361,7 @@ export function BannerCrmPanel() {
                   <p className="text-text-100">
                     <strong>{bannerHoursLabel(quote.hours)}</strong>
                     <span className="mx-1.5 text-text-400">·</span>
-                    {formatUzs(pricePerHour)} so'm/soat
+                    {formatUzs(pricePerHour)} so&apos;m/soat
                     <span className="mx-1.5 text-text-400">=</span>
                     <strong className="text-electric-500">{formatSom(amountUzs)}</strong>
                   </p>
@@ -429,7 +429,7 @@ export function BannerCrmPanel() {
                 {bannerHoursLabel(quote.hours)} karuselda
                 <span className="mx-1.5">·</span>
                 <strong className="text-text-100">{formatSom(amountUzs)}</strong>
-                <span className="text-text-400"> ({formatUzs(pricePerHour)} so'm/soat)</span>
+                <span className="text-text-400"> ({formatUzs(pricePerHour)} so&apos;m/soat)</span>
               </p>
               {!canAfford ? (
                 <p className="mt-2 text-amber-800">
