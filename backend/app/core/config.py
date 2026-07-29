@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     site_url: str = "https://bozorliii.uz"
     external_api_timeout_seconds: float = 20.0
-    user_rate_limit_per_minute: int = 10
+    user_rate_limit_per_minute: int = 120
     order_reserve_rate_limit_per_minute: int = 8
     order_lookup_rate_limit_per_minute: int = 12
     eskiz_email: str = ""
