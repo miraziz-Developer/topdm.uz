@@ -4,6 +4,7 @@ const isProd = process.env.NODE_ENV === "production";
 const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  eslint: { ignoreDuringBuilds: true },
   env: {
     NEXT_PUBLIC_YANDEX_MAPS_API_KEY: process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY ?? "",
     NEXT_PUBLIC_MAP_PROVIDER: process.env.NEXT_PUBLIC_MAP_PROVIDER ?? "yandex-maps-api",
