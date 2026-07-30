@@ -5,34 +5,14 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export type BozorliiiLogoVariant = "icon" | "wordmark" | "full";
-export type BozorliiiLogoSize = "xs" | "sm" | "md" | "lg";
+export type BozorliiiLogoSize = "xs" | "sm" | "md" | "lg" | "xl";
 
-const ICON_SIZE: Record<BozorliiiLogoSize, string> = {
-  xs: "h-7 w-7 rounded-[8px] text-[15px]",
-  sm: "h-8 w-8 rounded-[9px] text-[17px]",
-  md: "h-10 w-10 rounded-[11px] text-[19px]",
-  lg: "h-12 w-12 rounded-[13px] text-[22px]",
-};
-
-const TEXT_SIZE: Record<BozorliiiLogoSize, string> = {
-  xs: "text-[15px]",
-  sm: "text-[17px]",
-  md: "text-[20px]",
-  lg: "text-[24px]",
-};
-
-const BADGE_SIZE: Record<BozorliiiLogoSize, string> = {
-  xs: "text-[8px] px-1.5 py-px",
-  sm: "text-[9px] px-1.5 py-px",
-  md: "text-[10px] px-2 py-0.5",
-  lg: "text-[11px] px-2 py-0.5",
-};
-
-const TAGLINE_SIZE: Record<BozorliiiLogoSize, string> = {
-  xs: "text-[7px]",
-  sm: "text-[8px]",
-  md: "text-[9px]",
-  lg: "text-[10px]",
+const SIZE: Record<BozorliiiLogoSize, { scale: number }> = {
+  xs: { scale: 0.55 },
+  sm: { scale: 0.75 },
+  md: { scale: 1 },
+  lg: { scale: 1.4 },
+  xl: { scale: 2 },
 };
 
 type Props = {
@@ -42,7 +22,6 @@ type Props = {
   showTagline?: boolean;
   badge?: string;
   framed?: boolean;
-  theme?: "light" | "dark";
   className?: string;
 };
 
@@ -53,90 +32,117 @@ export function BozorliiiLogo({
   showTagline = false,
   badge,
   framed = false,
-  theme = "light",
   className,
 }: Props) {
+  const s = SIZE[size].scale;
   const capsuleLabel = badge?.trim() ?? "";
-  const onDark = theme === "dark";
 
-  const lockup = (
+  /* Icon: navy B badge */
+  const icon = (
     <div
-      className={cn(
-        "inline-flex items-center gap-2.5",
-        framed && (onDark
-          ? "rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/15 backdrop-blur-sm"
-          : "rounded-2xl bg-white px-3 py-2 ring-1 ring-slate-200 shadow-sm"),
-        className,
-      )}
+      className="flex shrink-0 items-center justify-center font-black text-white select-none rounded-xl"
+      style={{
+        width: `${40 * s}px`,
+        height: `${40 * s}px`,
+        fontSize: `${22 * s}px`,
+        background: "#003366",
+        boxShadow: "0 2px 12px rgba(0,51,102,0.35)",
+      }}
+      aria-hidden="true"
     >
-      {/* Gradient icon — orange → pink → purple */}
-      <div
-        className={cn(
-          "flex shrink-0 items-center justify-center font-black text-white select-none",
-          "shadow-[0_2px_12px_rgba(233,30,140,0.45)]",
-          ICON_SIZE[size],
-        )}
-        style={{
-          background: "#003366",
-        }}
-        aria-hidden="true"
-      >
-        B
-      </div>
+      B
+    </div>
+  );
 
-      {/* Wordmark + tagline */}
-      {variant !== "icon" ? (
-        <div className="flex flex-col justify-center leading-none">
+  /* Wordmark: BoZorlIII with three dots above "lii" */
+  const wordmark = (
+    <span className="inline-flex items-baseline font-black leading-none select-none" style={{ fontSize: `${24 * s}px` }}>
+      <span className="text-[#0a0a0a]">BoZor</span>
+      <span className="relative text-[#0a0a0a]">
+        {/* Three colourful dots */}
+        <span className="absolute left-0 right-0 -top-[1px] flex justify-center gap-[3px]">
           <span
-            className={cn(
-              "font-black tracking-tight leading-none",
-              TEXT_SIZE[size],
-              onDark ? "text-white" : "text-[#0B0B0B]",
-            )}
-          >
-            <span>Bozor</span>
-            <span style={{ color: "#003366" }}>
-              liii
-            </span>
-          </span>
-          {showTagline ? (
-            <span
-              className={cn(
-                "mt-0.5 font-bold tracking-[0.15em] uppercase",
-                TAGLINE_SIZE[size],
-                onDark ? "text-white/50" : "text-slate-400",
-              )}
-            >
-              INNOVATSION BOZOR PLATFORMASI
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+            className="inline-block rounded-full"
+            style={{
+              width: `${6 * s}px`,
+              height: `${6 * s}px`,
+              background: "#003366",
+            }}
+          />
+          <span
+            className="inline-block rounded-full"
+            style={{
+              width: `${6 * s}px`,
+              height: `${6 * s}px`,
+              background: "#f59e0b",
+            }}
+          />
+          <span
+            className="inline-block rounded-full"
+            style={{
+              width: `${6 * s}px`,
+              height: `${6 * s}px`,
+              background: "#f97316",
+            }}
+          />
+        </span>
+        lI
+      </span>
+      <span className="text-[#0a0a0a]">II</span>
+    </span>
+  );
 
-      {/* Badge */}
-      {capsuleLabel ? (
+  const brandText = (
+    <div className="flex flex-col justify-center leading-none">
+      <div className="flex items-baseline gap-1.5">
+        {variant !== "icon" ? wordmark : null}
+        {variant !== "icon" && capsuleLabel ? (
+          <span
+            className="inline-flex shrink-0 items-center rounded-md border font-bold tracking-wide"
+            style={{
+              fontSize: `${10 * s}px`,
+              padding: `${2 * s}px ${7 * s}px`,
+              borderColor: "#e2e8f0",
+              background: "#f8fafc",
+              color: "#64748b",
+            }}
+          >
+            {capsuleLabel}
+          </span>
+        ) : null}
+      </div>
+      {showTagline ? (
         <span
-          className={cn(
-            "inline-flex shrink-0 items-center rounded-full border font-bold leading-none uppercase tracking-wide",
-            onDark
-              ? "border-pink-400/30 bg-pink-500/15 text-pink-300"
-              : "border-pink-200 bg-pink-50 text-pink-600",
-            BADGE_SIZE[size],
-          )}
+          className="font-semibold tracking-[0.15em] uppercase"
+          style={{
+            fontSize: `${9 * s}px`,
+            marginTop: `${3 * s}px`,
+            color: "#003366",
+          }}
         >
-          {capsuleLabel}
+          INNOVATSION BOZOR PLATFORMASI
         </span>
       ) : null}
     </div>
   );
 
+  const lockup = (
+    <div
+      className={cn(
+        "inline-flex items-center",
+        framed && "rounded-3xl bg-white px-4 py-2.5 ring-1 ring-slate-200/60 shadow-sm",
+        className,
+      )}
+      style={{ gap: `${10 * s}px` }}
+    >
+      {icon}
+      {variant !== "icon" ? brandText : null}
+    </div>
+  );
+
   if (href) {
     return (
-      <Link
-        href={href}
-        className="inline-flex shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/40 focus-visible:ring-offset-2"
-        aria-label="Bozorliii"
-      >
+      <Link href={href} className="inline-flex shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003366]/30 focus-visible:ring-offset-2 rounded-2xl" aria-label="Bozorliii">
         {lockup}
       </Link>
     );
