@@ -126,7 +126,7 @@ export function MerchantShell({
         aria-label="CRM navigatsiya"
       >
         <div className="flex h-[var(--header-height)] items-center border-b border-white/5 px-5">
-          <BozorliiiLogo variant="icon" size="sm" href="/dashboard" badge="CRM" theme="dark" />
+          <BozorliiiLogo variant="icon" size="sm" href="/dashboard" badge="CRM" />
         </div>
 
         <div className="border-b border-white/5 px-4 py-4">
