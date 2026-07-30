@@ -77,7 +77,7 @@ export function BozorliiiLogo({
           ICON_SIZE[size],
         )}
         style={{
-          background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)",
+          background: "#003366",
         }}
         aria-hidden="true"
       >
@@ -95,14 +95,7 @@ export function BozorliiiLogo({
             )}
           >
             <span>Bozor</span>
-            <span
-              style={{
-                background: "linear-gradient(90deg, #E91E8C, #7B2FE4)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
+            <span style={{ color: "#003366" }}>
               liii
             </span>
           </span>
