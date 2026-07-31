@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -37,92 +38,42 @@ export function BozorliiiLogo({
   const s = SIZE[size].scale;
   const capsuleLabel = badge?.trim() ?? "";
 
-  /* Icon: navy B badge */
-  const icon = (
+  /* Logo image rendered from /logo.png */
+  const logoImage = (
     <div
-      className="flex shrink-0 items-center justify-center font-black text-white select-none rounded-xl"
+      className="relative flex items-center justify-center"
       style={{
-        width: `${40 * s}px`,
+        width: `${120 * s}px`,
         height: `${40 * s}px`,
-        fontSize: `${22 * s}px`,
-        background: "#003366",
-        boxShadow: "0 2px 12px rgba(0,51,102,0.35)",
       }}
-      aria-hidden="true"
     >
-      B
+      <Image
+        src="/logo.png"
+        alt="Bozorliii"
+        fill
+        className="object-contain object-center"
+        priority
+        sizes={`${Math.round(120 * s)}px`}
+      />
     </div>
   );
 
-  /* Wordmark: BoZorlIII with three dots above "lii" */
-  const wordmark = (
-    <span className="inline-flex items-baseline font-black leading-none select-none" style={{ fontSize: `${24 * s}px` }}>
-      <span className="text-[#0a0a0a]">BoZor</span>
-      <span className="relative text-[#0a0a0a]">
-        {/* Three colourful dots */}
-        <span className="absolute left-0 right-0 -top-[1px] flex justify-center gap-[3px]">
-          <span
-            className="inline-block rounded-full"
-            style={{
-              width: `${6 * s}px`,
-              height: `${6 * s}px`,
-              background: "#003366",
-            }}
-          />
-          <span
-            className="inline-block rounded-full"
-            style={{
-              width: `${6 * s}px`,
-              height: `${6 * s}px`,
-              background: "#f59e0b",
-            }}
-          />
-          <span
-            className="inline-block rounded-full"
-            style={{
-              width: `${6 * s}px`,
-              height: `${6 * s}px`,
-              background: "#f97316",
-            }}
-          />
-        </span>
-        lI
-      </span>
-      <span className="text-[#0a0a0a]">II</span>
-    </span>
-  );
-
-  const brandText = (
-    <div className="flex flex-col justify-center leading-none">
-      <div className="flex items-baseline gap-1.5">
-        {variant !== "icon" ? wordmark : null}
-        {variant !== "icon" && capsuleLabel ? (
-          <span
-            className="inline-flex shrink-0 items-center rounded-md border font-bold tracking-wide"
-            style={{
-              fontSize: `${10 * s}px`,
-              padding: `${2 * s}px ${7 * s}px`,
-              borderColor: "#e2e8f0",
-              background: "#f8fafc",
-              color: "#64748b",
-            }}
-          >
-            {capsuleLabel}
-          </span>
-        ) : null}
-      </div>
-      {showTagline ? (
-        <span
-          className="font-semibold tracking-[0.15em] uppercase"
-          style={{
-            fontSize: `${9 * s}px`,
-            marginTop: `${3 * s}px`,
-            color: "#003366",
-          }}
-        >
-          INNOVATSION BOZOR PLATFORMASI
-        </span>
-      ) : null}
+  const iconBadge = (
+    <div
+      className="relative flex items-center justify-center overflow-hidden"
+      style={{
+        width: `${40 * s}px`,
+        height: `${40 * s}px`,
+      }}
+    >
+      <Image
+        src="/logo.png"
+        alt="Bozorliii"
+        fill
+        className="object-contain object-center"
+        priority
+        sizes={`${Math.round(40 * s)}px`}
+      />
     </div>
   );
 
@@ -135,8 +86,33 @@ export function BozorliiiLogo({
       )}
       style={{ gap: `${10 * s}px` }}
     >
-      {icon}
-      {variant !== "icon" ? brandText : null}
+      {variant === "icon" ? iconBadge : logoImage}
+      {variant !== "icon" && capsuleLabel ? (
+        <span
+          className="inline-flex shrink-0 items-center rounded-md border font-bold tracking-wide"
+          style={{
+            fontSize: `${10 * s}px`,
+            padding: `${2 * s}px ${7 * s}px`,
+            borderColor: "#e2e8f0",
+            background: "#f8fafc",
+            color: "#64748b",
+          }}
+        >
+          {capsuleLabel}
+        </span>
+      ) : null}
+      {showTagline ? (
+        <span
+          className="font-semibold tracking-[0.15em] uppercase"
+          style={{
+            fontSize: `${9 * s}px`,
+            marginTop: `${3 * s}px`,
+            color: "#003366",
+          }}
+        >
+          INNOVATSIYON BOZOR PLATFORMASI
+        </span>
+      ) : null}
     </div>
   );
 
