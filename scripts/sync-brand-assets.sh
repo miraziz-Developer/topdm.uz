@@ -6,19 +6,35 @@ SRC="$ROOT/brand/assets"
 
 python3 "$ROOT/scripts/generate-brand-assets.py"
 
-for dest in "$ROOT/frontend/public/brand" "$ROOT/merchant-crm/public/brand"; do
+for dest in "$ROOT/frontend/public/brand" "$ROOT/merchant-crm/public/brand" "$ROOT/platform-admin/public/brand"; do
   mkdir -p "$dest"
   cp "$SRC"/bozorliii-*.png "$dest/"
   cp "$SRC"/bozorliii-product-placeholder.svg "$dest/" 2>/dev/null || true
+  cp "$SRC"/bozorliii-shop-cover-default.svg "$dest/" 2>/dev/null || true
 done
+
+# merchant-crm-mobile (Capacitor webDir)
+if [[ -d "$ROOT/merchant-crm-mobile/www" ]]; then
+  dest="$ROOT/merchant-crm-mobile/www/brand"
+  mkdir -p "$dest"
+  cp "$SRC"/bozorliii-*.png "$dest/" 2>/dev/null || true
+  cp "$SRC"/bozorliii-product-placeholder.svg "$dest/" 2>/dev/null || true
+fi
+
 cp "$SRC/favicon.svg" "$ROOT/frontend/public/favicon.svg"
 cp "$SRC/favicon.svg" "$ROOT/merchant-crm/public/favicon.svg"
+cp "$SRC/favicon.svg" "$ROOT/platform-admin/public/favicon.svg"
+
 if [[ -f "$SRC/favicon.png" ]]; then
   cp "$SRC/favicon.png" "$ROOT/frontend/public/favicon.png"
   cp "$SRC/favicon.png" "$ROOT/merchant-crm/public/favicon.png"
+  cp "$SRC/favicon.png" "$ROOT/platform-admin/public/favicon.png"
 fi
+
 if [[ -f "$SRC/bozorliii-icon.png" ]]; then
   cp "$SRC/bozorliii-icon.png" "$ROOT/frontend/public/apple-touch-icon.png"
   cp "$SRC/bozorliii-icon.png" "$ROOT/merchant-crm/public/apple-touch-icon.png"
+  cp "$SRC/bozorliii-icon.png" "$ROOT/platform-admin/public/apple-touch-icon.png"
 fi
-echo "Brand assets synced (SVG + PNG) to frontend + merchant-crm"
+
+echo "Brand assets synced (SVG + PNG) to frontend + merchant-crm + platform-admin + merchant-crm-mobile"
