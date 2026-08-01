@@ -44,7 +44,7 @@ export function BozorliiiLogo({
       className="relative flex items-center justify-center"
       style={{
         width: `${120 * s}px`,
-        height: `${40 * s}px`,
+        height: `${44 * s}px`,
       }}
     >
       <Image
