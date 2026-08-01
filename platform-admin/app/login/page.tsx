@@ -1,8 +1,8 @@
 "use client";
 
-import { Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,29 +12,16 @@ import { Input } from "@/components/ui/input";
 function BrandLockup({ className }: { className?: string }) {
   return (
     <div className={`inline-flex items-center gap-2.5 ${className ?? ""}`}>
-      {/* Navy B icon */}
-      <div
-        className="flex shrink-0 items-center justify-center rounded-xl font-black text-white"
-        aria-hidden="true"
-        style={{ width: 40, height: 40, fontSize: 22, background: "#003366", boxShadow: "0 2px 12px rgba(0,51,102,0.35)" }}
-      >
-        B
-      </div>
-      {/* Wordmark */}
-      <span className="inline-flex items-baseline font-black leading-none select-none" style={{ fontSize: 22 }}>
-        <span className="text-[#0a0a0a]">BoZor</span>
-        <span className="relative text-[#0a0a0a]">
-          <span className="absolute left-0 right-0 -top-[1px] flex justify-center gap-[2.5px]">
-            <span className="inline-block rounded-full" style={{ width: 5, height: 5, background: "#003366" }} />
-            <span className="inline-block rounded-full" style={{ width: 5, height: 5, background: "#f59e0b" }} />
-            <span className="inline-block rounded-full" style={{ width: 5, height: 5, background: "#f97316" }} />
-          </span>
-          lI
-        </span>
-        <span className="text-[#0a0a0a]">II</span>
-        <span className="ml-1.5 inline-flex items-center rounded-md border text-[10px] font-bold tracking-wide px-1.5 py-0.5" style={{ borderColor: "#e2e8f0", background: "#f8fafc", color: "#64748b" }}>
-          ADMIN
-        </span>
+      <Image
+        src="/logo.png"
+        alt="Bozorliii"
+        width={160}
+        height={40}
+        className="h-10 w-auto object-contain"
+        priority
+      />
+      <span className="ml-1.5 inline-flex items-center rounded-md border text-[10px] font-bold tracking-wide px-1.5 py-0.5" style={{ borderColor: "#e2e8f0", background: "#f8fafc", color: "#64748b" }}>
+        ADMIN
       </span>
     </div>
   );
@@ -99,7 +86,7 @@ export default function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Kirish..." : "CRM ga kirish"}
+              {loading ? "Kirish..." : "Admin panelga kirish"}
             </Button>
           </form>
         </Card>

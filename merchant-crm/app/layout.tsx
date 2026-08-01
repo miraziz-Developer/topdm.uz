@@ -6,8 +6,8 @@ import { AppProviders } from "@/components/providers/app-providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bozorliii.uz CRM — Do'kon boshqaruvi",
-  description: "Bozorliii.uz merchant paneli — buyurtmalar, mahsulotlar, QR ulashish",
+  title: "Bozorliii CRM — Do'kon boshqaruvi",
+  description: "Bozorliii merchant paneli — buyurtmalar, mahsulotlar, QR ulashish",
   icons: {
     icon: [
       { url: "/favicon.png", sizes: "32x32", type: "image/png" },
@@ -15,12 +15,12 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/brand/bozorliii-icon-180.png", sizes: "180x180", type: "image/png" }],
   },
-  applicationName: "Bozorliii.uz CRM",
+  applicationName: "Bozorliii CRM",
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "Bozorliii.uz CRM",
+    title: "Bozorliii CRM",
     description: "Do'kon boshqaruvi",
-    siteName: "Bozorliii.uz",
+    siteName: "Bozorliii",
   },
 };
 
