@@ -10,15 +10,7 @@ export default function LandingPage() {
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-[#0f0f0f]/90 backdrop-blur-md border-b border-white/5">
         <Link href="/" className="inline-flex items-center gap-2 select-none">
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] font-black text-white text-[17px] leading-none"
-            style={{
-              background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)",
-              boxShadow: "0 2px 12px rgba(233,30,140,0.45)",
-            }}
-          >
-            B
-          </div>
+          <BozorliiiLogo variant="icon" size="xs" href={null} />
           <span className="font-black text-[18px] tracking-tight text-white leading-none">
             Bozor
             <span

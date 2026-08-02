@@ -61,7 +61,7 @@ export function BozorliiiLogo({
 
   const iconBadge = (
     <div
-      className="relative flex items-center justify-center overflow-hidden"
+      className="relative flex items-center justify-center overflow-hidden rounded-[9px]"
       style={{
         width: `${40 * s}px`,
         height: `${40 * s}px`,
