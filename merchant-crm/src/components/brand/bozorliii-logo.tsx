@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -38,42 +37,53 @@ export function BozorliiiLogo({
   const s = SIZE[size].scale;
   const capsuleLabel = badge?.trim() ?? "";
 
-  /* Logo image rendered from /logo.png */
+  /* Inline gradient B icon + text */
   const logoImage = (
-    <div
-      className="relative flex items-center justify-center"
-      style={{
-        width: `${120 * s}px`,
-        height: `${40 * s}px`,
-      }}
-    >
-      <Image
-        src="/logo.png"
-        alt="Bozorliii"
-        fill
-        className="object-contain object-center"
-        priority
-        sizes={`${Math.round(120 * s)}px`}
-      />
+    <div className="inline-flex items-center" style={{ gap: `${8 * s}px` }}>
+      <div
+        className="flex shrink-0 items-center justify-center rounded-[9px] font-black text-white"
+        style={{
+          width: `${36 * s}px`,
+          height: `${36 * s}px`,
+          fontSize: `${18 * s}px`,
+          background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)",
+          boxShadow: `0 2px 10px rgba(233,30,140,${0.4 * s})`,
+          lineHeight: 1,
+        }}
+      >
+        B
+      </div>
+      <span
+        className="font-black tracking-tight text-white"
+        style={{ fontSize: `${22 * s}px`, lineHeight: 1 }}
+      >
+        Bozor
+        <span
+          style={{
+            background: "linear-gradient(90deg, #E91E8C, #7B2FE4)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          liii
+        </span>
+      </span>
     </div>
   );
 
   const iconBadge = (
     <div
-      className="relative flex items-center justify-center overflow-hidden"
+      className="flex shrink-0 items-center justify-center rounded-[9px] font-black text-white"
       style={{
-        width: `${40 * s}px`,
-        height: `${40 * s}px`,
+        width: `${36 * s}px`,
+        height: `${36 * s}px`,
+        fontSize: `${18 * s}px`,
+        background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)",
+        boxShadow: `0 2px 10px rgba(233,30,140,${0.4 * s})`,
+        lineHeight: 1,
       }}
     >
-      <Image
-        src="/logo.png"
-        alt="Bozorliii"
-        fill
-        className="object-contain object-center"
-        priority
-        sizes={`${Math.round(40 * s)}px`}
-      />
+      B
     </div>
   );
 
