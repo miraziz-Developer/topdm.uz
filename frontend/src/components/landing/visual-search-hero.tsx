@@ -55,7 +55,7 @@ export function VisualSearchHero() {
             <span className="block bg-gradient-gold bg-clip-text text-transparent">bozor topilsin</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-text-300 md:text-lg">
-            Yunusobod, Chorsu va Olmazor bozorlaridagi 50,000+ tovar orasidan AI 30 soniyada eng mos variantni tanlaydi.
+            Toshkent bozorlaridan AI yordamida toping. Rasm yoki matn bilan qidiring — eng mos variantni soniyalar ichida toping.
           </p>
         </motion.div>
 

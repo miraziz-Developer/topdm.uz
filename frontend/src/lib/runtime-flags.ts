@@ -19,7 +19,7 @@ export function allowDemoFakeData(): boolean {
 }
 
 export function merchantCrmUrl(): string {
-  return (process.env.NEXT_PUBLIC_MERCHANT_CRM_URL ?? "https://crm.bozorliii.uz").replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_MERCHANT_CRM_URL ?? "https://crm.bozorliii.online").replace(/\/$/, "");
 }
 
 /**

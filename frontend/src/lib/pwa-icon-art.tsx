@@ -134,7 +134,7 @@ export function pwaSplashImageResponse(width: number, height: number) {
             color: "#475569",
           }}
         >
-          AI bilan bozor toping
+          Uydan chiqmasdan bozor aylaning
         </div>
       </div>
     ),

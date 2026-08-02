@@ -12,9 +12,9 @@ const API_ORIGIN = (() => {
 const MEDIA_CDN = (process.env.NEXT_PUBLIC_MEDIA_CDN_URL ?? "").replace(/\/$/, "");
 
 const PROD_MEDIA_HOSTS = new Set([
-  "bozorliii.uz",
-  "www.bozorliii.uz",
-  "api.bozorliii.uz",
+  "bozorliii.online",
+  "www.bozorliii.online",
+  "api.bozorliii.online",
   "bozorliii.online",
   "www.bozorliii.online",
   "api.bozorliii.online",
@@ -36,8 +36,8 @@ function prodMediaApiOrigin(): string | null {
     if (host.endsWith(".bozorliii.online") || host === "bozorliii.online") {
       return "https://api.bozorliii.online";
     }
-    if (host.endsWith(".bozorliii.uz") || host === "bozorliii.uz") {
-      return "https://api.bozorliii.uz";
+    if (host.endsWith(".bozorliii.online") || host === "bozorliii.online") {
+      return "https://api.bozorliii.online";
     }
   }
   return null;

@@ -12,9 +12,6 @@ const API_ORIGIN = (() => {
 const MEDIA_CDN = (process.env.NEXT_PUBLIC_MEDIA_CDN_URL ?? "").replace(/\/$/, "");
 
 const PROD_MEDIA_HOSTS = new Set([
-  "bozorliii.uz",
-  "www.bozorliii.uz",
-  "api.bozorliii.uz",
   "bozorliii.online",
   "www.bozorliii.online",
   "api.bozorliii.online",
@@ -32,7 +29,7 @@ function rewriteToMediaCdn(url: string): string {
 function prodMediaApiOrigin(): string | null {
   const crm = (process.env.NEXT_PUBLIC_MERCHANT_CRM_URL ?? "").trim();
   if (crm.includes("bozorliii.online")) return "https://api.bozorliii.online";
-  if (crm.includes("bozorliii.uz")) return "https://api.bozorliii.uz";
+  if (crm.includes("bozorliii.online")) return "https://api.bozorliii.online";
   return null;
 }
 
@@ -43,8 +40,8 @@ function mediaApiOriginForBrowser(): string | null {
   if (host === "crm.bozorliii.online" || host.endsWith(".bozorliii.online")) {
     return "https://api.bozorliii.online";
   }
-  if (host.endsWith(".bozorliii.uz")) {
-    return "https://api.bozorliii.uz";
+  if (host.endsWith(".bozorliii.online")) {
+    return "https://api.bozorliii.online";
   }
   return null;
 }

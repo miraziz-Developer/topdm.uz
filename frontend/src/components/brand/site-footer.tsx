@@ -29,7 +29,7 @@ export function SiteFooter({ dark = false }: SiteFooterProps) {
           <div className="flex flex-col gap-3">
             <BozorliiiLogo variant="full" size="sm" href="/" showTagline />
             <p className={dark ? "max-w-xs text-xs leading-relaxed text-white/45" : "max-w-xs text-xs leading-relaxed text-text-400"}>
-              O'zbekistonning AI marketplace — Ippodrom va Abu Saxiy bozorlaridagi 50,000+ tovar bir joyda.
+              O'zbekistonning AI marketplace — Toshkent bozorlaridagi tovarlarni bir joydan toping.
             </p>
           </div>
 
@@ -73,7 +73,7 @@ export function SiteFooter({ dark = false }: SiteFooterProps) {
               Ma&apos;lumot
             </p>
             <p className={dark ? "text-xs leading-relaxed text-white/45" : "text-xs leading-relaxed text-text-400"}>
-              Bozorliii.uz — Toshkent, O&apos;zbekiston
+              {BRAND.name} — Toshkent, O'zbekiston
             </p>
             <p className={dark ? "text-xs text-white/40" : "text-xs text-text-400"}>
               © {new Date().getFullYear()} {BRAND.name}

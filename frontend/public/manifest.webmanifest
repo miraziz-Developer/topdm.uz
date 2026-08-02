@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Bozorliii — AI Marketplace",
+  "name": "Bozorliii — Onlayn Bozor",
   "short_name": "Bozorliii",
-  "description": "Toshkent bozorlari — AI qidiruv, rasm bo'yicha topish, tez buyurtma",
+  "description": "Uydan chiqmasdan bozor aylang. Toshkent bozorlaridagi tovarlarni onlayn toping va buyurtma bering.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

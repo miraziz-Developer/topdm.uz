@@ -20,7 +20,7 @@ import {
 import { resolveMediaUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.uz").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.online").replace(/\/$/, "");
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPT = ["image/jpeg", "image/png", "image/webp"];
 const PHONE_REGEX = /^\+998\d{9}$/;
@@ -198,7 +198,7 @@ export function ShopBrandingPanel() {
     <div className="space-y-4">
       <CrmTip>
         <strong className="font-semibold text-text-100">Profil va brend</strong> mijozlar{" "}
-        <strong className="text-text-200">bozorliii.uz/shop/{shop.slug}</strong> sahifasida, xaritada va mahsulot
+        <strong className="text-text-200">bozorliii.online/shop/{shop.slug}</strong> sahifasida, xaritada va mahsulot
         kartalarida chiqadi. Havola (slug) o&apos;zgarmaydi — SEO va QR xavfsiz.
       </CrmTip>
 

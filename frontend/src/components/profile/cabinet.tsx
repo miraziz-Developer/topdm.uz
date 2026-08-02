@@ -208,7 +208,7 @@ export function PremiumCabinet({ profile, onLogout }: PremiumCabinetProps) {
             Shaxsiy <span className="text-gradient-gold">sotuv</span> kabineti
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-500">
-            Bozorliii.uz profilingiz, Bozor Coin va AI Stilist uchun shaxsiy sozlamalar — barchasi bir panelda.
+            Bozorliii.online profilingiz, Bozor Coin va AI Stilist uchun shaxsiy sozlamalar — barchasi bir panelda.
           </p>
         </motion.div>
       </header>
@@ -493,7 +493,7 @@ export function PremiumCabinet({ profile, onLogout }: PremiumCabinetProps) {
           </motion.section>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-2">
-            <p className="text-[11px] text-ink-400">Bozorliii.uz · xavfsiz hisob</p>
+            <p className="text-[11px] text-ink-400">Bozorliii.online · xavfsiz hisob</p>
             <Button
               variant="ghost"
               className="text-ink-500 hover:text-red"

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { BRAND } from "@/components/brand/brand-tokens";
 import { cn } from "@/lib/utils";
 
 export type BozorliiiLogoVariant = "icon" | "wordmark" | "full";
@@ -48,7 +49,7 @@ export function BozorliiiLogo({
       }}
     >
       <Image
-        src="/logo.png"
+        src="/brand/bozorliii-full-logo.png"
         alt="Bozorliii"
         fill
         className="object-contain object-center"
@@ -67,7 +68,7 @@ export function BozorliiiLogo({
       }}
     >
       <Image
-        src="/logo.png"
+        src="/brand/bozorliii-icon.svg"
         alt="Bozorliii"
         fill
         className="object-contain object-center"
@@ -110,7 +111,7 @@ export function BozorliiiLogo({
             color: "#003366",
           }}
         >
-          INNOVATSIYON BOZOR PLATFORMASI
+          {BRAND.tagline}
         </span>
       ) : null}
     </div>

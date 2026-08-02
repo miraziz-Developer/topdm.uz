@@ -20,7 +20,7 @@ export function MarketShell({
   title,
   subtitle,
   backHref = "/",
-  backLabel = "Bozorliii.uz",
+  backLabel = "Bozorliii.online",
   showNav = true,
 }: Props) {
   return (

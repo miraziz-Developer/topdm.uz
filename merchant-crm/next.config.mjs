@@ -17,8 +17,6 @@ const nextConfig = {
       { protocol: "https", hostname: "picsum.photos", pathname: "/**" },
       { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
       { protocol: "https", hostname: "*.supabase.co", pathname: "/**" },
-      { protocol: "https", hostname: "bozorliii.uz", pathname: "/**" },
-      { protocol: "https", hostname: "api.bozorliii.uz", pathname: "/**" },
       { protocol: "https", hostname: "bozorliii.online", pathname: "/**" },
       { protocol: "https", hostname: "api.bozorliii.online", pathname: "/**" },
       { protocol: "https", hostname: "crm.bozorliii.online", pathname: "/**" },

@@ -11,8 +11,8 @@ type Props = {
 };
 
 const SITE_ORIGIN =
-  (process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.uz").replace(/\/$/, "") ||
-  "https://bozorliii.uz";
+  (process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.online").replace(/\/$/, "") ||
+  "https://bozorliii.online";
 
 /** Chop etish uchun vitrina posteri — Bozorliii brendi + do'kon nomi + QR */
 export function ShopQrPoster({ kit }: Props) {
@@ -69,7 +69,7 @@ export function ShopQrPoster({ kit }: Props) {
   return (
     <div className="rounded-2xl border border-dashed border-gold-500/30 bg-gradient-to-br from-electric-500/5 to-gold-500/5 p-4">
       <p className="text-sm font-medium text-text-100">Vitrina posteri (Bozorliii brendi)</p>
-      <p className="mt-1 text-xs text-text-400">Do&apos;kon nomi + QR + bozorliii.uz logosi — chop etish uchun</p>
+      <p className="mt-1 text-xs text-text-400">Do&apos;kon nomi + QR + bozorliii.online logosi — chop etish uchun</p>
       <Button type="button" variant="secondary" className="mt-3" onClick={printPoster}>
         <Printer className="mr-1 h-4 w-4" />
         Posterni chop etish

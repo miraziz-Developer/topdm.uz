@@ -258,7 +258,7 @@ export function BannerCrmPanel() {
       <div className="crm-surface-card p-4 sm:p-5">
         <p className="text-sm leading-relaxed text-text-400">
           <strong className="font-semibold text-text-100">Bosh sahifa karuseli</strong> — mijozlar{" "}
-          <strong className="text-text-200">bozorliii.uz</strong> ga kirganda yuqoridagi aylanma bannerda sizning
+          <strong className="text-text-200">bozorliii.online</strong> ga kirganda yuqoridagi aylanma bannerda sizning
           rasmingiz chiqadi (Bronze/Silver/Gold — qaysi qatorda turishingizga qarab). Bu oylik obuna emas:{" "}
           <strong className="text-text-200">necha kun kerak bo&apos;lsa, shuncha to&apos;laysiz</strong>.
         </p>

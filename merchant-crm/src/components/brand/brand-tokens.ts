@@ -1,9 +1,9 @@
-/** Bozorliii.uz — yagona brend tokenlari (frontend + CRM bilan sinxron) */
+/** Bozorliii.online — yagona brend tokenlari (frontend + CRM bilan sinxron) */
 export const BRAND = {
-  name: "Bozorliii.uz",
+  name: "Bozorliii.online",
   shortName: "bozorliii",
-  tagline: "INNOVATSION BOZOR PLATFORMASI",
-  domain: "bozorliii.uz",
+  tagline: "Uydan chiqmasdan bozor aylaning",
+  domain: "bozorliii.online",
   colors: {
     electric: "#0066ff",
     accent: "#E91E8C",

@@ -176,7 +176,7 @@ export function AIChat({ variant = "floating" }: AIChatProps) {
                   </div>
                   <div>
                     <h3 className="font-semibold text-text-100">
-                      {isStudio ? "Shaxsiy AI Stilist" : "Bozorliii.uz"}
+                      {isStudio ? "Shaxsiy AI Stilist" : "Bozorliii.online"}
                     </h3>
                     <p className="text-xs text-electric-400">
                       {isTyping

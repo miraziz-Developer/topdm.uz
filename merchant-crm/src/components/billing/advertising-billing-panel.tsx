@@ -242,7 +242,7 @@ export function AdvertisingBillingPanel({ autoOpenTopUp }: Props) {
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold text-text-100">Bosh sahifa banner</h2>
             <p className="mt-1 text-sm text-text-400">
-              bozorliii.uz karuselida ko&apos;rinish. Kunlik narxlar:{" "}
+              bozorliii.online karuselida ko&apos;rinish. Kunlik narxlar:{" "}
               {banners.length
                 ? banners
                     .map((t) => {

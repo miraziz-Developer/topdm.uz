@@ -22,19 +22,21 @@ import { TelegramWebAppProvider } from "@/components/providers/telegram-webapp";
 import { LayoutGroup } from "framer-motion";
 
 import { QueryProvider } from "@/lib/query-provider";
+import { getSiteUrl, getSiteMeta } from "@/lib/site";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://bozorliii.uz";
+const siteUrl = getSiteUrl();
+const { displayName } = getSiteMeta();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Bozorliii.uz — Toshkent bozorlarini AI bilan toping",
+  title: `${displayName} — Uydan chiqmasdan bozor aylaning`,
   description:
-    "Bozorliii.uz — O'zbekistonning AI marketplace. 50,000+ tovar, 2,400+ do'kon. AI bilan 30 soniyada toping!",
+    `${displayName} — O'zbekistonning onlayn bozori. Uydan chiqmasdan bozor aylaning!`,
   keywords: ["bozorliii", "bozor", "AI", "marketplace", "Toshkent", "ipadrom", "tovar", "qidiruv"],
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Bozorliii",
+    title: displayName,
     statusBarStyle: "default",
     startupImage: [
       {
@@ -51,25 +53,25 @@ export const metadata: Metadata = {
       },
     ],
   },
-  applicationName: "Bozorliii",
+  applicationName: displayName,
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-title": "Bozorliii",
+    "apple-mobile-web-app-title": displayName,
   },
   icons: {
     icon: [
       { url: "/brand/bozorliii-icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/brand/bozorliii-icon-512.png", sizes: "512x512", type: "image/png" },
-      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/bozorliii-icon-32.png", sizes: "32x32", type: "image/png" },
     ],
     shortcut: [{ url: "/brand/bozorliii-icon-192.png", sizes: "192x192", type: "image/png" }],
     apple: [{ url: "/brand/bozorliii-icon-180.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "Bozorliii.uz — AI bilan bozor qidiruvi",
-    description: "50,000+ tovar orasidan AI bilan toping",
-    siteName: "Bozorliii.uz",
+    title: `${displayName} — Uydan chiqmasdan bozor aylaning`,
+    description: "Uydan chiqmasdan bozor aylaning",
+    siteName: displayName,
     locale: "uz_UZ",
     type: "website",
   },
@@ -90,11 +92,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const siteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Bozorliii.uz",
-    url: "https://bozorliii.uz",
+    name: displayName,
+    url: siteUrl,
     potentialAction: {
       "@type": "SearchAction",
-      target: "https://bozorliii.uz/search?q={search_term_string}",
+      target: `${siteUrl}/search?q={search_term_string}`,
       "query-input": "required name=search_term_string",
     },
   };

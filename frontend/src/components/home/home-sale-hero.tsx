@@ -125,10 +125,6 @@ export function HomeSaleHero() {
   const products = useMemo(() => (data?.items ?? []).slice(0, 4), [data?.items]);
   const [wordIndex, setWordIndex] = useState(0);
 
-  const liveShoppers = useMemo(() => {
-    const hour = new Date().getHours();
-    return 32 + ((hour * 7 + new Date().getDate()) % 48);
-  }, []);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -166,15 +162,15 @@ export function HomeSaleHero() {
         />
 
         <div className="relative border-b border-white/10 px-4 py-2 sm:px-6">
-          <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 sm:text-[11px]">
+          <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/55 sm:text-[11px]">
             <span className="inline-flex items-center gap-2">
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-electric-500 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-electric-400" />
               </span>
-              Hozir {liveShoppers} kishi xarid qilmoqda
+              AI bilan tovar qidiring
             </span>
-            <span className="hidden text-white/55 sm:inline">Bozorliii.uz · jonli</span>
+            <span className="hidden text-white/40 sm:inline">{BRAND.name} · jonli</span>
           </div>
         </div>
 

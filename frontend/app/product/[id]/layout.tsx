@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: ProductLayoutProps): Promise<
     const market = product.shop?.ipadrom ?? "bozor";
     const ogImage = absoluteMediaUrl(product.images?.[0]);
     return {
-      title: `${product.name} — Bozorliii.uz`,
+      title: `${product.name} — Bozorliii.online`,
       description: `${product.name} ${shopName} do'konida. ${market} bozorida AI orqali toping.`,
       openGraph: {
         title: product.name,
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: ProductLayoutProps): Promise<
       },
     };
   } catch {
-    return { title: "Tovar — Bozorliii.uz" };
+    return { title: "Tovar — Bozorliii.online" };
   }
 }
 
@@ -58,7 +58,7 @@ export default async function ProductLayout({ children, params }: ProductLayoutP
         availability: product.is_available ? "https://schema.org/InStock" : "https://schema.org/PreOrder",
         seller: {
           "@type": "Organization",
-          name: product.shop?.name ?? "Bozorliii.uz",
+          name: product.shop?.name ?? "Bozorliii.online",
         },
       },
     };

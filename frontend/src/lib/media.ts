@@ -16,9 +16,6 @@ const API_ORIGIN = (() => {
 const MEDIA_CDN = (process.env.NEXT_PUBLIC_MEDIA_CDN_URL ?? "").replace(/\/$/, "");
 
 const PROD_MEDIA_HOSTS = new Set([
-  "bozorliii.uz",
-  "www.bozorliii.uz",
-  "api.bozorliii.uz",
   "bozorliii.online",
   "www.bozorliii.online",
   "api.bozorliii.online",
@@ -44,9 +41,6 @@ function mediaApiOriginForBrowser(): string | null {
   if (host === "localhost" || host === "127.0.0.1") return null;
   if (host === "crm.bozorliii.online" || host.endsWith(".bozorliii.online")) {
     return "https://api.bozorliii.online";
-  }
-  if (host.endsWith(".bozorliii.uz")) {
-    return "https://api.bozorliii.uz";
   }
   return null;
 }
@@ -88,9 +82,7 @@ function isStorefrontHost(hostname: string): boolean {
     hostname === "localhost" ||
     hostname === "127.0.0.1" ||
     hostname === "bozorliii.online" ||
-    hostname === "www.bozorliii.online" ||
-    hostname === "bozorliii.uz" ||
-    hostname === "www.bozorliii.uz"
+    hostname === "www.bozorliii.online"
   );
 }
 
@@ -105,7 +97,6 @@ function productionMediaApiOrigin(): string | null {
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
   if (site.includes("bozorliii.online")) return "https://api.bozorliii.online";
-  if (site.includes("bozorliii.uz")) return "https://api.bozorliii.uz";
 
   return null;
 }

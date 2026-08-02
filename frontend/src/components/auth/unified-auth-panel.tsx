@@ -290,7 +290,7 @@ export function UnifiedAuthPanel({ onSuccess, redirectTo = "/profile", className
           <div className="mx-auto mb-4 flex justify-center">
             <BozorliiiLogo variant="icon" size="lg" href={null} className="rounded-2xl ring-2 ring-white/30" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Bozorliii.uz ga kirish</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Bozorliii.online ga kirish</h1>
           <p className="mt-2 text-sm text-white/85">Google, Telegram, Apple yoki email — xavfsiz va tez</p>
         </motion.div>
 

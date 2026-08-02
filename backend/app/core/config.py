@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-3-5-sonnet-20241022"
     embedding_model: str = "text-embedding-3-small"
-    site_url: str = "https://bozorliii.uz"
+    site_url: str = "https://bozorliii.online"
     external_api_timeout_seconds: float = 20.0
     user_rate_limit_per_minute: int = 120
     order_reserve_rate_limit_per_minute: int = 8

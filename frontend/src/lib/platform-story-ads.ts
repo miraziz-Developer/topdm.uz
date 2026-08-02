@@ -9,7 +9,7 @@ export function isPlatformAdRing(ring: StoryDockRing): boolean {
 
 export function bannerSlideToStoryRing(slide: PremiumBannerSlide): StoryDockRing {
   const shopId = `${PLATFORM_SHOP_PREFIX}${slide.id}`;
-  const location = [slide.ipadrom, slide.location_label].filter(Boolean).join(", ") || "Bozorliii.uz";
+  const location = [slide.ipadrom, slide.location_label].filter(Boolean).join(", ") || "Bozorliii.online";
   const story: LiveStory = {
     id: `platform-story-${slide.id}`,
     shop_id: shopId,
@@ -22,7 +22,7 @@ export function bannerSlideToStoryRing(slide: PremiumBannerSlide): StoryDockRing
     shop: {
       id: shopId,
       name: slide.shop_name || "Bozorliii",
-      ipadrom: slide.ipadrom || "Bozorliii.uz",
+      ipadrom: slide.ipadrom || "Bozorliii.online",
       floor: slide.location_label || "Reklama",
       location_label: location,
       slug: slide.shop_slug,

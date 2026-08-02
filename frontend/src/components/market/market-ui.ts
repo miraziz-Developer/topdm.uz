@@ -1,4 +1,4 @@
-/** Bozorliii.uz brend — Premium / Xitoy bozor (electric + canvas, qorong'u emas) */
+/** Bozorliii.online brend — Premium / Xitoy bozor (electric + canvas, qorong'u emas) */
 export const marketPage = "min-h-0 flex-1 text-ink-900";
 export const marketGlass =
   "rounded-2xl border border-border-subtle bg-white p-4 shadow-card sm:p-5";
