@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-const GRADIENT = "linear-gradient(135deg, #0066ff 0%, #7b3fe4 52%, #ff4d12 100%)";
+const GRADIENT = "linear-gradient(135deg, #1857D6 0%, #7A3FE0 100%)";
 
 /** PWA / apple-touch icon — brend gradient + savat "B" silueti. */
 export function pwaIconImageResponse(size: number, { maskable = false }: { maskable?: boolean } = {}) {
@@ -19,7 +19,7 @@ export function pwaIconImageResponse(size: number, { maskable = false }: { maska
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: pad ? "#e8ecf4" : GRADIENT,
+            background: pad ? "#ffffff" : GRADIENT,
           padding: pad,
         }}
       >
