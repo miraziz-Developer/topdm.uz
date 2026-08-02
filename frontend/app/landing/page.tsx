@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BozorliiiLogo } from "@/components/brand/bozorliii-logo";
 
 export default function LandingPage() {
   return (
@@ -8,14 +9,8 @@ export default function LandingPage() {
 
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-[#0f0f0f]/90 backdrop-blur-md border-b border-white/5">
-        <div className="inline-flex items-center gap-2">
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] font-black text-white text-[17px] select-none"
-            style={{ background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)", boxShadow: "0 2px 12px rgba(233,30,140,0.45)" }}
-          >B</div>
-          <span className="font-black text-[18px] tracking-tight text-white">
-            Bozor<span style={{ background: "linear-gradient(90deg, #E91E8C, #7B2FE4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>liii</span>
-          </span>
+        <div className="flex items-center">
+          <BozorliiiLogo variant="full" size="sm" href="/" />
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -30,7 +25,7 @@ export default function LandingPage() {
             rel="noopener noreferrer"
             className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-colors"
           >
-            Do&apos;konchi bo&apos;lish
+            Do'konchi bo'lish
           </a>
         </div>
       </nav>
@@ -42,18 +37,18 @@ export default function LandingPage() {
 
         <div className="relative max-w-3xl mx-auto">
     <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold px-4 py-1.5 rounded-full mb-6">
-      🇺🇿 O&apos;zbekiston bozorlari uchun raqamli platforma
+      🇺🇿 O'zbekiston bozorlari uchun raqamli platforma
     </div>
 
     <h1 className="text-4xl sm:text-5xl md:text-6xl font-black leading-tight mb-6">
-      O&apos;zbekiston<br />
+      O'zbekiston<br />
       bozorlari —<br />
       <span className="text-indigo-400">endi onlaynda</span>
     </h1>
 
     <p className="text-lg sm:text-xl text-slate-400 max-w-xl mx-auto mb-10">
       Toshkent, Samarqand, Namangan, Andijon va boshqa shaharlardagi
-      bozor do&apos;konlarini onlaynda toping. Mahsulot qidiring, buyurtma bering.
+      bozor do'konlarini onlaynda toping. Mahsulot qidiring, buyurtma bering.
     </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -69,7 +64,7 @@ export default function LandingPage() {
               rel="noopener noreferrer"
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-lg px-8 py-4 rounded-xl transition-all"
             >
-              📲 Do&apos;konchi bo&apos;lish
+              📲 Do'konchi bo'lish
             </a>
           </div>
         </div>
@@ -96,7 +91,7 @@ export default function LandingPage() {
       <section className="py-14 px-5 max-w-4xl mx-auto text-center">
         <div className="inline-block text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4 bg-indigo-500/10 px-3 py-1 rounded-full">Qayerda ishlaydi?</div>
         <h2 className="text-3xl sm:text-4xl font-black mb-8">
-          Butun <span className="text-indigo-400">O&apos;zbekiston</span> bo&apos;ylab
+          Butun <span className="text-indigo-400">O'zbekiston</span> bo'ylab
         </h2>
         <div className="flex flex-wrap justify-center gap-3">
           {["🏙️ Toshkent", "🕌 Samarqand", "🌿 Namangan", "🌾 Andijon", "🏔️ Farg'ona", "🌊 Buxoro", "🌻 Qashqadaryo"].map((city) => (
@@ -111,7 +106,7 @@ export default function LandingPage() {
         <div className="text-center mb-12">
           <div className="inline-block text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Xaridorlar uchun</div>
           <h2 className="text-3xl sm:text-4xl font-black">
-            Bozorni <span className="text-indigo-400">uydan</span> ko&apos;ring
+            Bozorni <span className="text-indigo-400">uydan</span> ko'ring
           </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -138,7 +133,7 @@ export default function LandingPage() {
             href="/market"
             className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-8 py-3.5 rounded-xl transition-colors"
           >
-            🛍️ Mahsulotlarni ko&apos;rish
+            🛍️ Mahsulotlarni ko'rish
           </Link>
         </div>
       </section>
@@ -147,12 +142,12 @@ export default function LandingPage() {
       <section className="py-20 px-5 bg-gradient-to-br from-indigo-950/30 to-purple-950/20 border-y border-white/5">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <div className="inline-block text-xs font-bold text-purple-400 uppercase tracking-widest mb-3">Do&apos;konchilar uchun</div>
+            <div className="inline-block text-xs font-bold text-purple-400 uppercase tracking-widest mb-3">Do'konchilar uchun</div>
             <h2 className="text-3xl sm:text-4xl font-black">
-              Savdoni <span className="text-purple-400">ko&apos;paytiring</span>
+              Savdoni <span className="text-purple-400">ko'paytiring</span>
             </h2>
             <p className="text-slate-400 mt-3 max-w-lg mx-auto">
-              Bepul ro&apos;yxatdan o&apos;ting. Mahsulot qo&apos;shing. Buyurtmalar Telegramga keladi.
+              Bepul ro'yxatdan o'ting. Mahsulot qo'shing. Buyurtmalar Telegramga keladi.
             </p>
           </div>
 
@@ -177,10 +172,10 @@ export default function LandingPage() {
           <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/8 border border-indigo-500/20 rounded-2xl p-8 text-center max-w-lg mx-auto">
             <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">Narx modeli</div>
             <div className="text-6xl font-black text-indigo-400 my-3">BEPUL</div>
-            <div className="text-lg font-bold mb-2">Obuna yo&apos;q · Oylik to&apos;lov yo&apos;q</div>
+            <div className="text-lg font-bold mb-2">Obuna yo'q · Oylik to'lov yo'q</div>
             <p className="text-sm text-slate-400 mb-6">
               Faqat muvaffaqiyatli sotuvdan kichik komissiya.<br />
-              <span className="text-slate-500">Sotmadingizmi — hech narsa to&apos;lamaysiz.</span>
+              <span className="text-slate-500">Sotmadingizmi — hech narsa to'lamaysiz.</span>
             </p>
             <a
               href="https://t.me/Bozorliiicrm_bot"
@@ -191,7 +186,7 @@ export default function LandingPage() {
               📲 Hoziroq boshlash — BEPUL
             </a>
             <p className="text-xs text-green-400 mt-3 font-semibold">
-              💡 Birinchi 100 do&apos;konchi — komissiya ham yo&apos;q!
+              💡 Birinchi 100 do'konchi — komissiya ham yo'q!
             </p>
           </div>
         </div>
@@ -245,7 +240,7 @@ export default function LandingPage() {
       <section className="py-20 px-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-center">
         <h2 className="text-3xl sm:text-4xl font-black mb-3">Hoziroq boshlang!</h2>
         <p className="text-indigo-100 mb-8 text-lg">
-          Birinchi 100 do&apos;konchi uchun — to&apos;liq bepul
+          Birinchi 100 do'konchi uchun — to'liq bepul
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
@@ -260,7 +255,7 @@ export default function LandingPage() {
             rel="noopener noreferrer"
             className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold text-lg px-8 py-4 rounded-xl transition-colors"
           >
-            📲 Do&apos;konchi bo&apos;lish
+            📲 Do'konchi bo'lish
           </a>
         </div>
       </section>
