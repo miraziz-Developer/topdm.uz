@@ -1,7 +1,7 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-
 import { cn } from "@/lib/utils";
 
 export type BozorliiiLogoVariant = "icon" | "wordmark" | "full";
@@ -37,53 +37,42 @@ export function BozorliiiLogo({
   const s = SIZE[size].scale;
   const capsuleLabel = badge?.trim() ?? "";
 
-  /* Inline gradient B icon + text */
+  /* Logo image from /brand/bozorliii-full-logo.png */
   const logoImage = (
-    <div className="inline-flex items-center" style={{ gap: `${8 * s}px` }}>
-      <div
-        className="flex shrink-0 items-center justify-center rounded-[9px] font-black text-white"
-        style={{
-          width: `${36 * s}px`,
-          height: `${36 * s}px`,
-          fontSize: `${18 * s}px`,
-          background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)",
-          boxShadow: `0 2px 10px rgba(233,30,140,${0.4 * s})`,
-          lineHeight: 1,
-        }}
-      >
-        B
-      </div>
-      <span
-        className="font-black tracking-tight text-white"
-        style={{ fontSize: `${22 * s}px`, lineHeight: 1 }}
-      >
-        Bozor
-        <span
-          style={{
-            background: "linear-gradient(90deg, #E91E8C, #7B2FE4)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          liii
-        </span>
-      </span>
+    <div
+      className="relative flex items-center justify-center"
+      style={{
+        width: `${120 * s}px`,
+        height: `${44 * s}px`,
+      }}
+    >
+      <Image
+        src="/brand/bozorliii-full-logo.png"
+        alt="Bozorliii"
+        fill
+        className="object-contain object-center"
+        priority
+        sizes={`${Math.round(120 * s)}px`}
+      />
     </div>
   );
 
   const iconBadge = (
     <div
-      className="flex shrink-0 items-center justify-center rounded-[9px] font-black text-white"
+      className="relative flex items-center justify-center overflow-hidden"
       style={{
-        width: `${36 * s}px`,
-        height: `${36 * s}px`,
-        fontSize: `${18 * s}px`,
-        background: "linear-gradient(135deg, #FF5A00 0%, #E91E8C 50%, #7B2FE4 100%)",
-        boxShadow: `0 2px 10px rgba(233,30,140,${0.4 * s})`,
-        lineHeight: 1,
+        width: `${40 * s}px`,
+        height: `${40 * s}px`,
       }}
     >
-      B
+      <Image
+        src="/brand/bozorliii-icon.svg"
+        alt="Bozorliii"
+        fill
+        className="object-contain object-center"
+        priority
+        sizes={`${Math.round(40 * s)}px`}
+      />
     </div>
   );
 
