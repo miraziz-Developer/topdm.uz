@@ -24,7 +24,7 @@ import { productImage } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
-const ROTATING_WORDS = ["kiyim", "poyabzal", "aksesuar", "sumka", "elektronika"] as const;
+const ROTATING_WORDS = ["kiyim", "poyabzal", "mato", "bolalar kiyimi", "erkaklar kiyimi"] as const;
 
 const PROOF_CHIPS = [
   { icon: Zap, label: "2 daqiqada bron" },

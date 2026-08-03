@@ -24,7 +24,7 @@ const INTEREST_IDS: DomainCategoryId[] = [
   "ayollar_kiyimi",
   "poyabzal",
   "bolalar_kiyimi",
-  "aksesuarlar",
+  "matolar",
 ];
 
 export function HomeRecommendedRow({ products, loading, category, onCategoryChange }: Props) {
