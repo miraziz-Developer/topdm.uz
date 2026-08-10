@@ -1,0 +1,39 @@
+name: Server Audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Audit both servers
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          HOST1: ${{ secrets.SSH_HOST_1 }}
+          HOST2: ${{ secrets.SSH_HOST_2 }}
+        run: |
+          mkdir -p deploy/_audit
+          CMD='echo "== hostname/uptime =="; hostname; uptime; echo; echo "== memory =="; free -h; echo; echo "== disk =="; df -h /; echo; echo "== docker ps =="; docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" 2>&1; echo; echo "== /opt =="; ls -la /opt 2>&1; echo; echo "== compose files =="; ls -la /opt/*/docker-compose*.yml 2>&1; echo; echo "== repo state =="; cd /opt/bozorliii 2>/dev/null && git log -1 --oneline && git status --short | head -20; cd - >/dev/null; echo; echo "== nginx sites =="; ls /etc/nginx/sites-enabled 2>&1; echo; echo "== listening ports =="; (ss -tlnp 2>&1 || netstat -tlnp 2>&1) | head -30'
+          for pair in "$HOST1:server1" "$HOST2:server2"; do
+            HOST="${pair%%:*}"
+            LABEL="${pair##*:}"
+            echo "Auditing $LABEL ($HOST)..."
+            sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$SSH_USER@$HOST" "$CMD" > "deploy/_audit/${LABEL}.txt" 2>&1 || echo "SSH FAILED for $LABEL ($HOST)" >> "deploy/_audit/${LABEL}.txt"
+          done
+
+      - name: Commit results
+        run: |
+          git config user.name "audit-bot"
+          git config user.email "audit-bot@users.noreply.github.com"
+          git add deploy/_audit
+          git diff --staged --quiet || git commit -m "chore: server audit results [skip ci]"
+          git push
