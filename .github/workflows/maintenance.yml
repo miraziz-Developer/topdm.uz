@@ -21,36 +21,61 @@ jobs:
           HOST1: ${{ secrets.SSH_HOST_1 }}
           HOST2: ${{ secrets.SSH_HOST_2 }}
         run: |
+          set +e
           mkdir -p deploy/_audit
           SSH="sshpass -p $SSH_PASSWORD ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15"
 
           echo "--- archiving karvon on both servers (move, not delete) ---"
           for pair in "$HOST1:server1" "$HOST2:server2"; do
             HOST="${pair%%:*}"; LABEL="${pair##*:}"
-            $SSH "$SSH_USER@$HOST" '
-              if [ -d /opt/karvon ]; then
-                mv /opt/karvon /root/karvon-archived-$(date +%Y%m%d) && echo "karvon archived to /root/karvon-archived-$(date +%Y%m%d)"
-              else
-                echo "no /opt/karvon found"
-              fi
-            ' > "deploy/_audit/${LABEL}-karvon.txt" 2>&1
+            {
+              echo "== ssh connectivity test =="
+              $SSH "$SSH_USER@$HOST" 'echo connected as $(whoami) on $(hostname)'
+              echo "exit code: $?"
+              echo "== karvon archive =="
+              $SSH "$SSH_USER@$HOST" '
+                set -x
+                if [ -d /opt/karvon ]; then
+                  mv /opt/karvon /root/karvon-archived-$(date +%Y%m%d)
+                  echo "MOVE_RESULT=$?"
+                else
+                  echo "no /opt/karvon found"
+                fi
+              '
+              echo "exit code: $?"
+            } > "deploy/_audit/${LABEL}-karvon.txt" 2>&1
           done
 
           echo "--- syncing CORE (server2) git state + removing unhealthy unpublished nginx container ---"
-          $SSH "$SSH_USER@$HOST2" '
-            cd /opt/bozorliii
-            echo "== before ==" ; git log -1 --oneline
-            git fetch origin
-            git reset --hard origin/main
-            echo "== after ==" ; git log -1 --oneline
-            echo "== removing unhealthy unpublished nginx container (not serving traffic) =="
-            docker rm -f bozorliii-nginx-1 2>&1 || true
-          ' > "deploy/_audit/server2-sync.txt" 2>&1
+          {
+            echo "== connectivity =="
+            $SSH "$SSH_USER@$HOST2" 'whoami; hostname'
+            echo "exit: $?"
+            echo "== git before =="
+            $SSH "$SSH_USER@$HOST2" 'cd /opt/bozorliii && git log -1 --oneline && git remote -v'
+            echo "exit: $?"
+            echo "== git fetch =="
+            $SSH "$SSH_USER@$HOST2" 'cd /opt/bozorliii && git fetch origin 2>&1'
+            echo "exit: $?"
+            echo "== git reset --hard =="
+            $SSH "$SSH_USER@$HOST2" 'cd /opt/bozorliii && git reset --hard origin/main 2>&1'
+            echo "exit: $?"
+            echo "== git after =="
+            $SSH "$SSH_USER@$HOST2" 'cd /opt/bozorliii && git log -1 --oneline'
+            echo "exit: $?"
+            echo "== remove unhealthy nginx container =="
+            $SSH "$SSH_USER@$HOST2" 'docker rm -f bozorliii-nginx-1 2>&1'
+            echo "exit: $?"
+          } > "deploy/_audit/server2-sync.txt" 2>&1
 
-          echo "--- capture native nginx config on CORE for admin.bozorliii.online (to understand routing before touching other containers) ---"
-          $SSH "$SSH_USER@$HOST2" 'cat /etc/nginx/sites-enabled/admin.bozorliii.online 2>&1; echo "---upstream check---"; cat /etc/nginx/sites-enabled/*.conf 2>/dev/null | grep -A3 proxy_pass' > "deploy/_audit/server2-nginx-config.txt" 2>&1
+          echo "--- capture native nginx config on CORE ---"
+          $SSH "$SSH_USER@$HOST2" 'cat /etc/nginx/sites-enabled/admin.bozorliii.online 2>&1; echo "---all proxy_pass---"; grep -R proxy_pass /etc/nginx/sites-enabled/ 2>&1' > "deploy/_audit/server2-nginx-config.txt" 2>&1
+
+          echo "ALL DONE (non-fatal script, see files above for actual results)"
+          exit 0
 
       - name: Commit results
+        if: always()
         run: |
           git config user.name "audit-bot"
           git config user.email "audit-bot@users.noreply.github.com"
