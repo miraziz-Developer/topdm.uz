@@ -1,0 +1,59 @@
+name: Maintenance
+
+on:
+  workflow_dispatch:
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Archive karvon on both servers, sync CORE git state
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          HOST1: ${{ secrets.SSH_HOST_1 }}
+          HOST2: ${{ secrets.SSH_HOST_2 }}
+        run: |
+          mkdir -p deploy/_audit
+          SSH="sshpass -p $SSH_PASSWORD ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15"
+
+          echo "--- archiving karvon on both servers (move, not delete) ---"
+          for pair in "$HOST1:server1" "$HOST2:server2"; do
+            HOST="${pair%%:*}"; LABEL="${pair##*:}"
+            $SSH "$SSH_USER@$HOST" '
+              if [ -d /opt/karvon ]; then
+                mv /opt/karvon /root/karvon-archived-$(date +%Y%m%d) && echo "karvon archived to /root/karvon-archived-$(date +%Y%m%d)"
+              else
+                echo "no /opt/karvon found"
+              fi
+            ' > "deploy/_audit/${LABEL}-karvon.txt" 2>&1
+          done
+
+          echo "--- syncing CORE (server2) git state + removing unhealthy unpublished nginx container ---"
+          $SSH "$SSH_USER@$HOST2" '
+            cd /opt/bozorliii
+            echo "== before ==" ; git log -1 --oneline
+            git fetch origin
+            git reset --hard origin/main
+            echo "== after ==" ; git log -1 --oneline
+            echo "== removing unhealthy unpublished nginx container (not serving traffic) =="
+            docker rm -f bozorliii-nginx-1 2>&1 || true
+          ' > "deploy/_audit/server2-sync.txt" 2>&1
+
+          echo "--- capture native nginx config on CORE for admin.bozorliii.online (to understand routing before touching other containers) ---"
+          $SSH "$SSH_USER@$HOST2" 'cat /etc/nginx/sites-enabled/admin.bozorliii.online 2>&1; echo "---upstream check---"; cat /etc/nginx/sites-enabled/*.conf 2>/dev/null | grep -A3 proxy_pass' > "deploy/_audit/server2-nginx-config.txt" 2>&1
+
+      - name: Commit results
+        run: |
+          git config user.name "audit-bot"
+          git config user.email "audit-bot@users.noreply.github.com"
+          git add deploy/_audit
+          git diff --staged --quiet || git commit -m "chore: maintenance run results [skip ci]"
+          git push
