@@ -1,0 +1,56 @@
+Warning: Permanently added '103.253.145.151' (ED25519) to the list of known hosts.
+== hostname/uptime ==
+ubuntu-s-2vcpu-4gb-120gb-intel-sgp1
+ 10:01:49 up 35 days,  4:10,  1 user,  load average: 0.04, 0.03, 0.00
+
+== memory ==
+               total        used        free      shared  buff/cache   available
+Mem:           3.8Gi       1.4Gi       339Mi       4.0Mi       2.4Gi       2.4Gi
+Swap:          8.0Gi       355Mi       7.7Gi
+
+== disk ==
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1       116G   63G   54G  54% /
+
+== docker ps ==
+NAMES                        IMAGE                      STATUS                PORTS
+bozorliii-frontend-1         bozorliii-frontend         Up 6 days (healthy)   3000/tcp
+bozorliii-platform-admin-1   bozorliii-platform-admin   Up 7 days (healthy)   3000/tcp
+bozorliii-merchant-crm-1     bozorliii-merchant-crm     Up 7 days (healthy)   3000/tcp
+bozorliii-nginx-1            bozorliii-nginx            Up 8 days (healthy)   0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+
+== /opt ==
+total 24
+drwxr-xr-x  6 root root    4096 Jul 31 05:29 .
+drwxr-xr-x 22 root root    4096 Jul 29 03:21 ..
+drwxr-xr-x 17  501 staff   4096 Aug  2 07:09 bozorliii
+drwx--x--x  4 root root    4096 Jul  6 05:58 containerd
+drwxr-xr-x  5 root nogroup 4096 Jul  6 05:51 digitalocean
+drwxr-xr-x 15  501 staff   4096 Jul 31 04:32 karvon
+
+== compose files ==
+-rw-r--r-- 1 501 staff 5658 Jul 31 09:49 /opt/bozorliii/docker-compose.core.yml
+-rw-r--r-- 1 501 staff 5992 Jul 31 09:49 /opt/bozorliii/docker-compose.prod.yml
+-rw-r--r-- 1 501 staff 5381 Jul 31 09:49 /opt/bozorliii/docker-compose.web.yml
+-rw-r--r-- 1 501 staff 7560 Jul 31 09:49 /opt/bozorliii/docker-compose.yml
+-rw-r--r-- 1 501 staff 5655 Jul 31 05:11 /opt/karvon/docker-compose.core.yml
+-rw-r--r-- 1 501 staff 5986 Jul 31 05:11 /opt/karvon/docker-compose.prod.yml
+-rw-r--r-- 1 501 staff 5357 Jul 31 05:11 /opt/karvon/docker-compose.web.yml
+-rw-r--r-- 1 501 staff 7554 Jul 31 05:11 /opt/karvon/docker-compose.yml
+
+== repo state ==
+bd0f85b fix(landing): replace non-apparel categories with clothing-focused terms
+
+== nginx sites ==
+default
+
+== listening ports ==
+State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess                                                   
+LISTEN 0      4096         0.0.0.0:443       0.0.0.0:*    users:(("docker-proxy",pid=839026,fd=8))                 
+LISTEN 0      4096   127.0.0.53%lo:53        0.0.0.0:*    users:(("systemd-resolve",pid=398153,fd=15))             
+LISTEN 0      4096         0.0.0.0:80        0.0.0.0:*    users:(("docker-proxy",pid=839006,fd=8))                 
+LISTEN 0      4096         0.0.0.0:22        0.0.0.0:*    users:(("sshd",pid=398143,fd=3),("systemd",pid=1,fd=223))
+LISTEN 0      4096      127.0.0.54:53        0.0.0.0:*    users:(("systemd-resolve",pid=398153,fd=17))             
+LISTEN 0      4096            [::]:443          [::]:*    users:(("docker-proxy",pid=839032,fd=8))                 
+LISTEN 0      4096            [::]:80           [::]:*    users:(("docker-proxy",pid=839013,fd=8))                 
+LISTEN 0      4096            [::]:22           [::]:*    users:(("sshd",pid=398143,fd=4),("systemd",pid=1,fd=224))
