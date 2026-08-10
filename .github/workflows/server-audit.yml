@@ -2,8 +2,6 @@ name: Server Audit
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ops-trigger]
 
 jobs:
   audit:
