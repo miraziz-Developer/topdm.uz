@@ -238,6 +238,8 @@ async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:
 
 @app.get("/health", tags=["health"])
 @app.get(f"{settings.api_prefix}/health", tags=["health"])
+@app.head("/health", tags=["health"], include_in_schema=False)
+@app.head(f"{settings.api_prefix}/health", tags=["health"], include_in_schema=False)
 async def health() -> JSONResponse:
     """Liveness/readiness: DB + Redis required; AI probed in production readiness."""
     probe_ai = settings.is_production or (settings.app_debug and not settings.is_production)
@@ -246,6 +248,7 @@ async def health() -> JSONResponse:
 
 
 @app.get(f"{settings.api_prefix}/health/live", tags=["health"])
+@app.head(f"{settings.api_prefix}/health/live", tags=["health"], include_in_schema=False)
 async def health_live() -> JSONResponse:
     payload, status_code = await _health_payload(probe_ai=False)
     return JSONResponse(content=payload, status_code=status_code)
