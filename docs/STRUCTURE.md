@@ -148,10 +148,15 @@ Faqat operatsion vazifalar. Ro‘yxat: [scripts/README.md](../scripts/README.md)
 
 | Fayl | Qayerda ishlatiladi |
 |------|---------------------|
-| `.env` | Docker compose — barcha servislar |
+| `.env` | Docker compose — barcha servislar uchun asosiy source of truth |
 | `.env.example` | Dev shablon |
 | `.env.production.example` | Prod shablon + CI |
+| `.env.core.example` | Split deploy CORE shabloni |
+| `.env.web.example` | Split deploy WEB shabloni |
+| `.env.local-prod` | Lokal productionga yaqin test uchun yordamchi |
 
-Alohida `backend/.env` yoki `frontend/.env` **kerak emas**.
+Alohida `backend/.env` yoki `frontend/.env.local` deploy uchun authoritative emas; ular faqat tarixiy yoki lokal yordamchi fayl bo‘lishi mumkin.
+
+Batafsil siyosat: [CONFIGURATION_POLICY.md](./CONFIGURATION_POLICY.md)
 
 Batafsil biznes ko'rinishi: [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md)
