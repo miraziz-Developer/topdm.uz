@@ -447,6 +447,15 @@ export function FastCheckout() {
   if (!lines.length && !reservation) {
     return (
       <CheckoutShell>
+        <PremiumPageHero
+          eyebrow="Bron va to'lov"
+          title={
+            <>
+              Buyurtmani <span className="text-gradient-electric">rasmiylashtirish</span>
+            </>
+          }
+          description="Bir necha qadam — tez, xavfsiz, do'konda olib ketasiz"
+        />
         <Card className="border-electric-500/12 bg-white">
           <CardContent className="py-12 text-center">
             <p className="text-ink-500">Savatchangiz bo&apos;sh.</p>

@@ -20,6 +20,8 @@ __pycache__/
 .next/
 out/
 dist/
+playwright-report/
+test-results/
 .DS_Store
 **/.DS_Store
 *.egg-info/

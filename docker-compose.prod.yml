@@ -1,4 +1,15 @@
-# Full validated version with proper health checks and no duplicate keys
+# Bozorliii — 1x 4GB server (hammasi bir joyda)
+#
+#   cp .env.production.example .env
+#   bash deploy/setup-swap.sh 2   # majburiy — 4GB da swap'siz OOM xavfi bor
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Trafik o'sib server qota boshlasa: docs/SPLIT_DEPLOYMENT.md (2x 4GB)
+
+x-app-defaults: &app_defaults
+  restart: always
+  env_file:
+    - .env
 
 services:
   postgres:
@@ -10,6 +21,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - bozor_pg:/var/lib/postgresql/data
+    mem_limit: 600m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bozor} -d ${POSTGRES_DB:-bozor_ai}"]
       interval: 10s
@@ -21,9 +33,10 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 300mb --maxmemory-policy allkeys-lru
     volumes:
       - bozor_redis:/data
+    mem_limit: 350m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -33,12 +46,10 @@ services:
       - db-network
 
   backend:
+    <<: *app_defaults
     build:
       context: .
       dockerfile: backend/Dockerfile.prod
-    restart: always
-    env_file:
-      - .env
     environment:
       APP_ENV: production
       PRODUCTION: "true"
@@ -57,7 +68,12 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
       UVICORN_WORKERS: "1"
       HF_HOME: /app/.cache/huggingface
-      FASHION_DETECT_BACKEND: yolos
+      # 4GB — bitta serverda hamma narsa, yengil AI konfiguratsiya majburiy
+      AI_WARMUP_ON_START: ${AI_WARMUP_ON_START:-false}
+      FASHION_DETECT_BACKEND: ${FASHION_DETECT_BACKEND:-heuristic}
+      VISUAL_SEARCH_BACKEND: ${VISUAL_SEARCH_BACKEND:-clip}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-4}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-2}
     volumes:
       - bozor_uploads:/app/uploads
     depends_on:
@@ -65,8 +81,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      - "10.104.0.2:8000:8000"
+    mem_limit: 1100m
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/v1/health/live >/dev/null || exit 1"]
       interval: 20s
@@ -78,12 +93,10 @@ services:
       - backend-network
 
   merchant-bot:
+    <<: *app_defaults
     build:
       context: .
-      dockerfile: backend/Dockerfile.prod
-    restart: always
-    env_file:
-      - .env
+      dockerfile: backend/Dockerfile.celery
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -91,16 +104,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
       PYTHONPATH: /app
+      DB_POOL_SIZE: "2"
+      DB_MAX_OVERFLOW: "1"
     volumes:
       - bozor_uploads:/app/uploads
     entrypoint: []
     command: ["python", "/app/scripts/run_merchant_bot.py"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os, sys; sys.exit(0 if os.path.exists('/proc/1/status') else 1)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 45s
+    mem_limit: 220m
     depends_on:
       backend:
         condition: service_healthy
@@ -109,12 +119,10 @@ services:
       - backend-network
 
   celery-worker:
+    <<: *app_defaults
     build:
       context: .
       dockerfile: backend/Dockerfile.celery
-    restart: always
-    env_file:
-      - .env
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -124,6 +132,8 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       PYTHONPATH: /app
+      DB_POOL_SIZE: "2"
+      DB_MAX_OVERFLOW: "1"
     volumes:
       - bozor_uploads:/app/uploads
     entrypoint: []
@@ -134,18 +144,15 @@ services:
         "app.infrastructure.tasks.celery_app.celery_app",
         "worker",
         "-l",
-        "info",
+        "warning",
         "-Q",
         "celery",
         "--concurrency",
         "1",
+        "--prefetch-multiplier",
+        "1",
       ]
-    healthcheck:
-      test: ["CMD-SHELL", "celery -A app.infrastructure.tasks.celery_app.celery_app inspect ping -d celery@$$HOSTNAME"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    mem_limit: 300m
     depends_on:
       backend:
         condition: service_healthy
@@ -155,17 +162,135 @@ services:
       - db-network
       - backend-network
 
-  platform-admin:
+  celery-beat:
+    <<: *app_defaults
     build:
-      context: ./platform-admin
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile.celery
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bozor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bozor_ai}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PYTHONPATH: /app
+    entrypoint: []
+    command:
+      [
+        "celery",
+        "-A",
+        "app.infrastructure.tasks.celery_app.celery_app",
+        "beat",
+        "-l",
+        "warning",
+      ]
+    mem_limit: 130m
+    depends_on:
+      celery-worker:
+        condition: service_started
+    networks:
+      - db-network
+      - backend-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_BACKEND_ORIGIN: ${NEXT_PUBLIC_BACKEND_ORIGIN:-https://api.bozorliii.online}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.online}
+        NEXT_PUBLIC_MERCHANT_CRM_URL: ${NEXT_PUBLIC_MERCHANT_CRM_URL:-https://crm.bozorliii.online}
+        NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
+        NEXT_PUBLIC_DEMO_FAKE_DATA: "false"
+        NEXT_PUBLIC_ALLOW_DEV_MOCKS: "false"
+        NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+        NEXT_PUBLIC_MEDIA_CDN_URL: ${NEXT_PUBLIC_MEDIA_CDN_URL:-}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+        NEXT_PUBLIC_YANDEX_METRIKA_ID: ${NEXT_PUBLIC_YANDEX_METRIKA_ID:-}
+        NEXT_PUBLIC_META_PIXEL_ID: ${NEXT_PUBLIC_META_PIXEL_ID:-}
     restart: always
     env_file:
       - .env
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=280}
+      BACKEND_API_URL: http://backend:8000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+      NEXT_PUBLIC_BACKEND_ORIGIN: ${NEXT_PUBLIC_BACKEND_ORIGIN:-https://api.bozorliii.online}
+    mem_limit: 350m
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000',(r)=>{r.resume();process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 45s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - backend-network
+      - frontend-network
+
+  merchant-crm:
+    build:
+      context: ./merchant-crm
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://bozorliii.online}
+        NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-yandex-maps-api}
+        NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=280}
+      BACKEND_API_URL: http://backend:8000
+      NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+      YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+      NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-yandex-maps-api}
+    mem_limit: 350m
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000',(r)=>{r.resume();process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 45s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - backend-network
+      - frontend-network
+
+  platform-admin:
+    build:
+      context: ./platform-admin
+      dockerfile: Dockerfile
+      target: runner
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=260}
       NEXT_TELEMETRY_DISABLED: "1"
-      BACKEND_API_URL: "http://backend:8000"
+      BACKEND_API_URL: http://backend:8000
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in .env}
       ADMIN_PANEL_USERNAME: ${ADMIN_PANEL_USERNAME:-admin}
       ADMIN_PANEL_PASSWORD: ${ADMIN_PANEL_PASSWORD:?Set ADMIN_PANEL_PASSWORD in .env}
@@ -179,11 +304,54 @@ services:
       NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
       NEXT_PUBLIC_MAP_PROVIDER: ${NEXT_PUBLIC_MAP_PROVIDER:-yandex-maps-api}
       NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT: ${NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT:-false}
-    ports:
-      - "10.104.0.2:3004:3000"
+    mem_limit: 300m
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000',(r)=>{r.resume();process.exit(r.statusCode<500?0:1)}).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 45s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - backend-network
+      - frontend-network
+
+  nginx:
+    build:
+      context: ./deploy/nginx
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/ssl:/etc/nginx/ssl:ro
+      - ./deploy/certbot/www:/var/www/certbot:ro
+      - nginx_logs:/var/log/nginx
+      - nginx_media_cache:/var/cache/nginx
+    mem_limit: 150m
+    depends_on:
+      frontend:
+        condition: service_healthy
+      merchant-crm:
+        condition: service_healthy
+      platform-admin:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsSk https://127.0.0.1/health -H 'Host: bozorliii.online' >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 45s
+      timeout: 5s
+      retries: 3
     networks:
       - backend-network
       - frontend-network
@@ -201,6 +369,5 @@ volumes:
   bozor_pg:
   bozor_redis:
   bozor_uploads:
-  backend_migrations_staging:
   nginx_logs:
   nginx_media_cache:

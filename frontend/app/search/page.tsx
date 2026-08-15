@@ -350,6 +350,9 @@ function SearchPageContent() {
       <Navigation />
 
       <div className="pt-14 sm:pt-16 relative z-10 mx-auto max-w-6xl px-4 sm:px-5">
+        <h1 className="sr-only">
+          {hasQuery ? `Qidiruv natijalari: ${appliedQuery}` : "Mahsulotlarni qidirish"}
+        </h1>
         {photoSearchError || categoryRefineError ? (
           <p className="mb-4 text-sm text-red">{photoSearchError || categoryRefineError}</p>
         ) : null}

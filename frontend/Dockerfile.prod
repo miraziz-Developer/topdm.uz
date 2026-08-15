@@ -62,7 +62,7 @@ ENV NODE_ENV=production \
 
 # Install sharp for image optimization (required in standalone mode)
 RUN apk add --no-cache libc6-compat \
-    && npm install --global --ignore-scripts sharp@0.33.5
+    && npm install --global --ignore-scripts sharp@0.35.3
 
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 --ingroup nodejs nextjs

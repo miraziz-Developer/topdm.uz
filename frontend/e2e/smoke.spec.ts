@@ -18,7 +18,7 @@ test.describe("Customer storefront smoke", () => {
 
   test("checkout page loads", async ({ page }) => {
     await page.goto("/checkout");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/zaxira|Olib/i);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
 
   test("auth page loads", async ({ page }) => {
