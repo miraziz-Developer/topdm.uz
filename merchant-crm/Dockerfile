@@ -40,6 +40,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Runtime fallback for /api/config/maps (when image rebuilt without NEXT_PUBLIC at build)
 ARG NEXT_PUBLIC_YANDEX_MAPS_API_KEY=
 ENV YANDEX_MAPS_API_KEY=$NEXT_PUBLIC_YANDEX_MAPS_API_KEY
+# sharp for image optimization (standalone output doesn't reliably trace native deps)
+RUN apk add --no-cache libc6-compat \
+    && npm install --global --ignore-scripts sharp@0.35.3
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
