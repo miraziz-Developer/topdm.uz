@@ -50,16 +50,12 @@ def allowed_order_bot_actions(
     if current in _TERMINAL_STATUSES:
         return []
 
-    is_delivery = (fulfillment_type or "pickup").lower() == "delivery"
-
     if current in {"pending", "reserved", "new"}:
         if click_payment_pending:
             return ["x"]
         return ["c", "x"]
     if current in {"confirmed", "preparing"}:
         return ["r", "x"]
-    if current == "ready":
-        return ["d", "x"] if is_delivery else ["p", "x"]
     return ["x"]
 
 

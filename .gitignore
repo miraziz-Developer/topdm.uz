@@ -4,6 +4,10 @@
 .env.local
 .env.local-prod
 .env.*.local
+
+# Real TLS certs live only on the server — a tracked cert here gets
+# force-restored over the live one on every `git reset --hard` deploy.
+deploy/ssl/*.pem
 !.env.example
 !.env.production.example
 !.env.core.example
