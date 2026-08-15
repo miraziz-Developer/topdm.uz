@@ -1,24 +1,32 @@
-# Production deploy
+# Production deploy — 1x 4GB (oddiy variant)
 
-Batafsil operatsion qo'llanma. Server hajmi: [SERVER_SIZING.md](./SERVER_SIZING.md) · Split: [SPLIT_DEPLOYMENT.md](./SPLIT_DEPLOYMENT.md)
+> **Diqqat:** hozirgi jonli production 2x 4GB **split** topologiyada ishlaydi
+> (`docker-compose.core.yml` + `docker-compose.web.yml`, GitHub Actions
+> `deploy.yml` orqali avtomatik) — batafsil: [SPLIT_DEPLOYMENT.md](./SPLIT_DEPLOYMENT.md).
+> Shu hujjat quyida `docker-compose.prod.yml` bilan **bitta serverga** deploy
+> qilishni tasvirlaydi — kam trafikli boshlanish yoki split'dan orqaga tushish
+> uchun. Server hajmi tanlash: [SERVER_SIZING.md](./SERVER_SIZING.md).
 
 ## Server va domenlar
 
 | Resurs | Qiymat |
 |--------|--------|
-| Server | `8.222.211.54` |
+| Server | droplet'ning public IP'i (o'zingiznikini yozing) |
 | Do'kon | `bozorliii.online` |
 | API | `api.bozorliii.online` |
 | CRM | `crm.bozorliii.online` |
 
 ## DNS
 
-| Type | Host | Value |
-|------|------|--------|
-| A | `@` | `8.222.211.54` |
-| A | `www` | `8.222.211.54` |
-| A | `api` | `8.222.211.54` |
-| A | `crm` | `8.222.211.54` |
+Barcha quyidagi hostlarni **server public IP**'siga yo'naltiring (registrar panelida):
+
+| Type | Host |
+|------|------|
+| A | `@` |
+| A | `www` |
+| A | `api` |
+| A | `crm` |
+| A | `admin` |
 
 ```bash
 bash deploy/check-dns.sh
