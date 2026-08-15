@@ -1,0 +1,30 @@
+name: Debug WEB env
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Inspect .env and running container
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          HOST: ${{ secrets.SSH_HOST_1 }}
+        run: |
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$SSH_USER@$HOST" '
+            cd /opt/bozorliii
+            echo "== .env line(s) =="
+            grep -n "YANDEX_METRIKA" .env || echo "no match in .env"
+            echo "== docker compose config build args (frontend) =="
+            docker compose -f docker-compose.web.yml config frontend 2>&1 | grep -i "metrika\|NEXT_PUBLIC_YANDEX"
+            echo "== container env (runtime) =="
+            docker exec bozorliii-frontend-1 printenv | grep -i metrika || echo "not in container env"
+            echo "== compiled JS bundle grep for the counter id =="
+            docker exec bozorliii-frontend-1 sh -c "grep -rl \"111627872\" /app/.next/static 2>/dev/null | head -5" || echo "not found in static bundle"
+            docker exec bozorliii-frontend-1 sh -c "grep -rl \"yandex-metrika\" /app/.next/static 2>/dev/null | head -5" || echo "yandex-metrika string not found in static bundle"
+          '
