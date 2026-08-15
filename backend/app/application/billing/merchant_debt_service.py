@@ -195,7 +195,7 @@ class MerchantDebtService:
         reference_type: str = "manual",
         reference_id: UUID | None = None,
     ) -> dict:
-        """Qarzni kamaytiradi (ledger credit) — Click/Payme webhook yoki qo'lda."""
+        """Qarzni kamaytiradi (ledger credit) — Click webhook yoki qo'lda."""
         paid = max(0, int(amount_uzs))
         if paid <= 0:
             raise ValueError("invalid_amount")

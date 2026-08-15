@@ -201,7 +201,7 @@ class CrmBannerService:
                 if "Insufficient Coin Balance" in str(exc):
                     raise ValueError("Insufficient Coin Balance") from exc
                 raise
-        elif method in ("click", "payme"):
+        elif method == "click":
             raise ValueError("use_banner_online_checkout_endpoint")
         else:
             raise ValueError("invalid_payment_method")
@@ -237,7 +237,7 @@ class CrmBannerService:
             raise ValueError("invalid_amount")
 
         prov = provider.strip().lower()
-        if prov not in ("click", "payme"):
+        if prov != "click":
             raise ValueError("invalid_provider")
 
         from app.infrastructure.repositories.order_payment_repo import OrderPaymentRepository

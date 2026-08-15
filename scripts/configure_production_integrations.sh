@@ -57,5 +57,5 @@ fi
 
 rm -f "${ENV_FILE}.bak"
 echo "OK — onlayn checkout sandbox yoqildi."
-echo "Haqiqiy Click/Payme: CLICK_* / PAYME_* to'ldiring va PAYMENT_SANDBOX_MODE=false"
+echo "Haqiqiy Click: CLICK_* to'ldiring va PAYMENT_SANDBOX_MODE=false"
 echo "Eskiz SMS: ESKIZ_EMAIL + ESKIZ_PASSWORD yoki ESKIZ_API_TOKEN"

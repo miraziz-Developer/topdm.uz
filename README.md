@@ -30,7 +30,7 @@
 
 **AI:** Groq LLM, vizual embedding (CLIP), AI stylist agent, mahsulot moderatsiyasi.
 
-**To'lov:** Click, Payme. **Logistika:** BTS Express.
+**To'lov:** Click. **Logistika:** BTS Express.
 
 ---
 

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.infrastructure.db.base import Base
 
 BannerStatus = Literal["pending_payment", "active", "expired", "cancelled", "rejected"]
-PaymentMethod = Literal["coin", "click", "payme"]
+PaymentMethod = Literal["coin", "click"]
 
 
 class PremiumTariffModel(Base):

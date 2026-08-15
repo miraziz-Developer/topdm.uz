@@ -87,7 +87,7 @@ To‘liq papka xaritasi: [STRUCTURE.md](./STRUCTURE.md)
 |-------|----------|
 | Marketplace | Mahsulot, qidiruv, buyurtma, sharhlar |
 | Merchant | Ro'yxatdan o'tish, mahsulot, chat, QR pickup |
-| Billing | Obuna, coin, payout, Click/Payme |
+| Billing | Obuna, coin, payout, Click |
 | Visual search | Rasm bo'yicha qidiruv, outfit search |
 | Map | Do'konlar xaritasi, indoor navigatsiya |
 | Loyalty | Mijoz coin tizimi |

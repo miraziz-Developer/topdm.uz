@@ -14,6 +14,7 @@ import { CurrencyProvider } from "@/components/providers/currency-provider";
 import { LocaleProvider } from "@/i18n/locale-provider";
 import { PwaRegister } from "@/components/providers/pwa-register";
 import { SiteAnalytics } from "@/components/providers/site-analytics";
+import { MetaPixel } from "@/components/providers/meta-pixel";
 import { StickyMiniCart } from "@/components/home/sticky-mini-cart";
 import { ActionFabDockProvider } from "@/components/ui/action-fab-dock";
 import { AIChat } from "@/components/AIChat";
@@ -116,6 +117,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <DynamicFavicon />
                 <PwaRegister />
                 <SiteAnalytics />
+                <MetaPixel />
                 <TelegramWebAppProvider />
                 <MerchantCrmLauncher variant="dock" />
                 <PriceDropListener />

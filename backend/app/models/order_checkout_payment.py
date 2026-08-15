@@ -11,7 +11,7 @@ from app.infrastructure.db.base import Base
 
 
 class OrderCheckoutPaymentModel(Base):
-    """Customer order checkout session (Click / Payme) — separate from coin top-ups."""
+    """Customer order checkout session (Click) — separate from coin top-ups."""
 
     __tablename__ = "order_checkout_payments"
 

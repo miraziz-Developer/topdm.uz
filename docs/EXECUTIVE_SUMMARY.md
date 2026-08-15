@@ -34,7 +34,7 @@ O‘zbekistondagi bozorlarda (masalan, kiyim bozorlari) sotuvchilar va xaridorla
 | Frontend | Next.js 14, PWA, Tailwind CSS |
 | AI | Groq LLM, vizual embedding (CLIP), mahsulot moderatsiyasi |
 | Infra | Docker, Nginx, GitHub Actions CI/CD |
-| To‘lov | Click, Payme integratsiyasi |
+| To‘lov | Click integratsiyasi |
 | Logistika | BTS Express |
 
 ## Biznes qiymati

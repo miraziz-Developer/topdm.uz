@@ -91,13 +91,13 @@ else
 fi
 
 if [[ "$(env_val ENABLE_ONLINE_CHECKOUT)" == "true" ]]; then
-  warn_msg "ENABLE_ONLINE_CHECKOUT=true — Click/Payme account kerak"
+  warn_msg "ENABLE_ONLINE_CHECKOUT=true — Click account kerak"
 else
   ok "Online checkout OFF (cash/terminal only)"
 fi
 
 if [[ "$(env_val NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT)" == "true" ]]; then
-  warn_msg "NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT=true — mijoz UI da Click/Payme chiqadi"
+  warn_msg "NEXT_PUBLIC_ENABLE_ONLINE_CHECKOUT=true — mijoz UI da Click chiqadi"
 fi
 
 media_backend="$(env_val MEDIA_STORAGE_BACKEND)"

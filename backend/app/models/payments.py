@@ -25,7 +25,7 @@ class CoinPackageModel(Base):
 
 
 class PaymentTransactionModel(Base):
-    """Gateway top-up ledger (Click / Payme / manual)."""
+    """Gateway top-up ledger (Click / manual)."""
 
     __tablename__ = "payment_transactions"
 

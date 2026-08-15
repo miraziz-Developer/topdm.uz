@@ -30,7 +30,6 @@ _PAYMENT_LABELS = {
     "cash": "Naqd",
     "card": "Terminal",
     "click": "Click",
-    "payme": "Payme",
     "online": "Onlayn",
 }
 

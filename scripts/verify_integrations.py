@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Click/Payme sandbox, media, SMS (Eskiz) integratsiya tekshiruvi."""
+"""Click sandbox, media, SMS (Eskiz) integratsiya tekshiruvi."""
 from __future__ import annotations
 
 import asyncio
@@ -53,8 +53,8 @@ async def main() -> int:
 
     if settings.payment_sandbox_mode:
         _ok("PAYMENT_SANDBOX_MODE=true", "test to'lov ishlaydi")
-    elif settings.click_service_id and settings.payme_merchant_id:
-        _ok("Production Click/Payme kalitlari bor")
+    elif settings.click_service_id and settings.click_secret_key:
+        _ok("Production Click kalitlari bor")
     else:
         fails += int(
             not _warn(
@@ -70,7 +70,7 @@ async def main() -> int:
                 data = r.json()
                 online = data.get("online") or {}
                 if online.get("bridge"):
-                    _ok("checkout-payment-options API", f"click={online.get('click')} payme={online.get('payme')}")
+                    _ok("checkout-payment-options API", f"click={online.get('click')}")
                 else:
                     fails += int(not _fail("checkout-payment-options", "bridge=false"))
             else:

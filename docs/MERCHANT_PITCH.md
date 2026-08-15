@@ -71,7 +71,7 @@ Mijozlar ko'radi, like bosadi, buyurtma beradi.
 - ✅ Xarita va navigatsiya
 
 ### 2026 Q4:
-- 🔜 **Click/Payme** — onlayn to'lov
+- 🔜 **Click** — onlayn to'lov
 - 🔜 **BTS Express** — uyga yetkazib berish
 - 🔜 **AI qidiruv** — rasm orqali mahsulot topish
 - 🔜 **Loyalty coins** — mijozlarga bonus tizimi

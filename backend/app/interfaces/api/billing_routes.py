@@ -281,7 +281,7 @@ async def create_debt_checkout(
     shop_id: UUID = Depends(require_merchant_shop),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Click/Payme orqali qarzni to'lash — checkout_id qaytadi."""
+    """Click orqali qarzni to'lash — checkout_id qaytadi."""
     from app.application.payments.payment_gateway_service import PaymentGatewayService
 
     svc = MerchantDebtService(db)
@@ -307,7 +307,7 @@ async def pay_merchant_debt(
     shop_id: UUID = Depends(require_merchant_shop),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Do'konchi qarzini qisman/to'liq yopish (Click/Payme tasdiqlangandan keyin ham chaqiriladi)."""
+    """Do'konchi qarzini qisman/to'liq yopish (Click tasdiqlangandan keyin ham chaqiriladi)."""
     svc = MerchantDebtService(db)
     try:
         return await svc.apply_debt_payment(shop_id, body.amount_uzs)
@@ -329,7 +329,7 @@ async def vendor_clear_debt_webhook(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """
-    Click/Payme billing webhook — do'kon qarzini kamaytirish.
+    Click billing webhook — do'kon qarzini kamaytirish.
     X-Admin-Key talab qilinadi (productionda IP + imzo qo'shing).
     """
     svc = MerchantDebtService(db)

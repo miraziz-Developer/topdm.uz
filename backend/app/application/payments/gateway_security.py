@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 import ipaddress
 from typing import Any
 
@@ -70,20 +68,7 @@ def assert_payment_callback_ip(request: Request, settings: Settings | None = Non
         raise HTTPException(status_code=403, detail="callback_ip_not_allowed")
 
 
-def verify_payme_callback(payload: dict[str, Any], settings: Settings | None = None) -> bool:
-    cfg = settings or get_settings()
-    secret = (cfg.payme_secret_key or "").strip()
-    signature = str(payload.get("sign") or payload.get("signature") or "")
-    if not secret:
-        return cfg.app_debug and not cfg.is_production
-    body = str(payload.get("merchant_trans_id", "")) + str(payload.get("amount", "")) + secret
-    digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
-    return hmac.compare_digest(digest, signature)
-
-
 def verify_provider_callback(provider: str, payload: dict[str, Any], settings: Settings | None = None) -> bool:
     if provider == "click":
         return verify_click_callback(payload, settings)
-    if provider == "payme":
-        return verify_payme_callback(payload, settings)
     return False
