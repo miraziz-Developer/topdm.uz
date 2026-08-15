@@ -1,0 +1,29 @@
+name: SSL Renew (WEB)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Issue/renew Let's Encrypt cert on WEB and reload nginx
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          HOST: ${{ secrets.SSH_HOST_1 }}
+        run: |
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$SSH_USER@$HOST" '
+            set -e
+            cd /opt/bozorliii
+            bash deploy/bootstrap-ssl.sh
+            docker compose -f docker-compose.web.yml up -d --build nginx
+          '
+
+      - name: Verify HTTPS
+        run: |
+          sleep 5
+          curl -sf https://bozorliii.online/ -o /dev/null && echo "frontend: OK (valid TLS)" || (echo "frontend: FAILED" && exit 1)
