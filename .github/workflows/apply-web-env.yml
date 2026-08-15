@@ -1,0 +1,34 @@
+name: Apply WEB env + rebuild frontend
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Set NEXT_PUBLIC_YANDEX_METRIKA_ID on WEB and rebuild frontend
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          HOST: ${{ secrets.SSH_HOST_1 }}
+        run: |
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$SSH_USER@$HOST" '
+            set -e
+            cd /opt/bozorliii
+            if grep -q "^NEXT_PUBLIC_YANDEX_METRIKA_ID=" .env; then
+              sed -i "s/^NEXT_PUBLIC_YANDEX_METRIKA_ID=.*/NEXT_PUBLIC_YANDEX_METRIKA_ID=111627872/" .env
+            else
+              echo "NEXT_PUBLIC_YANDEX_METRIKA_ID=111627872" >> .env
+            fi
+            docker compose -f docker-compose.web.yml up -d --build frontend
+          '
+
+      - name: Verify Metrika script is served
+        run: |
+          sleep 5
+          html=$(curl -sf https://bozorliii.online/)
+          echo "$html" | grep -q "mc.yandex.ru/metrika" && echo "Metrika: OK — script present in HTML" || (echo "Metrika: NOT FOUND in HTML" && exit 1)
