@@ -234,7 +234,7 @@ class DeliveryCheckoutService:
                 ):
                     from app.application.payments.click_merchant_api import build_click_pay_url
 
-                    return_base = (settings.site_url or "https://bozorliii.uz").rstrip("/")
+                    return_base = (settings.site_url or "https://bozorliii.online").rstrip("/")
                     online_url = build_click_pay_url(
                         amount_uzs=int(total_payable),
                         transaction_param=checkout_id,
@@ -243,7 +243,7 @@ class DeliveryCheckoutService:
                     )
                 else:
                     base = (
-                        settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.uz"
+                        settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.online"
                     ).rstrip("/")
                     online_url = (
                         f"{base}/checkout/{pay_method.value}"

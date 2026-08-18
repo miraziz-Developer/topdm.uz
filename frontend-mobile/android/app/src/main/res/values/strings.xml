@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bozorliii</string>
+    <string name="title_activity_main">Bozorliii</string>
+    <string name="package_name">uz.bozorliii.app</string>
+    <string name="custom_url_scheme">uz.bozorliii.app</string>
+</resources>

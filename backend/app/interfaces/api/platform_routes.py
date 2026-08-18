@@ -910,7 +910,7 @@ async def customer_payment_redirect(
         pay_target = order_id  # type: ignore[assignment]
         bridge_query = f"order_id={order_id}&amount={amount}"
 
-    site = (settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.uz").rstrip("/")
+    site = (settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.online").rstrip("/")
 
     click_service_id = settings.click_service_id
     click_merchant_id = settings.click_merchant_id
