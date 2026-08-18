@@ -88,9 +88,8 @@ function SearchPageContent() {
   const hasQuery = Boolean(appliedQuery);
   const isLookMode = !isPhotoMode && hasQuery && isLookSearchQuery(appliedQuery);
   const urlBudgetMax = useMemo(() => {
-    if (typeof window === "undefined") return undefined;
-    return parseSearchUrlParams(window.location.search).maxPrice;
-  }, [appliedQuery]);
+    return parseSearchUrlParams(searchParams.toString()).maxPrice;
+  }, [searchParams]);
 
   const data = useProducts(
     {
