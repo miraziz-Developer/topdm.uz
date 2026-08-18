@@ -176,11 +176,16 @@ async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:
     if probe_ai:
         if settings.anthropic_api_key:
             text_ai_ok = True
-        elif settings.groq_api_key:
-            try:
-                from app.ai.config import iter_groq_api_keys
 
-                groq_ok = False
+        if settings.groq_api_key:
+            try:
+                from app.ai.config import (
+                    iter_groq_api_keys,
+                    resolve_groq_chat_model,
+                    resolve_groq_vision_model,
+                )
+
+                groq_models: set[str] | None = None
                 async with httpx.AsyncClient(timeout=5) as client:
                     for key in iter_groq_api_keys(settings):
                         resp = await client.get(
@@ -188,16 +193,30 @@ async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:
                             headers={"Authorization": f"Bearer {key}"},
                         )
                         if resp.status_code == 200:
-                            groq_ok = True
+                            groq_models = {m["id"] for m in resp.json().get("data", [])}
                             break
                         if resp.status_code in {401, 403}:
                             errors.append("groq:invalid_api_key")
-                text_ai_ok = groq_ok
-                if not groq_ok and "groq:invalid_api_key" not in errors:
-                    errors.append("groq:unreachable")
+
+                if groq_models is None:
+                    if "groq:invalid_api_key" not in errors:
+                        errors.append("groq:unreachable")
+                else:
+                    if not text_ai_ok:
+                        chat_model = resolve_groq_chat_model(settings)
+                        if chat_model in groq_models:
+                            text_ai_ok = True
+                        else:
+                            errors.append(f"groq:chat_model_unavailable:{chat_model}")
+
+                    vision_model = resolve_groq_vision_model(settings)
+                    if vision_model in groq_models:
+                        vision_ai_ok = True
+                    elif not settings.google_api_key:
+                        errors.append(f"groq:vision_model_unavailable:{vision_model}")
             except Exception as exc:
                 errors.append(f"groq:{type(exc).__name__}")
-        else:
+        elif not text_ai_ok:
             errors.append("groq:missing_keys")
 
         if settings.google_api_key:
@@ -208,8 +227,6 @@ async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:
                         vision_ai_ok = True
             except Exception as exc:
                 errors.append(f"gemini:{type(exc).__name__}")
-        else:
-            vision_ai_ok = bool(settings.groq_api_key)
 
     critical_ok = db_ok and redis_ok
     ai_ok = (text_ai_ok and vision_ai_ok) if probe_ai else True

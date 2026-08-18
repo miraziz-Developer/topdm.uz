@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     groq_api_key: str = ""
     """Required for Bozorliii stylist — Groq Cloud 70B (see app.ai.config)."""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
     groq_agent_model: str = ""
-    groq_vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+    groq_vision_model: str = "qwen/qwen3.6-27b"
     usd_to_uzs_rate: int = 13_000
     eur_to_uzs_rate: int = 14_000
     rapidapi_key: str = ""

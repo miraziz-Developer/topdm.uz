@@ -54,4 +54,4 @@ prod-smoke:
 	bash scripts/smoke-prod.sh
 
 test-backend:
-	cd backend && python3 -m venv .venv && . .venv/bin/activate && pip install -q -e . pytest && python -m pytest tests/ -q
+	cd backend && python3 -m venv .venv && . .venv/bin/activate && pip install -q -e ".[dev]" && python -m pytest tests/ -q

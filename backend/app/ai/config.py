@@ -8,15 +8,19 @@ from app.core.config import Settings, get_settings
 GROQ_API_BASE = "https://api.groq.com/openai/v1"
 GROQ_CHAT_COMPLETIONS_PATH = "/chat/completions"
 
-# Production 70B line (successor to deprecated llama3-70b-8192 on Groq).
-GROQ_DEFAULT_CHAT_MODEL = "llama-3.3-70b-versatile"
-GROQ_DEFAULT_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+# Groq's Llama 70B line was retired from the catalog (2026-08) — moved to
+# OpenAI's open-weight GPT-OSS line for chat and Qwen3.6 (the only current
+# Groq vision-capable model) for image input.
+GROQ_DEFAULT_CHAT_MODEL = "openai/gpt-oss-120b"
+GROQ_DEFAULT_VISION_MODEL = "qwen/qwen3.6-27b"
 
 LEGACY_MODEL_ALIASES: dict[str, str] = {
     "llama3-70b-8192": GROQ_DEFAULT_CHAT_MODEL,
     "llama-3.1-70b-versatile": GROQ_DEFAULT_CHAT_MODEL,
+    "llama-3.3-70b-versatile": GROQ_DEFAULT_CHAT_MODEL,
     "llama-3.2-11b-vision-preview": GROQ_DEFAULT_VISION_MODEL,
     "llama-3.2-90b-vision-preview": GROQ_DEFAULT_VISION_MODEL,
+    "meta-llama/llama-4-scout-17b-16e-instruct": GROQ_DEFAULT_VISION_MODEL,
 }
 
 
