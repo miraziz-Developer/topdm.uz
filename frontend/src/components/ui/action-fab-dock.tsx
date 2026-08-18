@@ -138,7 +138,7 @@ export function useFabDockPanel(id: string, open: boolean) {
   }, [ctx, id, open]);
 }
 
-function DockButton({ item, layout }: { item: FabDockItem; layout: "bar" | "stack" }) {
+function DockButton({ item }: { item: FabDockItem }) {
   const badge = item.badge && item.badge > 0 ? item.badge : 0;
 
   return (
@@ -147,31 +147,19 @@ function DockButton({ item, layout }: { item: FabDockItem; layout: "bar" | "stac
       onClick={item.onClick}
       aria-label={item.label}
       className={cn(
-        "relative flex items-center justify-center transition-all duration-200 active:scale-[0.96]",
-        layout === "bar"
-          ? "min-h-[3rem] flex-1 gap-2 rounded-xl px-2 py-2"
-          : "h-12 w-12 rounded-2xl",
+        "relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-200 active:scale-[0.96]",
         item.variant === "gold" &&
           "bg-gradient-to-br from-gold-400 via-gold-500 to-amber-600 text-white shadow-[0_4px_20px_-4px_rgba(245,158,11,0.55)]",
         item.variant === "dark" && "bg-ink-900 text-white shadow-md",
-        item.variant === "default" || !item.variant
-          ? layout === "bar"
-            ? "text-ink-800 hover:bg-black/[0.04]"
-            : "bg-white/90 text-ink-800 shadow-sm ring-1 ring-black/[0.06] hover:bg-white"
-          : null,
+        (item.variant === "default" || !item.variant) &&
+          "bg-white/90 text-ink-800 shadow-sm ring-1 ring-black/[0.06] hover:bg-white",
       )}
     >
       <span className="relative shrink-0">{item.icon}</span>
-      {layout === "bar" ? (
-        <span className="truncate text-[11px] font-semibold leading-tight sm:text-xs">
-          {item.shortLabel ?? item.label}
-        </span>
-      ) : null}
       {badge > 0 ? (
         <span
           className={cn(
-            "absolute flex items-center justify-center rounded-full font-bold text-white",
-            layout === "bar" ? "-right-0.5 -top-0.5 h-4 min-w-[1rem] px-1 text-[9px]" : "-right-1 -top-1 h-5 min-w-[1.25rem] px-1 text-[10px]",
+            "absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white",
             item.variant === "gold" ? "bg-red-600" : "bg-neon-500",
           )}
         >
@@ -192,60 +180,30 @@ function ActionFabDockRail({ items, hidden }: { items: FabDockItem[]; hidden: bo
   return (
     <AnimatePresence>
       {!hidden ? (
-        <>
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.96 }}
-            transition={{ type: "spring", damping: 26, stiffness: 340 }}
+        <motion.div
+          initial={{ opacity: 0, y: 16, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 12, scale: 0.96 }}
+          transition={{ type: "spring", damping: 26, stiffness: 340 }}
+          className={cn(
+            "fab-safe-right pointer-events-none fixed z-[55]",
+            "bottom-[calc(var(--app-bottom-nav-h)+env(safe-area-inset-bottom,0px)+0.625rem)]",
+            "md:bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))]",
+          )}
+        >
+          <div
             className={cn(
-              "pointer-events-none fixed inset-x-0 z-[55] flex justify-center px-4 md:hidden",
-              "bottom-[calc(var(--app-bottom-nav-h)+env(safe-area-inset-bottom,0px)+0.625rem)]",
+              "pointer-events-auto flex flex-col gap-2",
+              "rounded-[1.75rem] border border-white/35 bg-white/82 p-2",
+              "shadow-[0_16px_56px_-20px_rgba(15,23,42,0.4)] backdrop-blur-2xl",
+              "ring-1 ring-black/[0.06]",
             )}
           >
-            <div
-              className={cn(
-                "pointer-events-auto w-full max-w-[22rem]",
-                "rounded-2xl border border-white/40 bg-white/88 p-1.5",
-                "shadow-[0_12px_48px_-16px_rgba(15,23,42,0.35)] backdrop-blur-2xl",
-                "ring-1 ring-black/[0.05]",
-              )}
-            >
-              <div className="flex items-stretch gap-1">
-                {items.map((item, index) => (
-                  <div key={item.id} className="flex min-w-0 flex-1 items-center">
-                    {index > 0 ? <div className="h-8 w-px shrink-0 bg-black/[0.08]" aria-hidden /> : null}
-                    <DockButton item={item} layout="bar" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.96 }}
-            transition={{ type: "spring", damping: 26, stiffness: 340 }}
-            className={cn(
-              "fab-safe-right pointer-events-none fixed z-[55] hidden md:block",
-              "bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))]",
-            )}
-          >
-            <div
-              className={cn(
-                "pointer-events-auto flex flex-col gap-2",
-                "rounded-[1.75rem] border border-white/35 bg-white/82 p-2",
-                "shadow-[0_16px_56px_-20px_rgba(15,23,42,0.4)] backdrop-blur-2xl",
-                "ring-1 ring-black/[0.06]",
-              )}
-            >
-              {items.map((item) => (
-                <DockButton key={item.id} item={item} layout="stack" />
-              ))}
-            </div>
-          </motion.div>
-        </>
+            {items.map((item) => (
+              <DockButton key={item.id} item={item} />
+            ))}
+          </div>
+        </motion.div>
       ) : null}
     </AnimatePresence>
   );

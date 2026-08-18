@@ -33,8 +33,11 @@ export function PwaRegister() {
   const [showSheet, setShowSheet] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     }
@@ -103,7 +106,7 @@ export function PwaRegister() {
 
   return (
     <>
-      {!installed && !showSheet && isMobileDevice() && !isPwaInstallDismissed() ? (
+      {mounted && !installed && !showSheet && isMobileDevice() && !isPwaInstallDismissed() ? (
         <button
           type="button"
           aria-label="Ilovani o'rnatish"
