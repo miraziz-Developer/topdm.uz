@@ -61,6 +61,9 @@ import {
 const DEFAULT_LAT = 41.3111;
 const DEFAULT_LNG = 69.2797;
 
+/** Yetkazib berish (BTS Express) hali ulanmagan — faqat do'kondan olib ketish. Tayyor bo'lgach true qiling. */
+const DELIVERY_ENABLED = false;
+
 function formatUzs(n: number): string {
   return `${n.toLocaleString("uz-UZ")} so'm`;
 }
@@ -84,7 +87,8 @@ export function FastCheckout() {
   }, [searchParams]);
   const loginHref = `/auth?next=${encodeURIComponent(checkoutReturnPath)}`;
 
-  const initialMode: FulfillmentMode = searchParams.get("mode") === "delivery" ? "delivery" : "pickup";
+  const initialMode: FulfillmentMode =
+    DELIVERY_ENABLED && searchParams.get("mode") === "delivery" ? "delivery" : "pickup";
   const [fulfillmentMode, setFulfillmentMode] = useState<FulfillmentMode>(initialMode);
 
   const [pickupDate, setPickupDate] = useState("");
@@ -505,15 +509,17 @@ export function FastCheckout() {
             </Card>
           ) : null}
 
-          <Card className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <h2 className="text-lg font-bold tracking-tight text-ink-900">Yetkazish usuli</h2>
-              <p className="text-sm text-ink-500">Bittadan tanlang — keyin shu bo‘yicha davom etasiz</p>
-            </CardHeader>
-            <CardContent>
-              <FulfillmentModePicker value={fulfillmentMode} onChange={setFulfillmentMode} />
-            </CardContent>
-          </Card>
+          {DELIVERY_ENABLED ? (
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <h2 className="text-lg font-bold tracking-tight text-ink-900">Yetkazish usuli</h2>
+                <p className="text-sm text-ink-500">Bittadan tanlang — keyin shu bo‘yicha davom etasiz</p>
+              </CardHeader>
+              <CardContent>
+                <FulfillmentModePicker value={fulfillmentMode} onChange={setFulfillmentMode} />
+              </CardContent>
+            </Card>
+          ) : null}
 
           {fulfillmentMode === "pickup" ? (
             <>
