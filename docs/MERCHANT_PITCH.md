@@ -1,4 +1,4 @@
-yuc# 🛍️ Bozorliii — Do'konchilar uchun Taqdimot
+# 🛍️ Bozorliii — Do'konchilar uchun Taqdimot
 
 ---
 
@@ -64,20 +64,21 @@ Mijozlar ko'radi, like bosadi, buyurtma beradi.
 
 ## 📈 Keyingi rejalar (Roadmap)
 
-### 2026 Q3 (Hozir):
+### Hozir ishlaydi:
 - ✅ Sayt va CRM ishga tushdi
 - ✅ Buyurtma + QR pickup
 - ✅ Telegram bot
 - ✅ Xarita va navigatsiya
+- ✅ **AI qidiruv** — rasm orqali mahsulot topish
+- ✅ **Android ilova** — Play Store'ga chiqarilmoqda
 
 ### 2026 Q4:
 - 🔜 **Click** — onlayn to'lov
 - 🔜 **BTS Express** — uyga yetkazib berish
-- 🔜 **AI qidiruv** — rasm orqali mahsulot topish
 - 🔜 **Loyalty coins** — mijozlarga bonus tizimi
+- 🔜 **iOS ilova**
 
 ### 2027:
-- 🔜 **Android/iOS ilova**
 - 🔜 **Optom buyurtmalar** — B2B platforma
 - 🔜 **Boshqa shaharlar** — Samarqand, Namangan, Andijon
 - 🔜 **Eksport** — Qozog'iston, Rossiya bozori
