@@ -47,10 +47,20 @@ def groq_chat_completions_url(settings: Settings | None = None) -> str:
 
 
 def groq_api_base(settings: Settings | None = None) -> str:
-    """Base URL (no path suffix) for the `groq` SDK client, which appends /chat/completions itself."""
+    """Base URL for the `groq` SDK client.
+
+    The SDK hardcodes an "/openai/v1/..." path template internally (confirmed by
+    inspecting the actual outgoing request — passing our full endpoint, which
+    already ends in /openai/v1, produced .../openai/v1/openai/v1/chat/completions).
+    So unlike groq_chat_completions_url() (used for our own raw httpx calls), this
+    must be the bare domain root when Azure is active.
+    """
     cfg = settings or get_settings()
     if _azure_active(cfg):
-        return cfg.azure_openai_endpoint.rstrip("/")
+        base = cfg.azure_openai_endpoint.rstrip("/")
+        if base.endswith("/openai/v1"):
+            base = base[: -len("/openai/v1")]
+        return base
     return GROQ_API_BASE
 
 
