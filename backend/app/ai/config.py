@@ -46,6 +46,14 @@ def groq_chat_completions_url(settings: Settings | None = None) -> str:
     return f"{GROQ_API_BASE}{GROQ_CHAT_COMPLETIONS_PATH}"
 
 
+def groq_api_base(settings: Settings | None = None) -> str:
+    """Base URL (no path suffix) for the `groq` SDK client, which appends /chat/completions itself."""
+    cfg = settings or get_settings()
+    if _azure_active(cfg):
+        return cfg.azure_openai_endpoint.rstrip("/")
+    return GROQ_API_BASE
+
+
 def get_groq_api_key(settings: Settings | None = None) -> str:
     return (settings or get_settings()).groq_api_key.strip()
 

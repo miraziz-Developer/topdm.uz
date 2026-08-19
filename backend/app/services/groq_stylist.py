@@ -16,7 +16,7 @@ from typing import Any, Literal
 
 from groq import Groq
 
-from app.ai.config import require_groq_api_key, resolve_groq_chat_model
+from app.ai.config import groq_api_base, require_groq_api_key, resolve_groq_chat_model
 from app.ai.intent_analyzer import parse_budget_with_fx
 from app.application.agents.bozor_chat_catalog import parse_budget_from_text, parse_look_intent
 from app.application.stylist.budget_uzs import normalize_budget_uzs
@@ -299,7 +299,7 @@ class UniversalGroqStylist:
     def __init__(self) -> None:
         settings = get_settings()
         api_key = require_groq_api_key(settings)
-        self._client = Groq(api_key=api_key)
+        self._client = Groq(api_key=api_key, base_url=groq_api_base(settings))
         self.model = resolve_groq_chat_model(settings)
 
     # ------------------------------------------------------------------ routing
