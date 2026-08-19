@@ -177,7 +177,39 @@ async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:
         if settings.anthropic_api_key:
             text_ai_ok = True
 
-        if settings.groq_api_key:
+        azure_active = bool(settings.azure_openai_api_key.strip() and settings.azure_openai_endpoint.strip())
+        if azure_active:
+            try:
+                from app.ai.config import (
+                    default_chat_payload,
+                    groq_chat_completions_url,
+                    resolve_groq_chat_model,
+                )
+
+                url = groq_chat_completions_url(settings)
+                model = resolve_groq_chat_model(settings)
+                payload = default_chat_payload(
+                    model=model,
+                    messages=[{"role": "user", "content": "ping"}],
+                    temperature=0,
+                )
+                payload["max_tokens"] = 1
+                async with httpx.AsyncClient(timeout=8) as client:
+                    resp = await client.post(
+                        url,
+                        headers={"Authorization": f"Bearer {settings.azure_openai_api_key.strip()}"},
+                        json=payload,
+                    )
+                if resp.status_code == 200:
+                    text_ai_ok = True
+                    vision_ai_ok = True
+                elif resp.status_code in {401, 403}:
+                    errors.append("azure:invalid_api_key")
+                else:
+                    errors.append(f"azure:chat_model_unavailable:{model}")
+            except Exception as exc:
+                errors.append(f"azure:{type(exc).__name__}")
+        elif settings.groq_api_key:
             try:
                 from app.ai.config import (
                     iter_groq_api_keys,

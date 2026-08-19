@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     groq_model: str = "openai/gpt-oss-120b"
     groq_agent_model: str = ""
     groq_vision_model: str = "qwen/qwen3.6-27b"
+    """Azure AI Foundry — when set, replaces Groq as the chat+vision provider (see app.ai.config)."""
+    azure_openai_api_key: str = ""
+    azure_openai_endpoint: str = ""
+    azure_openai_chat_deployment: str = "gpt-4.1"
+    azure_openai_vision_deployment: str = "gpt-4.1"
     usd_to_uzs_rate: int = 13_000
     eur_to_uzs_rate: int = 14_000
     rapidapi_key: str = ""

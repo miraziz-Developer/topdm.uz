@@ -1,4 +1,10 @@
-"""Groq Cloud API configuration — single source for model IDs, base URL, and streaming defaults."""
+"""Chat/vision LLM provider configuration — single source for model IDs, base URL, and auth.
+
+Azure AI Foundry (GPT-4.1) is used in place of Groq whenever AZURE_OPENAI_API_KEY +
+AZURE_OPENAI_ENDPOINT are set — same OpenAI-compatible /chat/completions shape, so every
+existing GroqClient/GroqToolClient call site picks it up with zero changes. Groq stays the
+provider when Azure isn't configured (e.g. local dev without an Azure key).
+"""
 
 from __future__ import annotations
 
@@ -29,7 +35,14 @@ def _normalize_model(name: str, *, fallback: str) -> str:
     return LEGACY_MODEL_ALIASES.get(cleaned, cleaned)
 
 
-def groq_chat_completions_url() -> str:
+def _azure_active(settings: Settings) -> bool:
+    return bool((settings.azure_openai_api_key or "").strip() and (settings.azure_openai_endpoint or "").strip())
+
+
+def groq_chat_completions_url(settings: Settings | None = None) -> str:
+    cfg = settings or get_settings()
+    if _azure_active(cfg):
+        return f"{cfg.azure_openai_endpoint.rstrip('/')}/chat/completions"
     return f"{GROQ_API_BASE}{GROQ_CHAT_COMPLETIONS_PATH}"
 
 
@@ -40,6 +53,8 @@ def get_groq_api_key(settings: Settings | None = None) -> str:
 def iter_groq_api_keys(settings: Settings | None = None) -> list[str]:
     """Primary + backup kalitlar (takrorlarsiz)."""
     cfg = settings or get_settings()
+    if _azure_active(cfg):
+        return [cfg.azure_openai_api_key.strip()]
     keys: list[str] = []
     for raw in (cfg.groq_api_key, getattr(cfg, "groq_api_key_backup", "")):
         key = (raw or "").strip()
@@ -56,14 +71,18 @@ def require_groq_api_key(settings: Settings | None = None) -> str:
 
 
 def resolve_groq_chat_model(settings: Settings | None = None) -> str:
-    """Primary 70B reasoning model for JSON + markdown stylist turns."""
+    """Primary reasoning model for JSON + markdown stylist turns."""
     cfg = settings or get_settings()
+    if _azure_active(cfg):
+        return (cfg.azure_openai_chat_deployment or "gpt-4.1").strip()
     return _normalize_model(cfg.groq_model, fallback=GROQ_DEFAULT_CHAT_MODEL)
 
 
 def resolve_groq_agent_model(settings: Settings | None = None) -> str:
     """Tool-calling agent loop model (defaults to chat model when GROQ_AGENT_MODEL unset)."""
     cfg = settings or get_settings()
+    if _azure_active(cfg):
+        return resolve_groq_chat_model(cfg)
     override = (cfg.groq_agent_model or "").strip()
     if override:
         return _normalize_model(override, fallback=GROQ_DEFAULT_CHAT_MODEL)
@@ -72,6 +91,8 @@ def resolve_groq_agent_model(settings: Settings | None = None) -> str:
 
 def resolve_groq_vision_model(settings: Settings | None = None) -> str:
     cfg = settings or get_settings()
+    if _azure_active(cfg):
+        return (cfg.azure_openai_vision_deployment or "gpt-4.1").strip()
     return _normalize_model(cfg.groq_vision_model, fallback=GROQ_DEFAULT_VISION_MODEL)
 
 
