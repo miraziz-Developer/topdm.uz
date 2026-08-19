@@ -256,7 +256,7 @@ export function HomeSaleHero() {
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-md lg:max-w-none">
+          <div className="relative mx-auto hidden w-full max-w-md lg:block lg:max-w-none">
             <div className="relative mx-auto aspect-[4/3.2] w-full max-w-[420px] sm:aspect-[5/4]">
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
