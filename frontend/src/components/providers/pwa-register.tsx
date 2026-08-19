@@ -5,8 +5,8 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { dismissPwaInstallPrompt, isPwaInstallDismissed } from "@/lib/pwa-install-storage";
+import { useFabDockItem } from "@/components/ui/action-fab-dock";
 import { useT } from "@/i18n/locale-provider";
-import { cn } from "@/lib/utils";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -103,24 +103,22 @@ export function PwaRegister() {
   };
 
   const showInstallUi = !installed && showSheet && (deferredPrompt || isIos);
+  const canShowInstallTrigger =
+    mounted && !installed && !showSheet && isMobileDevice() && !isPwaInstallDismissed();
+
+  useFabDockItem({
+    id: "pwa-install",
+    order: 40,
+    label: "Ilovani o'rnatish",
+    shortLabel: "O'rnatish",
+    icon: <Download className="h-5 w-5" aria-hidden />,
+    variant: "gold",
+    hidden: !canShowInstallTrigger,
+    onClick: () => setShowSheet(true),
+  });
 
   return (
     <>
-      {mounted && !installed && !showSheet && isMobileDevice() && !isPwaInstallDismissed() ? (
-        <button
-          type="button"
-          aria-label="Ilovani o'rnatish"
-          onClick={() => setShowSheet(true)}
-          className={cn(
-            "fixed bottom-[5.5rem] right-4 z-[65] flex h-12 w-12 items-center justify-center",
-            "rounded-full bg-electric-500 text-white shadow-lg shadow-electric-500/35",
-            "transition hover:scale-105 active:scale-95",
-          )}
-        >
-          <Download className="h-5 w-5" aria-hidden />
-        </button>
-      ) : null}
-
       {showInstallUi ? (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-ink-900/40 p-4 backdrop-blur-[2px] sm:items-center">
           <div
