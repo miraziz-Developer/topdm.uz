@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.ai.config import ai_text_provider_configured
 from app.infrastructure.ai_clients.gemini import GeminiClient, _guess_mime
 from app.infrastructure.ai_clients.groq import GroqClient
 from app.core.config import get_settings
@@ -19,7 +20,7 @@ async def build_taobao_fingerprint(crop_bytes: bytes, *, label_uz: str = "", cat
         "Max 12 keywords. color in Uzbek."
     )
     payload: dict[str, Any] | None = None
-    if settings.groq_api_key:
+    if ai_text_provider_configured(settings):
         try:
             payload = await GroqClient().chat_json(
                 system_prompt="Fashion visual search. JSON only.",

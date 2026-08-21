@@ -64,10 +64,11 @@ def _clean_name(raw: str, *, max_len: int = 80) -> str:
 
 async def suggest_category_via_ai(attrs: dict[str, Any]) -> tuple[str, str] | None:
     """Groq — noma'lum mahsulot uchun root/sub taklif."""
+    from app.ai.config import ai_text_provider_configured
     from app.infrastructure.ai_clients.groq import GroqClient
 
     groq = GroqClient()
-    if not groq._settings.groq_api_key:
+    if not ai_text_provider_configured(groq._settings):
         return None
 
     name = str(attrs.get("product_name") or attrs.get("description") or "").strip()

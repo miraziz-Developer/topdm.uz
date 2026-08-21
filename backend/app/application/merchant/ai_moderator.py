@@ -16,6 +16,7 @@ with warnings.catch_warnings():
     import google.generativeai as genai
 from loguru import logger
 
+from app.ai.config import ai_text_provider_configured
 from app.application.merchant.ai_inspector import AIInspectorService
 from app.core.config import get_settings
 from app.infrastructure.ai_clients.groq import GroqClient
@@ -241,7 +242,7 @@ class ShopAiModeratorService:
         )
 
     async def _review_shop_ai(self, shop: ShopModel, image_bytes: bytes) -> ModerationVerdict | None:
-        if not self._settings.google_api_key and not self._settings.groq_api_key:
+        if not self._settings.google_api_key and not ai_text_provider_configured(self._settings):
             if self._settings.is_production:
                 return ModerationVerdict(
                     False,
@@ -288,7 +289,7 @@ class ShopAiModeratorService:
         image_bytes: bytes,
         shop_name: str,
     ) -> ModerationVerdict | None:
-        if not self._settings.google_api_key and not self._settings.groq_api_key:
+        if not self._settings.google_api_key and not ai_text_provider_configured(self._settings):
             if self._settings.is_production:
                 return ModerationVerdict(
                     False,
@@ -324,8 +325,8 @@ class ShopAiModeratorService:
         return self._parse_verdict(payload, default_reject_reason="Mahsulot moderator talablariga mos emas.")
 
     async def _vision_json(self, system: str, user: str, image_bytes: bytes) -> dict[str, Any] | None:
-        # Groq — asosiy moderator (server .env da ishlaydi)
-        if self._settings.groq_api_key:
+        # Groq/Azure — asosiy moderator (server .env da ishlaydi)
+        if ai_text_provider_configured(self._settings):
             try:
                 mime = self.detect_image_mime(image_bytes)
                 payload = await self._groq.chat_json(

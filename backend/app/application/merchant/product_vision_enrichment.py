@@ -6,6 +6,7 @@ from typing import Any
 
 from loguru import logger
 
+from app.ai.config import ai_text_provider_configured
 from app.application.merchant.category_resolver import is_generic_product_name
 from app.infrastructure.ai_clients.gemini import GeminiClient, _guess_mime, _normalize_image_input
 from app.infrastructure.ai_clients.groq import GroqClient
@@ -316,7 +317,7 @@ async def analyze_product_photo(image_bytes: bytes) -> dict[str, Any]:
 
     merged: dict[str, Any] = {"category_hint": "boshqa"}
 
-    if GroqClient()._settings.groq_api_key:
+    if ai_text_provider_configured(GroqClient()._settings):
         try:
             listing = await _groq_listing_from_image(raw_bytes)
             merged = _merge_listing(merged, listing)

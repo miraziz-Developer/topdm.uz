@@ -15,6 +15,7 @@ from PIL import Image, ImageFilter, ImageStat
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.config import ai_text_provider_configured
 from app.core.config import get_settings
 from app.infrastructure.ai_clients.gemini import GeminiClient
 from app.infrastructure.ai_clients.groq import GroqClient
@@ -89,7 +90,7 @@ class AIInspectorService:
         )
 
         try:
-            if self._settings.groq_api_key:
+            if ai_text_provider_configured(self._settings):
                 groq_result = await self._moderate_with_groq(image_bytes)
                 if groq_result is not None:
                     return groq_result
@@ -137,7 +138,7 @@ class AIInspectorService:
             )
 
     async def _moderate_with_groq(self, image_bytes: bytes) -> ImageModerationResult | None:
-        if not self._settings.groq_api_key:
+        if not ai_text_provider_configured(self._settings):
             return None
         prompt = (
             "Bu mahsulot rasmi Bozorliii kiyim bozori uchun (butun O'zbekiston). JSON: "

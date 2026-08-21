@@ -68,6 +68,16 @@ def get_groq_api_key(settings: Settings | None = None) -> str:
     return (settings or get_settings()).groq_api_key.strip()
 
 
+def ai_text_provider_configured(settings: Settings | None = None) -> bool:
+    """True — Azure yoki Groq'dan biri sozlangan bo'lsa (provider-agnostik "AI yoqilganmi" tekshiruvi).
+
+    Ko'p joyda kod to'g'ridan-to'g'ri ``settings.groq_api_key`` ni tekshirar edi — bu
+    Azure faol bo'lganda GROQ_API_KEY o'chirilsa noto'g'ri natija berardi. Shu funksiya
+    o'rniga ishlatilsin.
+    """
+    return bool(iter_groq_api_keys(settings))
+
+
 def iter_groq_api_keys(settings: Settings | None = None) -> list[str]:
     """Primary + backup kalitlar (takrorlarsiz)."""
     cfg = settings or get_settings()

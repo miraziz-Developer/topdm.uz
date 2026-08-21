@@ -5,18 +5,24 @@ import io
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from app.ai.config import require_groq_api_key
 from app.core.config import get_settings
 
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 
 
 class GroqWhisperClient:
-    """Fast Groq Whisper — ovozli qidiruv uchun (OpenAI dan tezroq)."""
+    """Fast Groq Whisper — ovozli qidiruv uchun (OpenAI dan tezroq).
+
+    Groq'ning haqiqiy audio manziliga to'g'ridan-to'g'ri boradi (Azure'da
+    audio deployment yo'q) — shuning uchun har doim RAW groq_api_key
+    ishlatiladi, Azure faol bo'lganda kalitni almashtiradigan
+    iter_groq_api_keys()/require_groq_api_key() emas.
+    """
 
     def __init__(self) -> None:
         self._settings = get_settings()
-        require_groq_api_key(self._settings)
+        if not self._settings.groq_api_key.strip():
+            raise ValueError("Missing GROQ_API_KEY — voice transcription requires Groq Cloud.")
 
     @retry(
         stop=stop_after_attempt(2),
@@ -33,7 +39,7 @@ class GroqWhisperClient:
             "response_format": "json",
             "temperature": "0",
         }
-        headers = {"Authorization": f"Bearer {require_groq_api_key(self._settings)}"}
+        headers = {"Authorization": f"Bearer {self._settings.groq_api_key.strip()}"}
         timeout = min(25.0, self._settings.external_api_timeout_seconds + 5)
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(GROQ_TRANSCRIBE_URL, headers=headers, files=files, data=data)

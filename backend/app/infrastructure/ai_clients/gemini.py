@@ -15,6 +15,7 @@ with warnings.catch_warnings():
     import google.generativeai as genai
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from app.ai.config import ai_text_provider_configured
 from app.core.config import get_settings
 from app.infrastructure.ai_clients.groq import GroqClient
 
@@ -54,7 +55,7 @@ class GeminiClient:
                     f"gemini_vision_failed kind={type(exc).__name__} detail={str(exc)[:200]}"
                 )
 
-        if self._settings.groq_api_key:
+        if ai_text_provider_configured(self._settings):
             try:
                 return await self._extract_with_groq(raw_bytes, pil_image)
             except Exception as exc:

@@ -7,6 +7,7 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.config import ai_text_provider_configured
 from app.core.config import Settings, get_settings
 from app.infrastructure.ai_clients.groq import GroqClient
 from app.infrastructure.db.models import ShopModel
@@ -62,7 +63,7 @@ class MerchantSupportAiService:
                 "balans va CRM bo'yicha savollaringizga javob beraman."
             ),
             **contact,
-            "ai_enabled": bool(self._settings.groq_api_key),
+            "ai_enabled": ai_text_provider_configured(self._settings),
         }
 
     async def _load_faq_block(self) -> str:
@@ -93,7 +94,7 @@ class MerchantSupportAiService:
             raise ValueError("Xabar juda uzun")
 
         contact = self.admin_contact()
-        if not self._settings.groq_api_key:
+        if not ai_text_provider_configured(self._settings):
             return self._escalation_response(
                 "AI hozircha yoqilmagan. Admin bilan to'g'ridan-to'g'ri bog'laning.",
                 contact,

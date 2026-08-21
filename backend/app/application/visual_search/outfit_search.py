@@ -179,10 +179,11 @@ async def _groq_outfit_detections(
     groq: GroqClient,
     settings_prompt: str,
 ) -> list[dict[str, Any]]:
+    from app.ai.config import ai_text_provider_configured
     from app.core.config import get_settings
 
     settings = get_settings()
-    if not settings.groq_api_key:
+    if not ai_text_provider_configured(settings):
         return []
     try:
         payload = await groq.chat_json(
@@ -445,6 +446,7 @@ async def detect_outfit_items(raw: bytes) -> list[dict[str, Any]]:
 
     vision_raw = _downscale_image_bytes(raw, max_edge=768)
     groq = GroqClient()
+    from app.ai.config import ai_text_provider_configured
     from app.core.config import get_settings
 
     settings = get_settings()
@@ -513,7 +515,7 @@ async def detect_outfit_items(raw: bytes) -> list[dict[str, Any]]:
     if normalized and not (_looks_like_product_photo(pil) and _is_default_outfit_heuristic(normalized)):
         return normalized
 
-    if settings.groq_api_key:
+    if ai_text_provider_configured(settings):
         product_items = await _detect_product_only_items(vision_raw, groq)
         if product_items:
             return product_items

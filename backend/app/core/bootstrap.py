@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.ai.config import ai_text_provider_configured
 from app.core.config import Settings
 
 _INSECURE_JWT_SECRETS = frozenset(
@@ -36,8 +37,8 @@ def validate_settings(settings: Settings) -> None:
     if not settings.admin_api_key.strip():
         errors.append("ADMIN_API_KEY must be set in production")
 
-    if not settings.groq_api_key.strip():
-        errors.append("GROQ_API_KEY is required for AI chat and stylist in production")
+    if not ai_text_provider_configured(settings):
+        errors.append("AZURE_OPENAI_API_KEY+ENDPOINT or GROQ_API_KEY is required for AI chat and stylist in production")
 
     has_text_embed = bool(settings.openai_api_key.strip() or settings.google_api_key.strip())
     if not has_text_embed:

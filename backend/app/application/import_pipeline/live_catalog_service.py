@@ -92,17 +92,11 @@ class LiveCatalogService:
         return None
 
     async def _groq_translate(self, text: str) -> str | None:
-        keys = [
-            k.strip()
-            for k in (
-                self._settings.groq_api_key,
-                getattr(self._settings, "groq_api_key_backup", ""),
-            )
-            if k.strip()
-        ]
+        from app.ai.config import groq_chat_completions_url, iter_groq_api_keys, resolve_groq_chat_model
+
+        keys = iter_groq_api_keys(self._settings)
         if not keys:
             return None
-        from app.ai.config import groq_chat_completions_url, resolve_groq_chat_model
 
         payload = {
             "model": resolve_groq_chat_model(self._settings),
@@ -115,7 +109,7 @@ class LiveCatalogService:
             ],
             "temperature": 0,
         }
-        url = groq_chat_completions_url()
+        url = groq_chat_completions_url(self._settings)
         last_exc: BaseException | None = None
         for api_key in keys:
             try:
