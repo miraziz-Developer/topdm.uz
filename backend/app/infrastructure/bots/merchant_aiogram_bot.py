@@ -11,7 +11,7 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from app.infrastructure.bots.fsm_storage import build_fsm_storage
 from aiogram.enums import ChatAction
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, ErrorEvent, Message
 
 from app.application.merchant.smart_alerts import run_merchant_smart_alerts
 from app.application.merchant.voice_handler import MerchantVoiceHandler
@@ -318,6 +318,13 @@ async def on_contact(message: Message, state: FSMContext) -> None:
 
     await state.set_state(MerchantBotStates.ready)
     await state.update_data(shop_id=str(shop_id))
+    if not shop.is_verified:
+        await message.answer(
+            f"«{shop.name}» ulandi — ariza moderator ko'rib chiqmoqda.\n"
+            "Tasdiqlangach Telegram orqali CRM login va parol yuboriladi.",
+            reply_markup=pending_approval_keyboard(),
+        )
+        return
     await message.answer(
         "Do'kon ulandi.\nRasm yuboring — AI mahsulot to'ldiradi.",
         reply_markup=merchant_menu_keyboard(shop_id),
@@ -521,6 +528,26 @@ async def run_merchant_bot_polling() -> None:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is required to run the merchant bot")
     bot = Bot(token=settings.telegram_bot_token)
     dp = Dispatcher(storage=build_fsm_storage(settings.redis_url))
+
+    async def _on_dispatch_error(event: ErrorEvent) -> bool:
+        """Har qanday kutilmagan xato — foydalanuvchi jim qolib ketmasin."""
+        logger.exception("bot_unhandled_error", exc_info=event.exception)
+        chat = None
+        if event.update.message:
+            chat = event.update.message.chat
+        elif event.update.callback_query and event.update.callback_query.message:
+            chat = event.update.callback_query.message.chat
+        if chat is not None:
+            try:
+                await bot.send_message(
+                    chat.id,
+                    "Xatolik yuz berdi. /start bilan qayta urinib ko'ring yoki /yordam yozing.",
+                )
+            except Exception:
+                logger.exception("bot_error_fallback_send_failed")
+        return True
+
+    dp.errors.register(_on_dispatch_error)
     dp.include_router(reg_router)
     dp.include_router(prod_router)
     dp.include_router(order_router)

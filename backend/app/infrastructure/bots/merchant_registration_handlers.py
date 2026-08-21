@@ -5,7 +5,7 @@ import uuid
 from typing import Awaitable, Callable
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandObject
+from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
@@ -45,6 +45,35 @@ _LOCATION_STEP_HINT = (
     "   (Desktopda pastdagi tugma ishlamasligi mumkin — bu Telegram cheklovi.)\n\n"
     "Yoki «Keyinroq (CRM xaritadan)» — ro'yxatdan o'tgach xaritada aniqlasiz."
 )
+
+# Ro'yxatdan o'tish jarayonidagi ozod matn holatlari — bu yerda /start yoki
+# menyu buyrug'i "boshi berk ko'cha" bo'lib qolmasin (matn shu holat uchun
+# real ma'lumot sifatida saqlanib ketmasin).
+_REG_TEXT_ESCAPE_STATES = (
+    MerchantBotStates.reg_name,
+    MerchantBotStates.reg_shop_type,
+    MerchantBotStates.reg_market,
+    MerchantBotStates.reg_block,
+    MerchantBotStates.reg_stall,
+    MerchantBotStates.reg_location_comment,
+)
+_REG_TEXT_ESCAPE_TEXTS = {
+    "/start",
+    "/yordam",
+    "/help",
+    "/cancel",
+}
+
+
+@reg_router.message(StateFilter(*_REG_TEXT_ESCAPE_STATES), Command("start", "yordam", "help", "cancel"))
+@reg_router.message(StateFilter(*_REG_TEXT_ESCAPE_STATES), F.text.in_(_REG_TEXT_ESCAPE_TEXTS))
+async def reg_escape_state(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(
+        "Ro'yxatdan o'tish bekor qilindi. ✅\n"
+        "Qayta boshlash uchun /register yozing yoki /yordam ko'ring.",
+        reply_markup=ReplyKeyboardRemove(),
+    )
 
 
 def _default_coords_for_market(market_zone: str) -> tuple[float, float]:
