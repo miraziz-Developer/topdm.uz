@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import Awaitable, Callable
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
@@ -68,25 +69,26 @@ def _cancel_hint() -> str:
     return "Bekor qilish uchun «Bekor qilish» yozing."
 
 
-@reg_router.message(Command("register"))
-@reg_router.message(F.text.casefold() == "ro'yxatdan o'tish")
-@reg_router.message(F.text.casefold() == "royxatdan otish")
-async def cmd_register(message: Message, state: FSMContext, command: CommandObject | None = None) -> None:
-    if not message.from_user:
-        return
+async def _begin_registration(
+    *,
+    chat_id: int,
+    state: FSMContext,
+    answer: Callable[..., Awaitable[Message]],
+    raw_args: str = "",
+) -> None:
     async with AsyncSessionFactory() as session:
         svc = MerchantRegistrationService(session)
-        existing = await svc.chat_already_has_shop(int(message.chat.id))
+        existing = await svc.chat_already_has_shop(chat_id)
     if existing:
         await state.set_state(MerchantBotStates.ready)
         await state.update_data(shop_id=str(existing.id))
         if existing.is_verified:
-            await message.answer(
+            await answer(
                 f"Siz allaqachon ro'yxatdan o'tgansiz: {existing.name}",
                 reply_markup=merchant_menu_keyboard(existing.id),
             )
         else:
-            await message.answer(
+            await answer(
                 f"«{existing.name}» — ariza moderator ko'rib chiqmoqda.\n"
                 "Tasdiqlangach Telegram orqali CRM login va parol yuboriladi (24 soat ichida).",
                 reply_markup=pending_approval_keyboard(),
@@ -94,7 +96,6 @@ async def cmd_register(message: Message, state: FSMContext, command: CommandObje
         return
 
     await state.clear()
-    raw_args = (command.args or "").strip() if command and command.args else ""
     fast = raw_args.casefold().startswith("tez")
     ref_code: str | None = None
     if fast:
@@ -114,12 +115,31 @@ async def cmd_register(message: Message, state: FSMContext, command: CommandObje
         else ""
     )
     steps = "3/3 tez ro'yxat" if fast else "9 qadam"
-    await message.answer(
+    await answer(
         f"Bozorliii — do'kon ro'yxatdan o'tish ({steps})\n\n"
         f"1 — Do'kon nomini yozing (masalan: Murod Fashion):{invite_hint}\n"
         + ("Tez rejim: joylashuv va rasm keyinroq CRM dan." if fast else ""),
         reply_markup=None,
     )
+
+
+@reg_router.message(Command("register"))
+@reg_router.message(F.text.casefold() == "ro'yxatdan o'tish")
+@reg_router.message(F.text.casefold() == "royxatdan otish")
+async def cmd_register(message: Message, state: FSMContext, command: CommandObject | None = None) -> None:
+    if not message.from_user:
+        return
+    raw_args = (command.args or "").strip() if command and command.args else ""
+    await _begin_registration(chat_id=int(message.chat.id), state=state, answer=message.answer, raw_args=raw_args)
+
+
+@reg_router.callback_query(F.data == "start_register")
+async def cb_start_register(callback: CallbackQuery, state: FSMContext) -> None:
+    if not callback.message:
+        await callback.answer()
+        return
+    await callback.answer()
+    await _begin_registration(chat_id=int(callback.message.chat.id), state=state, answer=callback.message.answer)
 
 
 @reg_router.message(MerchantBotStates.reg_name, F.text)

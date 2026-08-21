@@ -76,7 +76,7 @@ def start_inline_keyboard(shop_id: uuid.UUID | None) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="📝 Ro'yxatdan o'tish",
-                    web_app=WebAppInfo(url=crm_url("/telegram", shop_id)),
+                    callback_data="start_register",
                 ),
             ]
         )
