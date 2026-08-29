@@ -9,6 +9,7 @@ COPY backend/migrations /app/migrations
 COPY backend/docker-entrypoint.sh /docker-entrypoint.sh
 COPY scripts/seed.py /app/scripts/seed.py
 COPY scripts/run_merchant_bot.py /app/scripts/run_merchant_bot.py
+COPY scripts/run_customer_bot.py /app/scripts/run_customer_bot.py
 
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -e . \
