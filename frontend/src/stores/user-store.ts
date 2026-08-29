@@ -14,6 +14,8 @@ type UserState = {
   hydrated: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
+  /** Mark hydrated without a network call — used for guests (no session to fetch). */
+  markHydrated: () => void;
 };
 
 function metaFromProfile(profile: AuthMeResponse) {
@@ -34,6 +36,7 @@ export const useUserStore = create<UserState>((set) => ({
   profile: null,
   loading: false,
   hydrated: false,
+  markHydrated: () => set((s) => (s.hydrated ? s : { ...s, hydrated: true })),
   refresh: async () => {
     set({ loading: true });
     try {
