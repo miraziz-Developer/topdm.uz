@@ -7,7 +7,7 @@ import logging
 import uuid
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from app.infrastructure.bots.fsm_storage import build_fsm_storage
 from aiogram.enums import ChatAction
@@ -67,7 +67,7 @@ def _tgverify_chat_key(chat_id: int) -> str:
     return f"otp:phone:tgverify:chat:{int(chat_id)}"
 
 
-async def _handle_guest_phone_verify(message: Message, nonce: str) -> None:
+async def _handle_guest_phone_verify(message: Message, state: FSMContext, nonce: str) -> None:
     """Mehmon xaridor telefon tasdiqlash — SMS o'rniga bepul kanal.
 
     1-qadam: /start verify_<nonce> — raqamni ulashishni so'raymiz.
@@ -77,12 +77,16 @@ async def _handle_guest_phone_verify(message: Message, nonce: str) -> None:
 
     phone = await phone_otp_gateway.resolve_telegram_link(nonce)
     if phone is None:
+        await state.clear()
         await message.answer(
             "⏱ Bu tasdiqlash havolasi eskirgan yoki allaqachon ishlatilgan.\n\n"
-            "Saytga qaytib «Telegram orqali kod olish» tugmasini qayta bosing."
+            "Saytga qaytib «Telegram orqali kod olish» tugmasini qayta bosing.",
+            reply_markup=ReplyKeyboardRemove(),
         )
         return
 
+    await state.clear()
+    await state.set_state(MerchantBotStates.guest_verify_contact)
     await RedisCacheGateway().set(_tgverify_chat_key(message.chat.id), {"nonce": nonce}, 600)
     masked = f"{phone[:7]}•••{phone[-2:]}"
     await message.answer(
@@ -94,16 +98,15 @@ async def _handle_guest_phone_verify(message: Message, nonce: str) -> None:
     )
 
 
-@router.message(StateFilter(None), F.contact)
-async def on_guest_verify_contact(message: Message) -> None:
+@router.message(MerchantBotStates.guest_verify_contact, F.contact)
+async def on_guest_verify_contact(message: Message, state: FSMContext) -> None:
     """Mehmon telefon tasdiqlash — ulashgan kontaktni tekshiramiz."""
+    await state.clear()
     if not message.contact:
         return
     pending = await RedisCacheGateway().get(_tgverify_chat_key(message.chat.id))
-    if not pending:
-        return
     await RedisCacheGateway().delete(_tgverify_chat_key(message.chat.id))
-    nonce = str(pending.get("nonce") or "")
+    nonce = str(pending.get("nonce") or "") if pending else ""
 
     from app.infrastructure.messaging.phone_otp import phone_otp_gateway
 
@@ -129,6 +132,15 @@ async def on_guest_verify_contact(message: Message) -> None:
     )
 
 
+@router.message(MerchantBotStates.guest_verify_contact, F.text.regexp(r"^(?!/)"))
+async def on_guest_verify_other(message: Message) -> None:
+    """Tasdiqlash kutilayotganda oddiy matn yozilsa — tugmaga yo'naltiramiz (buyruqlar o'tadi)."""
+    await message.answer(
+        "Iltimos, pastdagi «Telefon raqamini yuborish» tugmasini bosing.",
+        reply_markup=contact_keyboard(),
+    )
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, state: FSMContext) -> None:
     if message.from_user:
@@ -139,7 +151,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
 
     verify_nonce = _parse_verify_nonce(command.args)
     if verify_nonce is not None:
-        await _handle_guest_phone_verify(message, verify_nonce)
+        await _handle_guest_phone_verify(message, state, verify_nonce)
         return
 
     shop_uuid = _parse_shop_uuid(command.args)
