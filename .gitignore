@@ -37,6 +37,10 @@ backend/uploads/*
 !backend/uploads/reels/.gitkeep
 deploy/_audit/
 
+# Server-side backup staging (scripts/backup/stage-backup.sh writes here)
+backups/
+.logs/
+
 # Mobile app signing keys — never commit
 *.jks
 *.keystore
