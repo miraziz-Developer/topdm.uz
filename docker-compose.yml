@@ -173,6 +173,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  customer-bot:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app
+    volumes:
+      - ./backend/app:/app/app
+      - ./scripts:/app/scripts
+    entrypoint: []
+    command: ["python", "/app/scripts/run_customer_bot.py"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   merchant-crm:
     build:
       context: ./merchant-crm

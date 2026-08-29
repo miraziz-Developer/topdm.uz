@@ -76,10 +76,10 @@ class PhoneOtpGateway:
         return response
 
     async def issue_telegram_link(self, phone: str) -> dict:
-        """Bepul kanal — foydalanuvchi havolani ochadi, bot kodni chatga yuboradi."""
+        """Bepul kanal — foydalanuvchi havolani ochadi, mijoz boti kodni chatga yuboradi."""
         settings = get_settings()
-        bot_username = (settings.telegram_bot_username or "").strip().lstrip("@")
-        if not settings.telegram_bot_token or not bot_username:
+        bot_username = settings.effective_customer_bot_username
+        if not settings.effective_customer_bot_token or not bot_username:
             raise PhoneOtpError("Telegram bot sozlanmagan", code="telegram_not_configured")
 
         normalized = normalize_phone_e164(phone)

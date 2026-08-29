@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     enable_online_checkout: bool = False
     telegram_bot_token: str = ""
     telegram_bot_username: str = ""
+    # Alohida mijoz boti — telefon tasdiqlash va (keyinroq) buyurtma xabarlari.
+    # Sozlanmagan bo'lsa merchant botga qaytadi.
+    customer_bot_token: str = ""
+    customer_bot_username: str = ""
     google_oauth_client_id: str = ""
     apple_client_id: str = ""
     """Platforma admini — AI hal qila olmasa CRM da ko'rsatiladi (@username, t.me/...)."""
@@ -220,6 +224,15 @@ class Settings(BaseSettings):
             if not self.allow_payment_sandbox_in_production:
                 object.__setattr__(self, "payment_sandbox_mode", False)
         return self
+
+    @property
+    def effective_customer_bot_token(self) -> str:
+        """Mijoz boti tokeni — sozlanmagan bo'lsa merchant botga qaytadi."""
+        return (self.customer_bot_token or self.telegram_bot_token).strip()
+
+    @property
+    def effective_customer_bot_username(self) -> str:
+        return (self.customer_bot_username or self.telegram_bot_username).strip().lstrip("@")
 
     @property
     def cors_origin_list(self) -> list[str]:

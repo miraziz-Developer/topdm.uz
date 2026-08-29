@@ -7,9 +7,6 @@ class MerchantBotStates(StatesGroup):
     waiting_contact = State()
     ready = State()
 
-    # Mehmon xaridor telefon tasdiqlash (SMS o'rniga Telegram kontakt)
-    guest_verify_contact = State()
-
     reg_name = State()
     reg_shop_type = State()
     reg_market = State()
