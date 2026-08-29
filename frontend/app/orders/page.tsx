@@ -14,11 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useMyOrdersList } from "@/hooks/useMyOrdersList";
-import {
-  lookupOrdersByPhone,
-  sendOrderLookupOtp,
-  verifyOrderLookupOtp,
-} from "@/lib/api";
+import { GuestPhoneVerify } from "@/components/checkout/guest-phone-verify";
+import { lookupOrdersByPhone } from "@/lib/api";
 import { filterOrdersByScope, type OrderListScope } from "@/lib/order-filters";
 import {
   readGuestLookupToken,
@@ -56,10 +53,9 @@ export default function OrdersPage() {
     return readGuestLookupToken(saved) ?? undefined;
   });
   const [guestLoading, setGuestLoading] = useState(false);
-  const [otpStep, setOtpStep] = useState<"phone" | "code">("phone");
-  const [otpCode, setOtpCode] = useState("");
 
   const guestPhoneE164 = normalizeUzbekPhoneE164(guestPhone);
+  const guestPhoneValid = UZ_PHONE_E164_REGEX.test(guestPhoneE164);
   const ordersEnabled = authHydrated && userHydrated && (isLoggedIn || Boolean(guestVerificationToken));
 
   const { orders, setOrders, loading, error, setError, reload } = useMyOrdersList({
@@ -80,49 +76,14 @@ export default function OrdersPage() {
     { key: "all", label: "Barchasi" },
   ];
 
-  const sendOtp = async () => {
-    const phoneE164 = normalizeUzbekPhoneE164(guestPhone);
-    if (!UZ_PHONE_E164_REGEX.test(phoneE164)) {
-      push("Telefon raqamini to'g'ri kiriting", "error");
-      return;
-    }
+  const handleGuestVerified = async (verificationToken: string, phoneE164: string) => {
+    saveGuestPhone(phoneE164);
+    saveGuestLookupToken(phoneE164, verificationToken);
+    setGuestVerificationToken(verificationToken);
     setGuestLoading(true);
     setError(null);
     try {
-      saveGuestPhone(phoneE164);
-      const result = await sendOrderLookupOtp(phoneE164);
-      if (result.dev_otp) {
-        push(`Dev OTP: ${result.dev_otp}`, "info");
-      } else {
-        push("SMS kod yuborildi", "success");
-      }
-      setOtpStep("code");
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : "SMS yuborilmadi";
-      setError(message);
-      push(message, "error");
-    } finally {
-      setGuestLoading(false);
-    }
-  };
-
-  const confirmOtpAndLookup = async () => {
-    const phoneE164 = normalizeUzbekPhoneE164(guestPhone);
-    if (!UZ_PHONE_E164_REGEX.test(phoneE164)) {
-      push("Telefon raqamini to'g'ri kiriting", "error");
-      return;
-    }
-    if (!otpCode.trim()) {
-      push("SMS kodini kiriting", "error");
-      return;
-    }
-    setGuestLoading(true);
-    setError(null);
-    try {
-      const verified = await verifyOrderLookupOtp(phoneE164, otpCode.trim());
-      saveGuestLookupToken(phoneE164, verified.verification_token);
-      setGuestVerificationToken(verified.verification_token);
-      const response = await lookupOrdersByPhone(phoneE164, verified.verification_token);
+      const response = await lookupOrdersByPhone(phoneE164, verificationToken);
       setOrders(response.items);
       if (!response.items.length) {
         setError("Bu telefon uchun buyurtma topilmadi.");
@@ -188,51 +149,22 @@ export default function OrdersPage() {
             <p className="mb-3 text-sm text-text-300">
               Mehmon sifatida bron qilgan bo&apos;lsangiz, checkoutda kiritgan telefonni qidiring.
             </p>
-            {otpStep === "phone" ? (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <Input
-                    label="Telefon"
-                    type="tel"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(applyPhoneMaskInput(e.target.value))}
-                    leftIcon={<Phone className="h-4 w-4 text-electric-500" />}
-                    placeholder="+998 (90) 123-45-67"
-                  />
-                </div>
-                <Button variant="brand" isLoading={guestLoading} onClick={() => void sendOtp()}>
-                  SMS kod olish
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div className="flex-1">
-                  <Input
-                    label="SMS tasdiqlash kodi"
-                    type="text"
-                    inputMode="numeric"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="6 xonali kod"
-                  />
-                </div>
-                <Button variant="brand" isLoading={guestLoading} onClick={() => void confirmOtpAndLookup()}>
-                  Tasdiqlash
-                </Button>
-              </div>
-            )}
-            {otpStep === "code" ? (
-              <button
-                type="button"
-                className="text-xs text-electric-500 hover:underline"
-                onClick={() => {
-                  setOtpStep("phone");
-                  setOtpCode("");
-                }}
-              >
-                Boshqa telefon raqamini kiritish
-              </button>
-            ) : null}
+            <div className="space-y-3">
+              <Input
+                label="Telefon"
+                type="tel"
+                value={guestPhone}
+                onChange={(e) => setGuestPhone(applyPhoneMaskInput(e.target.value))}
+                leftIcon={<Phone className="h-4 w-4 text-electric-500" />}
+                placeholder="+998 (90) 123-45-67"
+              />
+              <GuestPhoneVerify
+                phoneE164={guestPhoneE164}
+                phoneValid={guestPhoneValid}
+                verified={Boolean(guestVerificationToken)}
+                onVerified={handleGuestVerified}
+              />
+            </div>
             <p className="mt-3 text-center text-xs text-text-400">
               Yoki{" "}
               <Link href="/auth" className="font-semibold text-electric-500 hover:underline">

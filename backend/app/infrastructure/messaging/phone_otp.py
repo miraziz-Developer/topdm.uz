@@ -1,8 +1,9 @@
-"""Telefon OTP — Redis + Eskiz SMS (ixtiyoriy)."""
+"""Telefon OTP — Redis + kanal: Telegram bot (bepul) yoki Eskiz SMS (zaxira)."""
 from __future__ import annotations
 
 import random
 import re
+import secrets
 import time
 
 import httpx
@@ -13,6 +14,7 @@ from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 
 _PHONE_RE = re.compile(r"^\+998\d{9}$")
 _OTP_TTL = 300
+_TG_LINK_TTL = 600
 _ESKIZ_TOKEN_CACHE: dict[str, object] = {"token": "", "expires_at": 0.0}
 
 
@@ -43,6 +45,10 @@ def _verified_key(phone: str) -> str:
     return f"otp:phone:verified:{phone.replace('+', '')}"
 
 
+def _tg_link_key(nonce: str) -> str:
+    return f"otp:phone:tglink:{nonce}"
+
+
 class PhoneOtpGateway:
     async def issue_otp(self, phone: str) -> dict:
         settings = get_settings()
@@ -68,6 +74,69 @@ class PhoneOtpGateway:
         if settings.app_debug and not settings.is_production:
             response["dev_otp"] = otp
         return response
+
+    async def issue_telegram_link(self, phone: str) -> dict:
+        """Bepul kanal — foydalanuvchi havolani ochadi, bot kodni chatga yuboradi."""
+        settings = get_settings()
+        bot_username = (settings.telegram_bot_username or "").strip().lstrip("@")
+        if not settings.telegram_bot_token or not bot_username:
+            raise PhoneOtpError("Telegram bot sozlanmagan", code="telegram_not_configured")
+
+        normalized = normalize_phone_e164(phone)
+        nonce = secrets.token_urlsafe(18)
+        await RedisCacheGateway().set(
+            _tg_link_key(nonce),
+            {"phone": normalized},
+            _TG_LINK_TTL,
+        )
+        return {
+            "status": "ok",
+            "phone": normalized,
+            "delivery": "telegram_link",
+            "deep_link": f"https://t.me/{bot_username}?start=verify_{nonce}",
+            "expires_in": _TG_LINK_TTL,
+        }
+
+    async def resolve_telegram_link(self, nonce: str) -> str | None:
+        """Bot /start bosilganda: nonce bo'yicha telefonni qaytaradi (nonce saqlanadi)."""
+        clean = (nonce or "").strip()
+        if not clean:
+            return None
+        data = await RedisCacheGateway().get(_tg_link_key(clean))
+        if not data:
+            return None
+        phone = str(data.get("phone") or "")
+        return phone if _PHONE_RE.match(phone) else None
+
+    async def complete_telegram_link(self, nonce: str, shared_phone: str) -> tuple[str, str] | None:
+        """Bot foydalanuvchi kontaktini ulashganda: raqam mos kelsa OTP yozadi.
+
+        Telegram ulashgan raqam checkoutdagi raqamga teng bo'lishi shart — bu
+        telefon egaligini isbotlaydi. (phone, otp) yoki None qaytaradi.
+        """
+        clean = (nonce or "").strip()
+        if not clean:
+            return None
+        data = await RedisCacheGateway().get(_tg_link_key(clean))
+        if not data:
+            return None
+        phone = str(data.get("phone") or "")
+        if not _PHONE_RE.match(phone):
+            return None
+        try:
+            if normalize_phone_e164(shared_phone) != phone:
+                return None
+        except PhoneOtpError:
+            return None
+
+        await RedisCacheGateway().delete(_tg_link_key(clean))
+        otp = f"{random.randint(100000, 999999)}"
+        await RedisCacheGateway().set(
+            _otp_key(phone),
+            {"otp": otp, "phone": phone, "via": "telegram"},
+            _OTP_TTL,
+        )
+        return phone, otp
 
     async def verify_otp(self, phone: str, otp: str) -> str:
         normalized = normalize_phone_e164(phone)

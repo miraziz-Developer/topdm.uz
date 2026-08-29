@@ -11,6 +11,7 @@ import {
   DeliveryAddressSection,
 } from "@/components/checkout/delivery-address-section";
 import { FulfillmentModePicker, type FulfillmentMode } from "@/components/checkout/fulfillment-mode-picker";
+import { GuestPhoneVerify } from "@/components/checkout/guest-phone-verify";
 import {
   PaymentMethodPicker,
   type CheckoutPaymentMethod,
@@ -26,8 +27,6 @@ import {
   quoteDeliveryOptions,
   reserveDeliveryOrders,
   reservePickupOrders,
-  sendOrderLookupOtp,
-  verifyOrderLookupOtp,
   type DeliveryQuoteOption,
   type DeliveryQuoteResponse,
   type PickupReservationResponse,
@@ -104,12 +103,9 @@ export function FastCheckout() {
   const [loading, setLoading] = useState(false);
   const [reservation, setReservation] = useState<PickupReservationResponse | null>(null);
 
-  // Mehmon (login'siz) buyurtma — telefon OTP tasdiq
-  const [guestOtpSent, setGuestOtpSent] = useState(false);
-  const [guestOtp, setGuestOtp] = useState("");
+  // Mehmon (login'siz) buyurtma — telefon Telegram/SMS kod bilan tasdiq
   const [guestToken, setGuestToken] = useState<string | null>(null);
   const [guestVerifiedPhone, setGuestVerifiedPhone] = useState<string | null>(null);
-  const [otpLoading, setOtpLoading] = useState(false);
 
   const [addressQuery, setAddressQuery] = useState("");
   const [resolvedLabel, setResolvedLabel] = useState<string | null>(null);
@@ -189,62 +185,21 @@ export function FastCheckout() {
   const handlePhoneChange = (value: string) => {
     setPhone(applyPhoneMaskInput(value));
     if (phoneError) setPhoneError(undefined);
-    // Telefon o'zgarsa — oldingi OTP tasdig'ini bekor qilamiz
-    if (guestToken || guestOtpSent) {
+    // Telefon o'zgarsa — oldingi tasdiqni bekor qilamiz
+    if (guestToken || guestVerifiedPhone) {
       setGuestToken(null);
       setGuestVerifiedPhone(null);
-      setGuestOtpSent(false);
-      setGuestOtp("");
     }
   };
 
+  const guestPhoneE164 = normalizeUzbekPhoneE164(phone);
+  const guestPhoneValid = UZ_PHONE_E164_REGEX.test(guestPhoneE164);
   const guestVerified =
-    !!guestToken &&
-    !!guestVerifiedPhone &&
-    guestVerifiedPhone === normalizeUzbekPhoneE164(phone);
+    !!guestToken && !!guestVerifiedPhone && guestVerifiedPhone === guestPhoneE164;
 
-  const sendGuestOtp = async () => {
-    const phoneE164 = validatePhone();
-    if (!phoneE164) return;
-    setOtpLoading(true);
-    try {
-      const res = await sendOrderLookupOtp(phoneE164);
-      setGuestOtpSent(true);
-      if (res.dev_otp) {
-        push(`Test rejimi: kod ${res.dev_otp}`, "info");
-      } else {
-        push("Tasdiqlash kodi SMS orqali yuborildi", "success");
-      }
-    } catch (err) {
-      const message = err instanceof ApiError && err.message ? err.message : "Kod yuborilmadi. Qayta urinib ko'ring.";
-      push(message, "error");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const verifyGuestOtp = async () => {
-    const phoneE164 = normalizeUzbekPhoneE164(phone);
-    if (!UZ_PHONE_E164_REGEX.test(phoneE164)) {
-      setPhoneError("To'liq raqam kiriting: +998 (XX) XXX-XX-XX");
-      return;
-    }
-    if (guestOtp.trim().length < 4) {
-      push("Kodni to'liq kiriting", "error");
-      return;
-    }
-    setOtpLoading(true);
-    try {
-      const res = await verifyOrderLookupOtp(phoneE164, guestOtp.trim());
-      setGuestToken(res.verification_token);
-      setGuestVerifiedPhone(phoneE164);
-      push("Telefon tasdiqlandi", "success");
-    } catch (err) {
-      const message = err instanceof ApiError && err.message ? err.message : "Kod noto'g'ri yoki muddati o'tgan.";
-      push(message, "error");
-    } finally {
-      setOtpLoading(false);
-    }
+  const handleGuestVerified = (token: string, verifiedPhone: string) => {
+    setGuestToken(token);
+    setGuestVerifiedPhone(verifiedPhone);
   };
 
   const validatePhone = (): string | null => {
@@ -413,10 +368,9 @@ export function FastCheckout() {
     const phoneE164 = validatePhone();
     if (!phoneE164) return;
 
-    // Mehmon bo'lsa — telefon OTP bilan tasdiqlangan bo'lishi shart
+    // Mehmon bo'lsa — telefon kod bilan tasdiqlangan bo'lishi shart
     if (!isLoggedIn && !guestVerified) {
       push("Davom etish uchun telefon raqamingizni tasdiqlang", "error");
-      if (!guestOtpSent) void sendGuestOtp();
       return;
     }
 
@@ -609,60 +563,12 @@ export function FastCheckout() {
                 error={phoneError}
               />
               {authHydrated && !isLoggedIn ? (
-                guestVerified ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm font-medium text-emerald-700">
-                    <Phone className="h-4 w-4" />
-                    Telefon tasdiqlandi
-                  </div>
-                ) : (
-                  <div className="space-y-3 rounded-xl border border-electric-500/15 bg-electric-500/[0.03] p-3">
-                    {!guestOtpSent ? (
-                      <>
-                        <p className="text-xs text-ink-600">
-                          Buyurtmani tasdiqlash uchun raqamingizga SMS kod yuboramiz.
-                        </p>
-                        <Button
-                          variant="secondary"
-                          className="w-full"
-                          isLoading={otpLoading}
-                          disabled={otpLoading}
-                          onClick={sendGuestOtp}
-                        >
-                          SMS kod yuborish
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Input
-                          label="SMS kod"
-                          inputMode="numeric"
-                          placeholder="123456"
-                          value={guestOtp}
-                          onChange={(event) => setGuestOtp(event.target.value.replace(/\D/g, "").slice(0, 8))}
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            variant="brand"
-                            className="flex-1"
-                            isLoading={otpLoading}
-                            disabled={otpLoading}
-                            onClick={verifyGuestOtp}
-                          >
-                            Tasdiqlash
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className="shrink-0"
-                            disabled={otpLoading}
-                            onClick={sendGuestOtp}
-                          >
-                            Qayta yuborish
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )
+                <GuestPhoneVerify
+                  phoneE164={guestPhoneE164}
+                  phoneValid={guestPhoneValid}
+                  verified={guestVerified}
+                  onVerified={handleGuestVerified}
+                />
               ) : null}
               <Input
                 label="Email (ixtiyoriy)"

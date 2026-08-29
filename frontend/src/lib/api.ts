@@ -657,6 +657,17 @@ export async function sendOrderLookupOtp(user_phone: string): Promise<{
   return postJson("/orders/lookup/send-otp", { user_phone }, false, { silent: true });
 }
 
+/** Mehmon telefon tasdiqlash — bepul Telegram bot havolasi (kod bot chatiga keladi). */
+export async function startOrderLookupTelegram(user_phone: string): Promise<{
+  status: string;
+  phone: string;
+  delivery: string;
+  deep_link: string;
+  expires_in: number;
+}> {
+  return postJson("/orders/lookup/telegram-link", { user_phone }, false, { silent: true });
+}
+
 /** OTP tasdiqlash — verification_token qaytaradi. */
 export async function verifyOrderLookupOtp(
   user_phone: string,

@@ -475,6 +475,28 @@ async def lookup_orders_send_otp(
         raise HTTPException(status_code=status, detail=exc.message) from exc
 
 
+@router.post("/orders/lookup/telegram-link")
+async def lookup_orders_telegram_link(
+    payload: OrderLookupSendOtpRequest,
+    http_request: Request,
+) -> dict:
+    """Mehmon telefon tasdiqlash — bepul Telegram bot havolasi (kod bot chatiga keladi)."""
+    from app.infrastructure.messaging.phone_otp import PhoneOtpError, phone_otp_gateway
+
+    phone = payload.user_phone.strip()
+    if not PHONE_PATTERN.match(phone):
+        raise HTTPException(
+            status_code=400,
+            detail="Telefon raqami +998 (XX) XXX-XX-XX formatida bo'lishi kerak",
+        )
+    await _enforce_lookup_rate_limit(http_request, phone)
+    try:
+        return await phone_otp_gateway.issue_telegram_link(phone)
+    except PhoneOtpError as exc:
+        status = 503 if exc.code == "telegram_not_configured" else 400
+        raise HTTPException(status_code=status, detail=exc.message) from exc
+
+
 @router.post("/orders/lookup/verify-otp")
 async def lookup_orders_verify_otp(
     payload: OrderLookupRequest,

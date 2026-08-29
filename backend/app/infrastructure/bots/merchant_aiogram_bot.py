@@ -7,11 +7,11 @@ import logging
 import uuid
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from app.infrastructure.bots.fsm_storage import build_fsm_storage
 from aiogram.enums import ChatAction
-from aiogram.types import CallbackQuery, ErrorEvent, Message
+from aiogram.types import CallbackQuery, ErrorEvent, Message, ReplyKeyboardRemove
 
 from app.application.merchant.smart_alerts import run_merchant_smart_alerts
 from app.application.merchant.voice_handler import MerchantVoiceHandler
@@ -56,6 +56,79 @@ def _parse_shop_uuid(args: str | None) -> uuid.UUID | None:
         return None
 
 
+def _parse_verify_nonce(args: str | None) -> str | None:
+    raw = (args or "").strip()
+    if not raw.startswith("verify_"):
+        return None
+    return raw.removeprefix("verify_").strip() or None
+
+
+def _tgverify_chat_key(chat_id: int) -> str:
+    return f"otp:phone:tgverify:chat:{int(chat_id)}"
+
+
+async def _handle_guest_phone_verify(message: Message, nonce: str) -> None:
+    """Mehmon xaridor telefon tasdiqlash — SMS o'rniga bepul kanal.
+
+    1-qadam: /start verify_<nonce> — raqamni ulashishni so'raymiz.
+    2-qadam (on_guest_verify_contact): ulashgan raqam mos kelsa — kodni yuboramiz.
+    """
+    from app.infrastructure.messaging.phone_otp import phone_otp_gateway
+
+    phone = await phone_otp_gateway.resolve_telegram_link(nonce)
+    if phone is None:
+        await message.answer(
+            "⏱ Bu tasdiqlash havolasi eskirgan yoki allaqachon ishlatilgan.\n\n"
+            "Saytga qaytib «Telegram orqali kod olish» tugmasini qayta bosing."
+        )
+        return
+
+    await RedisCacheGateway().set(_tgverify_chat_key(message.chat.id), {"nonce": nonce}, 600)
+    masked = f"{phone[:7]}•••{phone[-2:]}"
+    await message.answer(
+        f"📱 <b>{masked}</b> raqamini tasdiqlash\n\n"
+        "Pastdagi tugma orqali Telegram raqamingizni ulashing — u saytda kiritgan "
+        "raqamga mos kelsa, tasdiqlash kodini shu yerga yuboramiz.",
+        parse_mode="HTML",
+        reply_markup=contact_keyboard(),
+    )
+
+
+@router.message(StateFilter(None), F.contact)
+async def on_guest_verify_contact(message: Message) -> None:
+    """Mehmon telefon tasdiqlash — ulashgan kontaktni tekshiramiz."""
+    if not message.contact:
+        return
+    pending = await RedisCacheGateway().get(_tgverify_chat_key(message.chat.id))
+    if not pending:
+        return
+    await RedisCacheGateway().delete(_tgverify_chat_key(message.chat.id))
+    nonce = str(pending.get("nonce") or "")
+
+    from app.infrastructure.messaging.phone_otp import phone_otp_gateway
+
+    result = await phone_otp_gateway.complete_telegram_link(
+        nonce, message.contact.phone_number or ""
+    )
+    if result is None:
+        await message.answer(
+            "❌ Ulashgan raqam saytda kiritilgan raqamga mos kelmadi yoki havola eskirgan.\n\n"
+            "Saytga qaytib to'g'ri raqam bilan qayta urinib ko'ring.",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        return
+
+    _phone, otp = result
+    await message.answer(
+        "🔐 <b>Bozorliii tasdiqlash kodi</b>\n\n"
+        f"<code>{otp}</code>\n\n"
+        "Kodni saytdagi oynaga kiriting. Amal qilish muddati — 5 daqiqa.\n"
+        "Bu kodni hech kimga bermang.",
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, state: FSMContext) -> None:
     if message.from_user:
@@ -63,6 +136,11 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             telegram_id=message.from_user.id,
             username=message.from_user.username,
         )
+
+    verify_nonce = _parse_verify_nonce(command.args)
+    if verify_nonce is not None:
+        await _handle_guest_phone_verify(message, verify_nonce)
+        return
 
     shop_uuid = _parse_shop_uuid(command.args)
     if shop_uuid is None:
