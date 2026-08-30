@@ -128,7 +128,12 @@ class TransactionSplitterService:
         try:
             tx = await self._repo.get_transaction_by_order_for_update(order_id)
             if not tx:
-                raise TransactionSplitterError("platform_transaction_not_found")
+                # Cash / offline-pickup order: it never went through online payment,
+                # so there is no escrow to release. This is the normal path for most
+                # bozor pickups — not an error. Commission is handled as merchant debt.
+                await self._session.rollback()
+                log.info("no escrow transaction — cash/offline order, nothing to release")
+                return {"status": "skipped", "reason": "no_escrow_transaction"}
             if tx.status == PlatformTransactionStatus.RELEASED_TO_MERCHANT.value:
                 await self._session.commit()
                 return self._result_payload(tx, idempotent_replay=True)
