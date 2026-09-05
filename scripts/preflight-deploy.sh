@@ -57,9 +57,17 @@ else
   ok "TELEGRAM_BOT_TOKEN"
 fi
 
-check_not_placeholder GROQ_API_KEY
-
 groq="$(env_val GROQ_API_KEY)"
+azure_key="$(env_val AZURE_OPENAI_API_KEY)"
+azure_endpoint="$(env_val AZURE_OPENAI_ENDPOINT)"
+if [[ -n "$groq" && "$groq" != CHANGE_ME* ]]; then
+  ok "Groq chat/vision provider"
+elif [[ -n "$azure_key" && "$azure_key" != CHANGE_ME* && -n "$azure_endpoint" && "$azure_endpoint" != CHANGE_ME* ]]; then
+  ok "Azure chat/vision provider"
+else
+  die "GROQ_API_KEY or both AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT are required"
+fi
+
 google="$(env_val GOOGLE_API_KEY)"
 openai="$(env_val OPENAI_API_KEY)"
 if [[ -z "$google" && -z "$openai" ]]; then

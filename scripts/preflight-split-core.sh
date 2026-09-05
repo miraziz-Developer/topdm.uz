@@ -44,7 +44,17 @@ required POSTGRES_PASSWORD
 required_secret JWT_SECRET
 required_secret ADMIN_API_KEY
 required TELEGRAM_BOT_TOKEN
-required GROQ_API_KEY
+
+groq="$(val GROQ_API_KEY)"
+azure_key="$(val AZURE_OPENAI_API_KEY)"
+azure_endpoint="$(val AZURE_OPENAI_ENDPOINT)"
+if [[ -n "$groq" && "$groq" != CHANGE_ME* ]]; then
+  ok "Groq chat/vision provider"
+elif [[ -n "$azure_key" && "$azure_key" != CHANGE_ME* && -n "$azure_endpoint" && "$azure_endpoint" != CHANGE_ME* ]]; then
+  ok "Azure chat/vision provider"
+else
+  die "GROQ_API_KEY or both AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT are required"
+fi
 
 if [[ -z "$(val GOOGLE_API_KEY)" && -z "$(val OPENAI_API_KEY)" ]]; then
   die "GOOGLE_API_KEY or OPENAI_API_KEY is required"
