@@ -19,7 +19,7 @@ interface ReelItem {
 }
 
 const PREVIEW_LIMIT = 12;
-const CARD_WIDTH = "w-[100px] sm:w-[112px]";
+const CARD_WIDTH = "w-[clamp(88px,29vw,112px)]";
 
 function fmt(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
@@ -98,20 +98,20 @@ export function ReelsPreviewStrip() {
 
   return (
     <section className="py-4">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="rounded-3xl border border-border-100 bg-white/85 p-3 shadow-[0_10px_30px_rgba(3,3,8,0.06)] backdrop-blur-sm sm:p-4">
+      <div className="mx-auto max-w-7xl px-2.5 min-[360px]:px-4 sm:px-6">
+        <div className="rounded-[1.35rem] border border-border-100 bg-white/85 p-2.5 shadow-[0_10px_30px_rgba(3,3,8,0.06)] backdrop-blur-sm min-[360px]:rounded-3xl min-[360px]:p-3 sm:p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-neon-500 to-electric-500">
                 <Film className="h-4 w-4 text-white" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-sm font-bold text-text-100">Reels</h2>
-                <p className="text-[11px] text-text-400">Do&apos;konlar videolari</p>
+                <p className="truncate text-[10px] text-text-400 min-[360px]:text-[11px]">Do&apos;konlar videolari</p>
               </div>
             </div>
-            <Link href="/reels" className="shrink-0 text-xs font-bold text-electric-500 transition hover:underline">
-              Barchasini ko&apos;rish →
+            <Link href="/reels" className="shrink-0 whitespace-nowrap text-[10px] font-bold text-electric-500 transition hover:underline min-[360px]:text-xs">
+              <span className="max-[319px]:hidden">Barchasini </span>ko&apos;rish →
             </Link>
           </div>
 

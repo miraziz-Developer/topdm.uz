@@ -17,26 +17,26 @@ export function HomeSaleHero() {
   const products = useMemo(() => (data?.items ?? []).slice(0, 3), [data?.items]);
 
   return (
-    <section className="px-3 pb-7 pt-3 sm:px-5 sm:pb-10 sm:pt-5" aria-labelledby="home-hero-title">
-      <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[1.75rem] bg-[#0c172e] text-white shadow-[0_28px_70px_-36px_rgba(12,23,46,.75)] sm:rounded-[2.25rem]">
+    <section className="px-2.5 pb-6 pt-2.5 min-[360px]:px-3 min-[360px]:pb-7 min-[360px]:pt-3 sm:px-5 sm:pb-10 sm:pt-5" aria-labelledby="home-hero-title">
+      <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[1.5rem] bg-[#0c172e] text-white shadow-[0_28px_70px_-36px_rgba(12,23,46,.75)] min-[360px]:rounded-[1.75rem] sm:rounded-[2.25rem]">
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
           <div className="absolute -right-40 -top-64 h-[38rem] w-[38rem] rounded-full bg-blue-500/20 blur-3xl" />
           <div className="absolute -bottom-56 left-1/4 h-96 w-96 rounded-full bg-violet-500/10 blur-3xl" />
           <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:42px_42px]" />
         </div>
 
-        <div className="relative grid min-h-[32rem] items-center gap-10 px-5 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.05fr_.95fr] lg:px-16 lg:py-16">
+        <div className="relative grid min-h-[29rem] items-center gap-8 px-4 py-8 min-[360px]:min-h-[31rem] min-[360px]:px-5 min-[360px]:py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.05fr_.95fr] lg:px-16 lg:py-16">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-300/10 px-3 py-1.5 text-xs font-bold text-blue-200">
               <BadgeCheck className="h-4 w-4" aria-hidden /> Mahalliy bozoringiz — endi onlayn
             </div>
-            <h1 id="home-hero-title" className="mt-5 text-balance text-[2.35rem] font-black leading-[1.04] tracking-[-0.045em] sm:text-5xl lg:text-[3.8rem]">
+            <h1 id="home-hero-title" className="mt-5 text-balance text-[clamp(1.85rem,10.5vw,2.35rem)] font-black leading-[1.06] tracking-[-0.04em] sm:text-5xl lg:text-[3.8rem]">
               Kerakli mahsulotni <span className="text-blue-300">tezroq toping.</span>
             </h1>
-            <p className="mt-5 max-w-xl text-pretty text-base font-medium leading-7 text-slate-300 sm:text-lg sm:leading-8">
+            <p className="mt-4 max-w-xl text-pretty text-sm font-medium leading-6 text-slate-300 min-[360px]:mt-5 min-[360px]:text-base min-[360px]:leading-7 sm:text-lg sm:leading-8">
               Bozor do‘konlari, real narxlar va mahsulotlar bitta joyda. Qidiring, taqqoslang va sotuvchidan oldindan band qiling.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-2.5 min-[360px]:mt-8 min-[360px]:gap-3 sm:flex-row">
               <Link href="/search" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#2468e8] px-6 text-sm font-bold text-white shadow-[0_12px_30px_-12px_rgba(36,104,232,.9)] transition hover:-translate-y-0.5 hover:bg-[#3274ee] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/30">
                 <Search className="h-4 w-4" aria-hidden /> Mahsulot qidirish
               </Link>

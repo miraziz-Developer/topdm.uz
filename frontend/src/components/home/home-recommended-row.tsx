@@ -40,7 +40,7 @@ export function HomeRecommendedRow({ products, loading, category, onCategoryChan
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+    <section className="mx-auto max-w-7xl px-2.5 py-4 min-[360px]:px-4 sm:px-6">
       <h2 className="text-base font-bold text-ink-900">Sizga tavsiya</h2>
       <p className="mt-0.5 text-xs text-ink-500">Qiziqishlaringiz bo&apos;yicha tanlang</p>
 

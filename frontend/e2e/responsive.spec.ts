@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 const viewports = [
+  { name: "extra small phone", width: 280, height: 653 },
   { name: "small phone", width: 320, height: 568 },
+  { name: "compact phone", width: 360, height: 640 },
   { name: "phone", width: 375, height: 667 },
   { name: "large phone", width: 390, height: 844 },
+  { name: "extra large phone", width: 430, height: 932 },
   { name: "tablet", width: 768, height: 1024 },
   { name: "desktop", width: 1440, height: 900 },
 ] as const;
@@ -45,6 +48,13 @@ for (const viewport of viewports) {
             { message: `${route} overflows horizontally at ${viewport.width}px` },
           )
           .toBeLessThanOrEqual(0);
+
+        const pageBounds = await page.locator("body").evaluate((body) => {
+          const rect = body.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, viewport: window.innerWidth };
+        });
+        expect(pageBounds.left, `${route} body starts outside the viewport`).toBeGreaterThanOrEqual(0);
+        expect(pageBounds.right, `${route} body exceeds the viewport`).toBeLessThanOrEqual(pageBounds.viewport);
       });
     }
   });

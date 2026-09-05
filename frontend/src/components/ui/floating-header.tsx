@@ -99,7 +99,7 @@ export function FloatingHeader() {
       )}
     >
       {/* Single-row flex — never wraps */}
-      <div className="mx-auto flex h-full max-w-7xl flex-nowrap items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:gap-4 lg:px-6">
+      <div className="mx-auto flex h-full max-w-7xl flex-nowrap items-center gap-1.5 px-2.5 min-[360px]:gap-2 min-[360px]:px-3 sm:gap-3 sm:px-4 lg:gap-4 lg:px-6">
 
         {/* Logo — fixed width, never shrinks */}
         <div className="shrink-0">
@@ -133,7 +133,7 @@ export function FloatingHeader() {
         </div>
 
         {/* Right actions — fixed, no-wrap */}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 max-[359px]:hidden">
           <LocaleCurrencyNav className="hidden lg:flex" />
 
           <OrderNotificationsBell />

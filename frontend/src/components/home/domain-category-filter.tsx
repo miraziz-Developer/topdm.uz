@@ -16,7 +16,7 @@ export function DomainCategoryFilter({ value, onChange, className }: DomainCateg
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <section className={cn("mx-auto max-w-7xl px-4 sm:px-6", className)} aria-label="Kategoriya filtri">
+    <section className={cn("mx-auto max-w-7xl px-2.5 min-[360px]:px-4 sm:px-6", className)} aria-label="Kategoriya filtri">
       <div
         ref={scrollerRef}
         className="scrollbar-hide -mx-1 flex gap-2 overflow-x-auto px-1 pb-2 pt-2"
@@ -32,7 +32,7 @@ export function DomainCategoryFilter({ value, onChange, className }: DomainCateg
               aria-selected={active}
               onClick={() => onChange(category.id)}
               className={cn(
-                "relative shrink-0 rounded-full px-4 py-2.5 text-sm font-semibold transition-all duration-300",
+                "relative shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition-all duration-300 min-[360px]:px-4 min-[360px]:py-2.5 min-[360px]:text-sm",
                 "hover:scale-[1.02] active:scale-[0.98]",
                 active
                   ? "text-white"

@@ -46,19 +46,19 @@ export function HomeDealsRow({ variant, products, loading }: Props) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.45, ease: "easeOut" }}
-      className={`mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4 bg-gradient-to-r ${cfg.bg}`}
+      className={`mx-auto max-w-7xl px-2.5 py-3 min-[360px]:px-4 sm:px-6 sm:py-4 bg-gradient-to-r ${cfg.bg}`}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-border-subtle ${cfg.accent}`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-border-subtle min-[360px]:h-9 min-[360px]:w-9 ${cfg.accent}`}>
             <Icon className="h-4 w-4" />
           </span>
-          <div>
-            <h2 className="text-sm font-bold text-ink-900">{cfg.title}</h2>
-            <p className="text-[11px] text-ink-500">{cfg.subtitle}</p>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-bold text-ink-900">{cfg.title}</h2>
+            <p className="truncate text-[10px] text-ink-500 min-[360px]:text-[11px]">{cfg.subtitle}</p>
           </div>
         </div>
-        <Link href={cfg.href} className="text-xs font-bold text-electric-500 hover:underline">
+        <Link href={cfg.href} className="shrink-0 whitespace-nowrap text-[11px] font-bold text-electric-500 hover:underline min-[360px]:text-xs">
           Hammasi →
         </Link>
       </div>

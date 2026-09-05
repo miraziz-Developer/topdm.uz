@@ -32,7 +32,7 @@ export function DealProductCard({ product, variant = "lightning" }: Props) {
   return (
     <Link
       href={`/product/${product.id}`}
-      className={`group flex w-[140px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg sm:w-[152px] ${
+      className={`group flex w-[min(42vw,152px)] min-w-[112px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg ${
         variant === "lightning"
           ? "border-neon-500/20 ring-1 ring-neon-500/10 hover:border-neon-500/40 hover:ring-neon-500/25"
           : "border-amber-500/20 ring-1 ring-amber-500/10 hover:border-amber-500/40 hover:ring-amber-500/25"

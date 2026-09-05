@@ -84,7 +84,9 @@
 
 html {
   overflow-x: clip;
-  min-width: 320px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -92,6 +94,9 @@ html {
 body {
   margin: 0;
   overflow-x: clip;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 100dvh;
   min-height: -webkit-fill-available;
   background: var(--bg-canvas);
@@ -116,7 +121,20 @@ body {
 }
 
 :where(input, select, textarea) {
+  min-width: 0;
   max-width: 100%;
+}
+
+img,
+video,
+svg {
+  max-width: 100%;
+}
+
+@media (max-width: 359px) {
+  :root {
+    --app-bottom-nav-h: 5.25rem;
+  }
 }
 
 :where(a, button, input, select, textarea):focus-visible {
