@@ -29,7 +29,7 @@ def test_click_pay_url_contains_required_params():
     url = build_click_pay_url(
         amount_uzs=150_000,
         transaction_param="checkout-1",
-        return_url="https://bozorliii.uz/orders",
+        return_url="https://bozorliii.online/orders",
         settings=settings,
     )
     parsed = urlparse(url)
@@ -39,7 +39,7 @@ def test_click_pay_url_contains_required_params():
     assert qs["merchant_id"] == ["MID777"]
     assert qs["amount"] == ["150000.00"]
     assert qs["transaction_param"] == ["checkout-1"]
-    assert qs["return_url"] == ["https://bozorliii.uz/orders"]
+    assert qs["return_url"] == ["https://bozorliii.online/orders"]
 
 
 def test_click_pay_url_sandbox_uses_sandbox_service():

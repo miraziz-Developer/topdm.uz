@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -75,7 +75,7 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     try:
         payload = decode_access_token(token)
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token") from exc
     return await _user_from_payload(payload, db)
 
@@ -90,7 +90,7 @@ async def get_optional_user(
         return None
     try:
         payload = decode_access_token(token)
-    except JWTError:
+    except InvalidTokenError:
         return None
     try:
         return await _user_from_payload(payload, db)

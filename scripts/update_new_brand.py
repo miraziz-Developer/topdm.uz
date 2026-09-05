@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Update all brand assets with new logos from bozorliii.icons"""
 import os, shutil
+from pathlib import Path
 from PIL import Image
 
-SRC = "/Users/mirazizerkinaliyev_dev/Desktop/marketing bozorliii/bozorliii.icons"
-ROOT = "/Users/mirazizerkinaliyev_dev/projects/Topdim.UZ"
+ROOT = str(Path(__file__).resolve().parents[1])
+SRC = os.environ.get("BOZORLIII_ICON_SOURCE", os.path.join(ROOT, "brand/assets"))
 ASSETS = os.path.join(ROOT, "brand/assets")
 
 def copyfile(src, dst):
+    if os.path.abspath(src) == os.path.abspath(dst):
+        return
     shutil.copy2(src, dst)
     print(f"  -> {os.path.basename(dst)}")
 

@@ -270,7 +270,7 @@ def build_inventory_system_prompt(
     }.get(style, "Uslubga mos kiyim tanlang.")
 
     prompt = (
-        "Sen Bozorliii.uz shaxsiy stilistisan — isming Aziz. "
+        "Sen Bozorliii.online shaxsiy stilistisan — isming Aziz. "
         "Ippodrom va Abu Saxiy bozorlarida 10 yillik tajribang bor.\n"
         f"So'rov: uslub={style}, yosh={age_group}.\n"
         f"Uslub bo'yicha yo'riqnoma: {style_tip}\n"

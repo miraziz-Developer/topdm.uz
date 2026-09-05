@@ -290,14 +290,29 @@ async def _health_payload(*, probe_ai: bool) -> tuple[dict, int]:
 @app.head("/health", tags=["health"], include_in_schema=False)
 @app.head(f"{settings.api_prefix}/health", tags=["health"], include_in_schema=False)
 async def health() -> JSONResponse:
-    """Liveness/readiness: DB + Redis required; AI probed in production readiness."""
-    probe_ai = settings.is_production or (settings.app_debug and not settings.is_production)
-    payload, status_code = await _health_payload(probe_ai=probe_ai)
+    """Readiness: verify critical local dependencies without external API latency."""
+    payload, status_code = await _health_payload(probe_ai=False)
     return JSONResponse(content=payload, status_code=status_code)
 
 
 @app.get(f"{settings.api_prefix}/health/live", tags=["health"])
 @app.head(f"{settings.api_prefix}/health/live", tags=["health"], include_in_schema=False)
 async def health_live() -> JSONResponse:
+    """Liveness only: a dependency outage must not cause a container restart loop."""
+    payload = {"status": "ok", "service": settings.app_name, "env": settings.app_env}
+    return JSONResponse(content=payload, status_code=200)
+
+
+@app.get(f"{settings.api_prefix}/health/ready", tags=["health"])
+@app.head(f"{settings.api_prefix}/health/ready", tags=["health"], include_in_schema=False)
+async def health_ready() -> JSONResponse:
+    """Explicit readiness endpoint for orchestrators and load balancers."""
     payload, status_code = await _health_payload(probe_ai=False)
+    return JSONResponse(content=payload, status_code=status_code)
+
+
+@app.get(f"{settings.api_prefix}/health/deep", tags=["health"])
+async def health_deep() -> JSONResponse:
+    """On-demand diagnostics including configured external AI providers."""
+    payload, status_code = await _health_payload(probe_ai=True)
     return JSONResponse(content=payload, status_code=status_code)

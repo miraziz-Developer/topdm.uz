@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 import io
 import json
 import logging
@@ -553,5 +554,18 @@ async def run_merchant_bot_polling() -> None:
     dp.include_router(order_router)
     dp.include_router(bulk_router)
     dp.include_router(router)
-    asyncio.create_task(_smart_alerts_loop())
-    await dp.start_polling(bot)
+    alerts_task: asyncio.Task[None] | None = None
+    try:
+        identity = await bot.get_me()
+        logger.info("merchant_bot_authenticated", extra={"bot_id": identity.id, "username": identity.username})
+        # Polling and webhook delivery are mutually exclusive. Preserve queued updates.
+        await bot.delete_webhook(drop_pending_updates=False)
+        alerts_task = asyncio.create_task(_smart_alerts_loop(), name="merchant-smart-alerts")
+        await dp.start_polling(bot, handle_signals=True)
+    finally:
+        if alerts_task is not None:
+            alerts_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await alerts_task
+        await dp.storage.close()
+        await bot.session.close()

@@ -1,1 +1,1 @@
-# Bozorliii.uz — Merchant billing & monetization engine
+# Bozorliii.online — Merchant billing & monetization engine

@@ -40,6 +40,7 @@ from app.application.merchant.telegram_variant_draft import (
     toggle_size,
 )
 from app.core.config import get_settings
+from app.infrastructure.bots.callback_payload import parse_callback_int, parse_callback_uuid
 from app.infrastructure.bots.merchant_states import MerchantBotStates
 from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 from app.infrastructure.db.session import AsyncSessionFactory
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 prod_router = Router(name="merchant_product")
 _AI_VISION_TIMEOUT_SEC = 45.0
 _PUBLISH_TIMEOUT_SEC = 90.0
+
 
 # Tahrir/qo'lda kiritish holatlari — bu yerda menyu tugmalari yoki /start "boshi berk" bo'lib qolmasin.
 _EDIT_ESCAPE_STATES = (
@@ -165,7 +167,7 @@ def _parse_price_from_caption(caption: str | None) -> int | None:
 
 def _parse_stock_from_caption(caption: str | None) -> int | None:
     """Izohdan dona/miqdorni o'qiydi.
-    
+
     Qo'llab-quvvatlanadigan formatlar:
     - "10 dona", "10ta", "10 ta", "10 штук", "10 шт"
     - "dona:10", "miqdor:10"
@@ -236,11 +238,29 @@ def _cb(data: str) -> str:
     return data
 
 
+async def _state_uuid_or_reset(
+    state: FSMContext,
+    message: Message,
+    value: object,
+) -> uuid.UUID | None:
+    parsed = parse_callback_uuid(str(value)) if value else None
+    if parsed is None:
+        await state.set_state(MerchantBotStates.ready)
+        await message.answer("Qoralama eskirgan yoki noto‘g‘ri. Amalni qayta boshlang.")
+    return parsed
+
+
 async def _pending_id_from_state(state: FSMContext, *, explicit: str | None = None) -> str | None:
-    if explicit:
-        return explicit
-    data = await state.get_data()
-    return data.get("active_pending_id") or data.get("edit_pending_id")
+    value = explicit
+    if not value:
+        data = await state.get_data()
+        value = data.get("active_pending_id") or data.get("edit_pending_id")
+    parsed = parse_callback_uuid(str(value)) if value else None
+    return str(parsed) if parsed else None
+
+
+async def _reject_malformed_callback(query: CallbackQuery) -> None:
+    await query.answer("Bu tugma eskirgan yoki noto‘g‘ri. Menyudan qayta oching.", show_alert=True)
 
 
 def _format_preview(attrs: dict, *, category_name: str | None = None) -> str:
@@ -529,6 +549,9 @@ async def on_manual_product_price(message: Message, state: FSMContext) -> None:
         await state.set_state(MerchantBotStates.ready)
         await message.answer("Qoralama topilmadi. Qayta boshlang.")
         return
+    pending_uuid = await _state_uuid_or_reset(state, message, pending_id)
+    if pending_uuid is None:
+        return
     digits = "".join(c for c in (message.text or "") if c.isdigit())
     if not digits:
         await message.answer("Faqat raqam kiriting.")
@@ -541,7 +564,7 @@ async def on_manual_product_price(message: Message, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -681,10 +704,9 @@ async def prod_cat_page(query: CallbackQuery) -> None:
         await query.answer()
         return
     pending_id, page_s = parts[2], parts[3]
-    try:
-        page = int(page_s)
-    except (TypeError, ValueError):
-        await query.answer()
+    page = parse_callback_int(page_s, maximum=100)
+    if page is None or parse_callback_uuid(pending_id) is None:
+        await query.answer("Bu tugma eskirgan. Bo‘lim tanlashni qayta oching.", show_alert=True)
         return
     async with AsyncSessionFactory() as session:
         kb = await _category_keyboard(session, pending_id, page=page)
@@ -695,7 +717,12 @@ async def prod_cat_page(query: CallbackQuery) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:cat:"))
 async def prod_pick_category(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     await state.update_data(active_pending_id=pending_id)
     async with AsyncSessionFactory() as session:
         kb = await _category_keyboard(session, pending_id, page=0)
@@ -720,10 +747,18 @@ async def prod_pick_subcategory(query: CallbackQuery, state: FSMContext) -> None
     if len(parts) < 3:
         await query.answer()
         return
-    parent_id = parts[2]
+    parent_uuid = parse_callback_uuid(parts[2])
+    if parent_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    parent_id = str(parent_uuid)
     pending_id = await _pending_id_from_state(state)
     if not pending_id:
         await query.answer("Qoralama topilmadi — rasmni qayta yuboring", show_alert=True)
+        return
+    pending_uuid = parse_callback_uuid(pending_id)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
         return
     async with AsyncSessionFactory() as session:
         kb, parent_label = await _subcategory_keyboard(session, pending_id, parent_id, page=0)
@@ -742,7 +777,12 @@ async def prod_subcategory_page(query: CallbackQuery, state: FSMContext) -> None
         await query.answer()
         return
     parent_id, page_s = parts[2], parts[3]
-    page = int(page_s)
+    parent_uuid = parse_callback_uuid(parent_id)
+    page = parse_callback_int(page_s, maximum=100)
+    if page is None or parent_uuid is None:
+        await query.answer("Bu tugma eskirgan. Bo‘lim tanlashni qayta oching.", show_alert=True)
+        return
+    parent_id = str(parent_uuid)
     pending_id = await _pending_id_from_state(state)
     if not pending_id:
         await query.answer("Qoralama topilmadi", show_alert=True)
@@ -760,10 +800,18 @@ async def prod_set_category(query: CallbackQuery, state: FSMContext) -> None:
     if len(parts) < 3:
         await query.answer()
         return
-    cat_id_s = parts[2]
+    category_uuid = parse_callback_uuid(parts[2])
+    if category_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    cat_id_s = str(category_uuid)
     pending_id = await _pending_id_from_state(state)
     if not pending_id:
         await query.answer("Qoralama topilmadi", show_alert=True)
+        return
+    pending_uuid = parse_callback_uuid(pending_id)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
         return
     if not query.message:
         await query.answer()
@@ -774,7 +822,7 @@ async def prod_set_category(query: CallbackQuery, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await query.answer("Qoralama topilmadi")
             return
@@ -782,7 +830,7 @@ async def prod_set_category(query: CallbackQuery, state: FSMContext) -> None:
         attrs["category_id"] = cat_id_s
         from app.infrastructure.db.models import CategoryModel
 
-        cat_row = await session.get(CategoryModel, uuid.UUID(cat_id_s))
+        cat_row = await session.get(CategoryModel, category_uuid)
         cat_name = cat_row.name if cat_row else None
         parent_name = None
         if cat_row and cat_row.parent_id:
@@ -803,7 +851,12 @@ async def prod_set_category(query: CallbackQuery, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:sizes:"))
 async def prod_pick_sizes(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     if not query.message:
         await query.answer()
         return
@@ -813,7 +866,7 @@ async def prod_pick_sizes(query: CallbackQuery, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await query.answer("Qoralama topilmadi")
             return
@@ -836,6 +889,11 @@ async def prod_toggle_size(query: CallbackQuery, state: FSMContext) -> None:
         await query.answer()
         return
     pending_id, size = parts[2], parts[3]
+    pending_uuid = parse_callback_uuid(pending_id)
+    if pending_uuid is None or not size or len(size) > 20:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     if not query.message:
         await query.answer()
         return
@@ -845,7 +903,7 @@ async def prod_toggle_size(query: CallbackQuery, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await query.answer("Qoralama topilmadi")
             return
@@ -863,7 +921,12 @@ async def prod_toggle_size(query: CallbackQuery, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:addcolor:"))
 async def prod_add_color_start(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     await state.set_state(MerchantBotStates.product_add_color_name)
     await state.update_data(edit_pending_id=pending_id)
     if query.message:
@@ -906,6 +969,9 @@ async def prod_add_color_photo(message: Message, state: FSMContext, bot: Bot) ->
     if not pending_id or not color_name:
         await state.set_state(MerchantBotStates.ready)
         return
+    pending_uuid = await _state_uuid_or_reset(state, message, pending_id)
+    if pending_uuid is None:
+        return
     photo = message.photo[-1]
     shop_id = await _resolve_shop_id(state, int(message.chat.id))
     if not shop_id:
@@ -914,7 +980,7 @@ async def prod_add_color_photo(message: Message, state: FSMContext, bot: Bot) ->
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -946,13 +1012,16 @@ async def prod_add_color_done(message: Message, state: FSMContext) -> None:
     if not pending_id:
         await state.set_state(MerchantBotStates.ready)
         return
+    pending_uuid = await _state_uuid_or_reset(state, message, pending_id)
+    if pending_uuid is None:
+        return
     shop_id = await _resolve_shop_id(state, int(message.chat.id))
     if not shop_id:
         await state.set_state(MerchantBotStates.ready)
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -967,7 +1036,12 @@ async def prod_add_color_done(message: Message, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:back:"))
 async def prod_back_preview(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     if not query.message:
         await query.answer()
         return
@@ -977,7 +1051,7 @@ async def prod_back_preview(query: CallbackQuery, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await query.answer()
             return
@@ -992,7 +1066,12 @@ async def prod_back_preview(query: CallbackQuery, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:stock:"))
 async def prod_edit_stock(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     await state.set_state(MerchantBotStates.product_edit_stock)
     await state.update_data(edit_pending_id=pending_id)
     if query.message:
@@ -1010,6 +1089,9 @@ async def prod_save_stock(message: Message, state: FSMContext) -> None:
     if not pending_id:
         await state.set_state(MerchantBotStates.ready)
         return
+    pending_uuid = await _state_uuid_or_reset(state, message, pending_id)
+    if pending_uuid is None:
+        return
     digits = "".join(c for c in (message.text or "") if c.isdigit())
     if not digits:
         await message.answer("Faqat raqam kiriting (masalan: 10).")
@@ -1025,7 +1107,7 @@ async def prod_save_stock(message: Message, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -1044,7 +1126,12 @@ async def prod_save_stock(message: Message, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:price:"))
 async def prod_edit_price(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     await state.set_state(MerchantBotStates.product_edit_price)
     await state.update_data(edit_pending_id=pending_id)
     if query.message:
@@ -1054,7 +1141,12 @@ async def prod_edit_price(query: CallbackQuery, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:ht:"))
 async def prod_edit_hashtags(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     await state.set_state(MerchantBotStates.product_edit_hashtags)
     await state.update_data(edit_pending_id=pending_id)
     if query.message:
@@ -1072,6 +1164,9 @@ async def prod_save_hashtags(message: Message, state: FSMContext) -> None:
     if not pending_id:
         await state.set_state(MerchantBotStates.ready)
         return
+    pending_uuid = await _state_uuid_or_reset(state, message, pending_id)
+    if pending_uuid is None:
+        return
     shop_id = await _resolve_shop_id(state, int(message.chat.id))
     if not shop_id:
         await message.answer("Chat do'konga ulanmagan. /start bilan qayta ulang.")
@@ -1079,7 +1174,7 @@ async def prod_save_hashtags(message: Message, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -1102,7 +1197,12 @@ async def prod_save_hashtags(message: Message, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:name:"))
 async def prod_edit_name(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     await state.set_state(MerchantBotStates.product_edit_name)
     await state.update_data(edit_pending_id=pending_id)
     if query.message:
@@ -1116,6 +1216,9 @@ async def prod_save_price(message: Message, state: FSMContext) -> None:
     pending_id = data.get("edit_pending_id")
     if not pending_id:
         await state.set_state(MerchantBotStates.ready)
+        return
+    pending_uuid = await _state_uuid_or_reset(state, message, pending_id)
+    if pending_uuid is None:
         return
     digits = "".join(c for c in (message.text or "") if c.isdigit())
     if not digits:
@@ -1132,7 +1235,7 @@ async def prod_save_price(message: Message, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -1158,6 +1261,9 @@ async def prod_save_name(message: Message, state: FSMContext) -> None:
     if not pending_id or len(name) < 2:
         await message.answer("Nom kamida 2 belgi.")
         return
+    pending_uuid = await _state_uuid_or_reset(state, message, pending_id)
+    if pending_uuid is None:
+        return
     shop_id = await _resolve_shop_id(state, int(message.chat.id))
     if not shop_id:
         await message.answer("Chat do'konga ulanmagan. /start bilan qayta ulang.")
@@ -1165,7 +1271,7 @@ async def prod_save_name(message: Message, state: FSMContext) -> None:
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+        row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
         if not row:
             await message.answer("Qoralama topilmadi.")
             await state.set_state(MerchantBotStates.ready)
@@ -1183,7 +1289,12 @@ async def prod_save_name(message: Message, state: FSMContext) -> None:
 
 @prod_router.callback_query(F.data.startswith("prod:cancel:"))
 async def prod_cancel(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     if not query.message:
         await query.answer()
         return
@@ -1199,7 +1310,7 @@ async def prod_cancel(query: CallbackQuery, state: FSMContext) -> None:
             from app.application.merchant.schemas import RejectPendingProductRequest
 
             await svc.reject_pending_product(
-                uuid.UUID(pending_id),
+                pending_uuid,
                 shop_id=shop_id,
                 payload=RejectPendingProductRequest(reason="merchant_cancelled"),
             )
@@ -1224,7 +1335,12 @@ async def _resolve_pending_category_uuid(session, attrs: dict) -> uuid.UUID | No
 
 @prod_router.callback_query(F.data.startswith("prod:pub:"))
 async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
-    pending_id = (query.data or "").split(":", 2)[2]
+    parts = (query.data or "").split(":", 2)
+    pending_uuid = parse_callback_uuid(parts[2] if len(parts) == 3 else None)
+    if pending_uuid is None:
+        await _reject_malformed_callback(query)
+        return
+    pending_id = str(pending_uuid)
     if not query.message:
         await query.answer()
         return
@@ -1245,7 +1361,7 @@ async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
         async with asyncio.timeout(_PUBLISH_TIMEOUT_SEC):
             async with AsyncSessionFactory() as session:
                 repo = MarketplaceRepository(session)
-                row = await repo.get_pending_product(uuid.UUID(pending_id), shop_id=shop_id)
+                row = await repo.get_pending_product(pending_uuid, shop_id=shop_id)
                 if not row:
                     await query.message.answer("Qoralama topilmadi.")
                     return
@@ -1286,7 +1402,7 @@ async def prod_publish(query: CallbackQuery, state: FSMContext) -> None:
                 svc = MerchantProductService(session, notifier=notifier)
                 try:
                     result = await svc.publish_pending_product(
-                        uuid.UUID(pending_id),
+                        pending_uuid,
                         shop_id=shop_id,
                         payload=PublishPendingProductRequest(
                             name=str(attrs.get("product_name") or "Mahsulot"),
@@ -1429,7 +1545,11 @@ async def stock_list_page(query: CallbackQuery, state: FSMContext) -> None:
     if not query.message:
         await query.answer()
         return
-    page = int((query.data or "").split(":", 2)[2])
+    parts = (query.data or "").split(":", 2)
+    page = parse_callback_int(parts[2] if len(parts) == 3 else None, maximum=10_000)
+    if page is None:
+        await query.answer("Bu tugma eskirgan. Ombor ro‘yxatini qayta oching.", show_alert=True)
+        return
     shop_id = await _resolve_shop_id(state, int(query.message.chat.id))
     if not shop_id:
         await query.answer("Chat ulanmagan", show_alert=True)
@@ -1467,13 +1587,17 @@ async def stock_pick_product(query: CallbackQuery, state: FSMContext) -> None:
         await query.answer()
         return
     product_id = (query.data or "").split(":", 2)[2]
+    parsed_product_id = parse_callback_uuid(product_id)
+    if parsed_product_id is None:
+        await query.answer("Mahsulot havolasi noto‘g‘ri. Ro‘yxatni qayta oching.", show_alert=True)
+        return
     shop_id = await _resolve_shop_id(state, int(query.message.chat.id))
     if not shop_id:
         await query.answer("Chat ulanmagan", show_alert=True)
         return
     async with AsyncSessionFactory() as session:
         repo = MarketplaceRepository(session)
-        product = await repo.get_shop_product(shop_id, uuid.UUID(product_id))
+        product = await repo.get_shop_product(shop_id, parsed_product_id)
     if not product:
         await query.answer("Mahsulot topilmadi", show_alert=True)
         return
@@ -1497,6 +1621,9 @@ async def stock_save_quantity(message: Message, state: FSMContext) -> None:
     if not product_id_raw:
         await state.set_state(MerchantBotStates.ready)
         return
+    product_uuid = await _state_uuid_or_reset(state, message, product_id_raw)
+    if product_uuid is None:
+        return
     digits = "".join(c for c in (message.text or "") if c.isdigit())
     if not digits:
         await message.answer("Faqat raqam kiriting.")
@@ -1516,7 +1643,7 @@ async def stock_save_quantity(message: Message, state: FSMContext) -> None:
         svc = MerchantProductService(session, notifier=notifier)
         try:
             name, total = await svc.update_warehouse_stock(
-                uuid.UUID(str(product_id_raw)),
+                product_uuid,
                 shop_id=shop_id,
                 stock=stock,
             )

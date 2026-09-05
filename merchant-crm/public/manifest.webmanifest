@@ -1,6 +1,6 @@
 {
   "id": "/dashboard",
-  "name": "Bozorliii.uz Merchant CRM",
+  "name": "Bozorliii.online Merchant CRM",
   "short_name": "Bozorliii CRM",
   "description": "Bozorchilar uchun tezkor buyurtma va kuryer boshqaruvi",
   "start_url": "/dashboard/orders?source=pwa",

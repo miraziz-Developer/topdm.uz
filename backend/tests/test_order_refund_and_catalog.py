@@ -36,11 +36,11 @@ def test_order_status_email_html_escapes():
         title="Olib ketishga tayyor!",
         body="QR <test>",
         product_name="Ko'ylak",
-        order_url="https://bozorliii.uz/orders/abc",
+        order_url="https://bozorliii.online/orders/abc",
     )
     assert "&lt;test&gt;" in html
     assert "Ko'ylak" in html
-    assert "https://bozorliii.uz/orders/abc" in html
+    assert "https://bozorliii.online/orders/abc" in html
 
 
 @pytest.mark.asyncio

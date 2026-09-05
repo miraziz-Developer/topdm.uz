@@ -75,7 +75,7 @@ export function FloatingHeader() {
   // Auth pages: minimal header
   if (isAuthPage) {
     return (
-      <header className="safe-top fixed inset-x-0 top-0 z-50 h-14 border-b border-border-subtle bg-white/95 backdrop-blur-md sm:h-16">
+      <header className="safe-top fixed inset-x-0 top-0 z-50 h-14 border-b border-border-subtle bg-white/95 backdrop-blur-xl sm:h-16">
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6">
           <BozorliiiLogo variant="full" size="sm" href="/" />
           <Link
@@ -92,10 +92,10 @@ export function FloatingHeader() {
   return (
     <header
       className={cn(
-        "safe-top fixed inset-x-0 top-0 z-50 h-14 transition-all duration-200 sm:h-16",
+        "safe-top fixed inset-x-0 top-0 z-50 h-14 border-b transition-all duration-200 sm:h-16",
         scrolled
-          ? "border-b border-white/60 bg-white/92 shadow-[0_8px_32px_-12px_rgba(3,3,8,0.12)] backdrop-blur-2xl backdrop-saturate-150"
-          : "bg-white/80 backdrop-blur-xl backdrop-saturate-150",
+          ? "border-border-subtle bg-white/95 shadow-[0_10px_30px_-22px_rgba(15,23,42,0.35)] backdrop-blur-xl"
+          : "border-slate-200/60 bg-white/88 backdrop-blur-xl",
       )}
     >
       {/* Single-row flex — never wraps */}
@@ -118,7 +118,7 @@ export function FloatingHeader() {
             listening={listening}
             busy={isSearching}
             onPhotoFile={(file) => { void runPhotoSearch(file); }}
-            placeholder={isPhotoMode ? "Rasm qidiruv" : "AI qidiruv…"}
+            placeholder={isPhotoMode ? "Rasm orqali qidirish" : "Mahsulot yoki do‘kon qidiring"}
             className="w-full"
             showPhotoButton
             showVoiceButton

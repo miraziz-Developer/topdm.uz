@@ -53,7 +53,7 @@ Nginx WEB da `api` ni CORE ga proxy qiladi.
 ## 5. CORE server (Server 2)
 
 ```bash
-git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
+git clone https://github.com/miraziz-Developer/bozorliii.online.git /opt/bozorliii
 cd /opt/bozorliii
 bash scripts/split-bootstrap.sh core --web-private-ip WEB_PRIVATE_IP
 nano .env   # kalitlar: .env.core.example asosida
@@ -71,7 +71,7 @@ curl -s http://127.0.0.1:8000/health
 ## 6. WEB server (Server 1)
 
 ```bash
-git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
+git clone https://github.com/miraziz-Developer/bozorliii.online.git /opt/bozorliii
 cd /opt/bozorliii
 bash scripts/split-bootstrap.sh web --core-ip CORE_PRIVATE_IP
 nano .env

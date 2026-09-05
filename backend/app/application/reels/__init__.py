@@ -1,1 +1,1 @@
-# Bozorliii.uz Reels — TikTok Shop uslubida video commerce
+# Bozorliii.online Reels — TikTok Shop uslubida video commerce

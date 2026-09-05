@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-ENV_FILE="${ENV_FILE:-.env}"
+ENV_FILE="${1:-${ENV_FILE:-.env}}"
 fail=0
 warn=0
 
@@ -39,6 +39,17 @@ check_not_placeholder() {
 check_not_placeholder POSTGRES_PASSWORD
 check_not_placeholder JWT_SECRET
 check_not_placeholder ADMIN_API_KEY
+check_not_placeholder ADMIN_PANEL_PASSWORD
+check_not_placeholder ADMIN_PANEL_SECRET
+check_not_placeholder ADMIN_SESSION_SECRET
+
+for name in PRODUCTION APP_DEBUG ALLOW_DEV_MOCKS RUN_SEED; do
+  value="$(env_val "$name")"
+  case "$name:$value" in
+    PRODUCTION:true|APP_DEBUG:false|ALLOW_DEV_MOCKS:false|RUN_SEED:false) ok "$name=$value" ;;
+    *) die "$name has unsafe production value: ${value:-<empty>}" ;;
+  esac
+done
 
 if [[ -z "$(env_val TELEGRAM_BOT_TOKEN)" ]]; then
   die "TELEGRAM_BOT_TOKEN (merchant OTP + bot)"
@@ -65,14 +76,14 @@ fi
 
 crm_url="$(env_val MERCHANT_CRM_WEBAPP_URL)"
 if [[ -z "$crm_url" ]] || [[ "$crm_url" == http://localhost* ]]; then
-  warn_msg "MERCHANT_CRM_WEBAPP_URL — productionda https://crm.bozorliii.uz bo'lishi kerak"
+  warn_msg "MERCHANT_CRM_WEBAPP_URL — productionda https://crm.bozorliii.online bo'lishi kerak"
 else
   ok "MERCHANT_CRM_WEBAPP_URL"
 fi
 
 site_url="$(env_val SITE_URL)"
 if [[ -z "$site_url" ]] || [[ "$site_url" == http://localhost* ]]; then
-  warn_msg "SITE_URL — productionda https://bozorliii.uz"
+  warn_msg "SITE_URL — productionda https://bozorliii.online"
 else
   ok "SITE_URL"
 fi
@@ -108,7 +119,7 @@ if [[ "$media_backend" == "s3" ]]; then
   check_not_placeholder S3_SECRET_ACCESS_KEY
   s3_public="$(env_val S3_PUBLIC_BASE_URL)"
   if [[ -z "$s3_public" ]] || [[ "$s3_public" != https://* ]]; then
-    die "S3_PUBLIC_BASE_URL — https://media.bozorliii.uz (CDN) majburiy"
+    die "S3_PUBLIC_BASE_URL — https://media.bozorliii.online (CDN) majburiy"
   else
     ok "S3_PUBLIC_BASE_URL (CDN)"
   fi

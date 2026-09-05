@@ -127,5 +127,3 @@ export function BozorliiiLogo({
 
   return lockup;
 }
-
-export const TopdimLogo = BozorliiiLogo;

@@ -3,7 +3,7 @@
 Monorepo — bitta repository, bir nechta mustaqil ilova. Har bir papka o‘z vazifasiga ega.
 
 ```
-Topdim.UZ/
+bozorliii.online/
 ├── backend/                 # API server (Python / FastAPI)
 ├── frontend/                # Mijoz web (Next.js PWA)
 ├── merchant-crm/            # Sotuvchi panel (Next.js)

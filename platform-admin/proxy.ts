@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { ADMIN_SESSION_COOKIE } from "@/lib/admin-session";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
   const authed = Boolean(token && token.length > 20);

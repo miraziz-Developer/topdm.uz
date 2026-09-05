@@ -56,7 +56,7 @@ _DEFAULT_FAQ = [
     (
         "do'kon",
         "Do'konim qachon saytda ko'rinadi?",
-        "Ro'yxatdan o'tgandan keyin AI do'kon profilingizni tekshiradi. Tasdiqlangach do'kon bozorliii.uz da ochiladi. Rad bo'lsa sababni tuzating va qayta yuboring.",
+        "Ro'yxatdan o'tgandan keyin AI do'kon profilingizni tekshiradi. Tasdiqlangach do'kon bozorliii.online da ochiladi. Rad bo'lsa sababni tuzating va qayta yuboring.",
         "do'kon, ro'yxat, tasdiq, ko'rinish",
     ),
     (

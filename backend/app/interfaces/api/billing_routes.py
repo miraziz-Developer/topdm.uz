@@ -1,4 +1,4 @@
-"""Bozorliii.uz Billing API — obuna, boost, banner, daromad."""
+"""Bozorliii.online Billing API — obuna, boost, banner, daromad."""
 from __future__ import annotations
 
 from uuid import UUID
@@ -176,7 +176,7 @@ async def list_banner_tariffs() -> dict:
             self.coin_cost = None
 
     return {
-        "placement": "bozorliii.uz bosh sahifasidagi premium karusel (aylanma banner)",
+        "placement": "bozorliii.online bosh sahifasidagi premium karusel (aylanma banner)",
         "day_options": list(BANNER_DAY_OPTIONS),
         "day_labels": {str(d): BANNER_DAY_LABELS_UZ[d] for d in BANNER_DAY_OPTIONS},
         "tariffs": [

@@ -68,16 +68,17 @@ export default function LoginPage() {
         <Card>
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <label htmlFor="admin-username" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Login
               </label>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+              <Input id="admin-username" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <label htmlFor="admin-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Parol
               </label>
               <Input
+                id="admin-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

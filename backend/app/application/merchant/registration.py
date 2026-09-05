@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.core.slug import slugify, unique_slug
 from app.infrastructure.db.models import MerchantCredentialModel, ShopModel
 from app.infrastructure.repositories.marketplace_repo import MarketplaceRepository
+from app.infrastructure.storage.media_delete import delete_media_by_url
 from app.infrastructure.storage.telegram_media import TelegramMediaStore
 
 logger = logging.getLogger(__name__)
@@ -146,8 +147,10 @@ class MerchantRegistrationService:
             registration_source="telegram",
             telegram_chat_id=draft.telegram_chat_id,
             is_verified=False,
+            commit=False,
         )
         shop.verification_status = "pending_review"
+        stored_image_url: str | None = None
 
         if draft.storefront_file_id:
             media = TelegramMediaStore()
@@ -157,11 +160,11 @@ class MerchantRegistrationService:
                     telegram_file_id=draft.storefront_file_id,
                     fallback_placeholder=None,
                 )
+                stored_image_url = url
                 shop.logo_url = url
                 shop.storefront_image_url = url
-                await self._session.commit()
-                await self._session.refresh(shop)
             except Exception:
+                await self._session.rollback()
                 logger.warning(
                     "storefront_upload_failed shop=%s file_id=%s",
                     draft.name,
@@ -172,22 +175,30 @@ class MerchantRegistrationService:
                     "Do'kon rasmini saqlab bo'lmadi. Internetni tekshirib, rasmni qayta yuboring."
                 ) from None
 
-        login_code = await self._unique_login_code(draft.name)
-        password_plain = generate_password()
-        cred = MerchantCredentialModel(
-            shop_id=shop.id,
-            login_code=login_code,
-            password_hash=hash_password(password_plain),
-        )
-        self._session.add(cred)
-        from app.application.merchant.growth_service import MerchantGrowthService
+        try:
+            login_code = await self._unique_login_code(draft.name)
+            password_plain = generate_password()
+            cred = MerchantCredentialModel(
+                shop_id=shop.id,
+                login_code=login_code,
+                password_hash=hash_password(password_plain),
+            )
+            self._session.add(cred)
+            from app.application.merchant.growth_service import MerchantGrowthService
 
-        growth = MerchantGrowthService(self._session)
-        await growth.ensure_referral_code(shop)
-        await growth.apply_referral_code(shop, draft.referral_code)
-
-        await self._session.commit()
-        await self._session.refresh(shop)
+            growth = MerchantGrowthService(self._session)
+            await growth.ensure_referral_code(shop)
+            await growth.apply_referral_code(shop, draft.referral_code)
+            await self._session.commit()
+            await self._session.refresh(shop)
+        except Exception:
+            await self._session.rollback()
+            if stored_image_url:
+                try:
+                    await delete_media_by_url(stored_image_url)
+                except Exception:
+                    logger.warning("storefront_cleanup_failed url=%s", stored_image_url, exc_info=True)
+            raise
         return MerchantRegistrationResult(shop=shop, login_code=login_code, password_plain=password_plain)
 
     async def resolve_storefront_image_bytes(

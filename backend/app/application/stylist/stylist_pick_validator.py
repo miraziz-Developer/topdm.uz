@@ -80,6 +80,7 @@ def validate_ai_picks(
 
     valid_ids: list[str] = []
     rejections: list[str] = []
+    selected_total_uzs = 0
 
     for pid in product_ids:
         pid_s = str(pid or "").strip()
@@ -105,6 +106,10 @@ def validate_ai_picks(
             rejections.append(f"over_budget:{product.get('name', pid_s)[:32]}")
             continue
 
+        if budget_uzs > 0 and price > 0 and selected_total_uzs + price > int(budget_uzs * 1.12):
+            rejections.append(f"total_over_budget:{product.get('name', pid_s)[:32]}")
+            continue
+
         if sport_ctx:
             if any(bad in blob for bad in _GYM_FORBIDDEN_IN_NAME):
                 if not any(ok in blob for ok in _SPORT_OK_MARKERS):
@@ -118,6 +123,7 @@ def validate_ai_picks(
                 continue
 
         valid_ids.append(pid_s)
+        selected_total_uzs += max(price, 0)
 
     valid_set = set(valid_ids)
     filtered_groups: list[dict[str, Any]] = []
@@ -133,5 +139,6 @@ def validate_ai_picks(
         "product_ids": valid_ids,
         "look_groups": filtered_groups,
         "rejections": rejections,
+        "selected_total_uzs": selected_total_uzs,
         "ok": len(valid_ids) >= 1 and len(rejections) == 0,
     }

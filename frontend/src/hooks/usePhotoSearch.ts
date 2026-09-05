@@ -69,6 +69,10 @@ export function usePhotoSearch() {
   );
 
   const clearError = useCallback(() => setError(null), [setError]);
+  const reportError = useCallback(
+    (message: string) => setError(message || "Rasm bo'yicha qidiruvda xatolik."),
+    [setError],
+  );
 
-  return { searchByPhoto, isSearching, error, clearError };
+  return { searchByPhoto, isSearching, error, clearError, reportError };
 }

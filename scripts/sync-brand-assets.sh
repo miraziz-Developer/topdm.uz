@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bozorliii.uz — brend aktivlarini frontend va CRM ga nusxalaydi
+# Bozorliii.online — brend aktivlarini frontend va CRM ga nusxalaydi
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/brand/assets"

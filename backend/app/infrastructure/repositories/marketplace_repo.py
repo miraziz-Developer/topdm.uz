@@ -181,6 +181,7 @@ class MarketplaceRepository:
         registration_source: str = "telegram",
         telegram_chat_id: int | None = None,
         is_verified: bool = False,
+        commit: bool = True,
     ) -> ShopModel:
         from app.application.merchant.wholesale_pack import normalize_shop_type
 
@@ -207,8 +208,12 @@ class MarketplaceRepository:
             is_active=True,
         )
         self._db.add(shop)
-        await self._db.commit()
-        await self._db.refresh(shop)
+        if commit:
+            await self._db.commit()
+            await self._db.refresh(shop)
+        else:
+            # Keep multi-step registration atomic while still assigning the UUID.
+            await self._db.flush()
         logger.info("shop_created", extra={"shop_id": str(shop.id), "slug": slug})
         return shop
 

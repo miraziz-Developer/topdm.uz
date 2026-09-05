@@ -60,7 +60,7 @@ def _customer_online_checkout_url(
     if not settings.enable_online_checkout or provider not in ONLINE_PAYMENT_METHODS:
         return None
     # Local/staging should be able to override frontend domain explicitly.
-    base = (settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.uz").rstrip("/")
+    base = (settings.payment_checkout_base_url or settings.site_url or "https://bozorliii.online").rstrip("/")
     return (
         f"{base}/checkout/{provider.value}"
         f"?checkout_id={checkout_id}&amount={int(amount_uzs)}"

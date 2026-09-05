@@ -17,7 +17,7 @@ CORE private: _______________  → WEB .env da CORE_BACKEND_HOST
 
 ```bash
 ssh root@CORE_PUBLIC_IP
-git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
+git clone https://github.com/miraziz-Developer/bozorliii.online.git /opt/bozorliii
 cd /opt/bozorliii
 bash scripts/split-bootstrap.sh core --web-private-ip WEB_PRIVATE_IP
 nano .env
@@ -39,7 +39,7 @@ curl -s http://127.0.0.1:8000/health
 
 ```bash
 ssh root@WEB_PUBLIC_IP
-git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
+git clone https://github.com/miraziz-Developer/bozorliii.online.git /opt/bozorliii
 cd /opt/bozorliii
 bash scripts/split-bootstrap.sh web --core-ip CORE_PRIVATE_IP
 nano .env          # CORE_BACKEND_HOST to'g'riligini tekshiring

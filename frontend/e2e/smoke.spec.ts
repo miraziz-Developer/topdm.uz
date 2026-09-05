@@ -6,6 +6,13 @@ test.describe("Customer storefront smoke", () => {
     await expect(page).toHaveTitle(/Bozor|Bozorliii/i);
   });
 
+  test("landing page presents clear customer and merchant actions", async ({ page }) => {
+    await page.goto("/landing");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Bozor endi sizga");
+    await expect(page.getByRole("link", { name: "Xaridni boshlash" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Do‘konni ulash" }).first()).toBeVisible();
+  });
+
   test("search page loads", async ({ page }) => {
     await page.goto("/search");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -18,7 +25,7 @@ test.describe("Customer storefront smoke", () => {
 
   test("checkout page loads", async ({ page }) => {
     await page.goto("/checkout");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Buyurtma|zaxira|Olib/i);
   });
 
   test("auth page loads", async ({ page }) => {

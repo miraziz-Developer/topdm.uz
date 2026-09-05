@@ -22,10 +22,6 @@ function mediaCdnPatterns() {
 const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  eslint: {
-    // Warnings as errors disabled in production build to avoid blocking deploy
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     // Fail build on TypeScript errors
     ignoreBuildErrors: false,

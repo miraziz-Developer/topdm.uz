@@ -51,6 +51,7 @@ const sortOptions = [
 function SearchPageFallback() {
   return (
     <main className="page-shell min-h-dvh bg-canvas">
+      <h1 className="sr-only">Mahsulot qidirish</h1>
       <Navigation />
       <motion.div className="pt-14 sm:pt-16 relative z-10 mx-auto max-w-6xl px-4 sm:px-5">
         <motion.div className="skeleton mb-6 h-10 w-48 rounded-xl" />
@@ -346,6 +347,7 @@ function SearchPageContent() {
 
   return (
     <main className="page-shell min-h-dvh bg-canvas md:pb-6">
+      <h1 className="sr-only">Mahsulot qidirish</h1>
       <Navigation />
 
       <div className="pt-14 sm:pt-16 relative z-10 mx-auto max-w-6xl px-4 sm:px-5">

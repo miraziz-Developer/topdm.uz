@@ -98,7 +98,13 @@ export function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 export async function preparePhotoForUpload(file: File, maxEdge = 960): Promise<File> {
-  if (!file.type.startsWith("image/") || file.size < 180_000) {
+  if (!file.size) {
+    throw new Error("Rasm fayli bo'sh");
+  }
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Faqat JPG, PNG, WebP yoki GIF rasm yuboring");
+  }
+  if (file.size < 180_000) {
     return file;
   }
   const dataUrl = await readFileAsDataUrl(file);

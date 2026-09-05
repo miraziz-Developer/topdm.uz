@@ -108,10 +108,10 @@ export function AdminShell({
   );
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex min-h-dvh w-full min-w-0 overflow-x-clip">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 hidden border-r border-sidebar-border bg-sidebar lg:block transition-all",
+          "fixed inset-y-0 left-0 z-40 hidden border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl lg:block transition-all",
           collapsed ? "w-[72px]" : "w-64",
           mobileOpen && "!block w-64",
         )}
@@ -128,8 +128,8 @@ export function AdminShell({
         />
       ) : null}
 
-      <div className={cn("flex min-h-dvh flex-1 flex-col transition-all", collapsed ? "lg:pl-[72px]" : "lg:pl-64")}>
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border/80 bg-background/80 px-4 backdrop-blur-xl lg:px-6" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <div className={cn("flex min-h-dvh min-w-0 flex-1 flex-col transition-all", collapsed ? "lg:pl-[72px]" : "lg:pl-64")}>
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border/80 bg-background/88 px-4 backdrop-blur-xl lg:px-6" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
           <button
             type="button"
             className="rounded-lg p-2 text-muted-foreground hover:bg-accent lg:hidden"
@@ -145,13 +145,13 @@ export function AdminShell({
             <PanelLeftClose className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-bold sm:text-lg">{title}</h1>
+            <h1 className="truncate text-base font-extrabold tracking-tight sm:text-lg">{title}</h1>
             <p className="hidden truncate text-xs text-muted-foreground sm:block">
               Platforma biznes boshqaruvi {username ? `· ${username}` : ""}
             </p>
           </div>
         </header>
-        <main className="admin-mobile-nav flex-1 p-3 sm:p-4 lg:p-6">{children}</main>
+        <main className="admin-mobile-nav min-w-0 flex-1 p-3 sm:p-4 lg:p-6">{children}</main>
         <AdminMobileNav onOpenMenu={() => setMobileOpen(true)} />
       </div>
     </div>

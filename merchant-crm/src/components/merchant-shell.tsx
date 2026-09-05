@@ -116,7 +116,7 @@ export function MerchantShell({
   const logoSrc = resolveMediaUrl(shopLogoUrl);
 
   return (
-    <div className="crm-app-bg flex min-h-screen">
+    <div className="crm-app-bg flex min-h-dvh w-full min-w-0 overflow-x-clip">
       <aside
         className="fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] flex-col border-r border-sidebar-border text-sidebar-foreground lg:flex"
         style={{
@@ -195,7 +195,7 @@ export function MerchantShell({
       </aside>
 
       {/* Main column */}
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[var(--sidebar-width)]">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col lg:ml-[var(--sidebar-width)]">
         <header className="crm-glass-header sticky top-0 z-30 flex h-[var(--header-height)] items-center gap-3 px-4 sm:px-6">
           <PanelLeft className="hidden h-4 w-4 text-muted-foreground lg:block" aria-hidden />
           <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-muted-foreground">
@@ -229,7 +229,7 @@ export function MerchantShell({
           </Button>
         </header>
 
-        <main className="flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:pb-6 pb-24">
+        <main className="min-w-0 flex-1 px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-6 lg:pb-6">
           <TelegramCrmBanner />
           {children}
         </main>

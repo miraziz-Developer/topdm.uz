@@ -46,3 +46,8 @@ backups/
 *.keystore
 **/keystore-DO-NOT-COMMIT/
 **/keystore.properties
+
+# TLS certificates and browser test output
+deploy/ssl/*.pem
+frontend/test-results/
+frontend/playwright-report/

@@ -5,14 +5,14 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-xl text-sm font-bold tracking-tight transition-all duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric-500/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:pointer-events-none active:scale-[0.97]",
+  "inline-flex items-center justify-center rounded-xl text-sm font-bold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-electric-500/20 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60 active:translate-y-px",
   {
     variants: {
       variant: {
         primary:
-          "bg-gradient-electric text-white shadow-[0_4px_18px_rgba(0,102,255,0.38)] hover:scale-[1.02] hover:shadow-[0_8px_28px_rgba(0,102,255,0.45)] hover:brightness-105 relative overflow-hidden border-0",
+          "relative overflow-hidden border-0 bg-electric-500 text-white shadow-[0_10px_24px_-12px_rgba(0,102,255,0.75)] hover:-translate-y-0.5 hover:bg-blue-700",
         brand:
-          "checkout-cta bg-gradient-electric text-white shadow-[0_4px_18px_rgba(0,102,255,0.38)] hover:brightness-105 hover:shadow-[0_8px_28px_rgba(0,102,255,0.45)] relative overflow-hidden border-0",
+          "checkout-cta relative overflow-hidden border-0 bg-electric-500 text-white shadow-[0_10px_24px_-12px_rgba(0,102,255,0.75)] hover:-translate-y-0.5 hover:bg-blue-700",
         accent:
           "sales-cta sales-cta-pulse bg-gradient-gold text-white shadow-gold hover:scale-[1.02] hover:shadow-hover hover:brightness-110 relative overflow-hidden border-0",
         sales:
@@ -53,12 +53,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isLoading || disabled}
         {...props}
       >
-        {(variant === "primary" || variant === "brand" || variant === "accent" || variant === "sales") && !isLoading && !disabled && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent"
-          />
-        )}
         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         {!isLoading && leftIcon && <span className="mr-2">{leftIcon}</span>}
         {children}

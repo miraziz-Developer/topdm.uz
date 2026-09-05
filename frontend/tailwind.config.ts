@@ -9,19 +9,19 @@ export default {
         mono: ["var(--font-mono)", "DM Mono", "monospace"],
       },
       colors: {
-        canvas: "#f5f3ef",
+        canvas: "#f7f8fc",
         base: "#ffffff",
         surface: "#ffffff",
-        elevated: "#e8ecf4",
+        elevated: "#f0f3f9",
         overlay: "#ffffff",
         ink: {
-          900: "#030308",
-          700: "#14141c",
-          500: "#4a4f5c",
+          900: "#0b1220",
+          700: "#1d2939",
+          500: "#526174",
         },
         electric: {
-          400: "#3388ff",
-          500: "#0066ff",
+          400: "#3974e7",
+          500: "#1857d6",
         },
         neon: {
           400: "#ff6b3d",

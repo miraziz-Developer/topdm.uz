@@ -411,7 +411,7 @@ class MerchantProductService:
             await notify_merchant_telegram(
                 self._notifier,
                 chat_id=int(shop.telegram_chat_id),
-                text=f"Sizning '{product_name}' mahsulotingiz endi Bozorliii.uz da LIVE!",
+                text=f"Sizning '{product_name}' mahsulotingiz endi Bozorliii.online da LIVE!",
                 shop_id=shop_id,
                 crm_next="/dashboard/products",
             )

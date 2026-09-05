@@ -3,6 +3,12 @@
 const MAX_BYTES = 8 * 1024 * 1024;
 
 export async function fileToDataUrl(file: File): Promise<string> {
+  if (!file.size) {
+    throw new Error("Rasm fayli bo‘sh");
+  }
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Faqat JPG, PNG, WebP yoki GIF rasm yuboring");
+  }
   if (file.size > MAX_BYTES) {
     throw new Error("Rasm 8 MB dan kichik bo‘lishi kerak");
   }

@@ -41,6 +41,7 @@ COPY backend/migrations /app/migrations
 COPY scripts/verify_integrations.py /app/scripts/verify_integrations.py
 COPY scripts/run_merchant_bot.py /app/scripts/run_merchant_bot.py
 COPY scripts/run_customer_bot.py /app/scripts/run_customer_bot.py
+COPY scripts/check_merchant_bot.py /app/scripts/check_merchant_bot.py
 
 RUN chown -R appuser:appuser /app /app/uploads
 

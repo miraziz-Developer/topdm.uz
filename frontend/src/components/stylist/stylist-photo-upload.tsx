@@ -52,12 +52,14 @@ export function StylistPhotoUpload({ disabled, className, openSignal = 0, onSend
   const [open, setOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<StylistPhotoMode | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (openSignal > 0) setOpen(true);
   }, [openSignal]);
 
   const pickMode = (mode: StylistPhotoMode) => {
+    setError(null);
     setPendingMode(mode);
     inputRef.current?.click();
   };
@@ -65,6 +67,7 @@ export function StylistPhotoUpload({ disabled, className, openSignal = 0, onSend
   const handleFile = async (file: File | null) => {
     if (!file || !pendingMode || loading) return;
     setLoading(true);
+    setError(null);
     try {
       const dataUrl = await fileToDataUrl(file);
       const modeConfig = MODES.find((m) => m.id === pendingMode);
@@ -75,7 +78,7 @@ export function StylistPhotoUpload({ disabled, className, openSignal = 0, onSend
       });
       setOpen(false);
     } catch (err) {
-      console.error(err);
+      setError(err instanceof Error ? err.message : "Rasmni yuborib bo‘lmadi. Qayta urinib ko‘ring.");
     } finally {
       setLoading(false);
       setPendingMode(null);
@@ -167,6 +170,11 @@ export function StylistPhotoUpload({ disabled, className, openSignal = 0, onSend
                   );
                 })}
               </ul>
+              {error ? (
+                <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  {error}
+                </p>
+              ) : null}
             </motion.div>
           </>
         ) : null}

@@ -621,16 +621,14 @@ async def apple_auth(
     if not matching_key:
         raise HTTPException(status_code=401, detail="Apple token kaliti topilmadi")
 
-    # JWT ni jose bilan tekshirish
+    # Apple JWT signature, issuer and audience checks.
     try:
-        from jose import jwt as jose_jwt
-        from jose.backends import RSAKey
-        import json as _json
+        import jwt
 
-        rsa_key = RSAKey(key=matching_key, algorithm="RS256")
-        claims = jose_jwt.decode(
+        rsa_key = jwt.PyJWK.from_dict(matching_key, algorithm="RS256").key
+        claims = jwt.decode(
             payload.identity_token,
-            rsa_key.public_key().to_dict(),
+            rsa_key,
             algorithms=["RS256"],
             audience=apple_client_id,
             issuer="https://appleid.apple.com",

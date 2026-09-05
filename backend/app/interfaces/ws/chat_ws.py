@@ -5,7 +5,7 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from jose import JWTError
+from jwt.exceptions import InvalidTokenError
 from loguru import logger
 
 from app.application.merchant.chat_service import ChatServiceError, MerchantChatService
@@ -46,7 +46,7 @@ async def _resolve_ws_identity(
                 raise ChatServiceError("auth_required", "Merchant token required")
             try:
                 payload = decode_access_token(token)
-            except JWTError as exc:
+            except InvalidTokenError as exc:
                 raise ChatServiceError("auth_invalid", "Invalid token") from exc
             if str(payload.get("role") or "") != "merchant":
                 raise ChatServiceError("auth_invalid", "Merchant role required")

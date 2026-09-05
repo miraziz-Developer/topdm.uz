@@ -20,7 +20,7 @@ export function ShopQrPoster({ kit }: Props) {
     const win = window.open("", "_blank", "width=420,height=680");
     if (!win) return;
     const safeName = kit.shop_name.replace(/</g, "&lt;");
-    const logoUrl = `${SITE_ORIGIN}/brand/bozorliii-logo.png`;
+    const logoUrl = `${SITE_ORIGIN}/brand/bozorliii-full-logo.png`;
     win.document.write(`
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"/><title>${safeName} — ${BRAND.name}</title>

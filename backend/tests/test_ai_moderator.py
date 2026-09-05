@@ -61,7 +61,7 @@ def test_product_rules_require_verified_shop():
 
 def test_placeholder_storefront_rejected():
     moderator = ShopAiModeratorService()
-    assert moderator.is_placeholder_image_url("https://bozorliii.uz/placeholder.svg") is True
+    assert moderator.is_placeholder_image_url("https://bozorliii.online/placeholder.svg") is True
     assert moderator.is_placeholder_image_url("/api/v1/media/products/x/y.jpg") is False
 
 

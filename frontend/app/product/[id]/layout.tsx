@@ -5,12 +5,13 @@ import { getProduct } from "@/lib/api";
 
 type ProductLayoutProps = {
   children: ReactNode;
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export async function generateMetadata({ params }: ProductLayoutProps): Promise<Metadata> {
   try {
-    const product = await getProduct(params.id);
+    const { id } = await params;
+    const product = await getProduct(id);
     const shopName = product.shop?.name ?? "do'kon";
     const market = product.shop?.ipadrom ?? "bozor";
     const ogImage = absoluteMediaUrl(product.images?.[0]);
@@ -45,7 +46,8 @@ export default async function ProductLayout({ children, params }: ProductLayoutP
   let jsonLd: Record<string, unknown> | null = null;
 
   try {
-    const product = await getProduct(params.id);
+    const { id } = await params;
+    const product = await getProduct(id);
     jsonLd = {
       "@context": "https://schema.org",
       "@type": "Product",

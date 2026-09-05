@@ -130,7 +130,7 @@ def tariff_public_dict(tariff) -> dict:
         "day_options": list(BANNER_DAY_OPTIONS),
         "day_labels": {str(d): banner_day_label_uz(d) for d in BANNER_DAY_OPTIONS},
         "tier_prices_uzs": {str(d): tier_prices[d] for d in BANNER_DAY_OPTIONS},
-        "placement": "bozorliii.uz bosh sahifasidagi premium karusel",
+        "placement": "bozorliii.online bosh sahifasidagi premium karusel",
     }
 
 

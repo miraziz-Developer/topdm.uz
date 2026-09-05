@@ -16,6 +16,15 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
+      - name: Pin production SSH host keys
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
       - name: Archive karvon on both servers, sync CORE git state
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
@@ -25,7 +34,7 @@ jobs:
         run: |
           set +e
           mkdir -p deploy/_audit
-          SSH="sshpass -p $SSH_PASSWORD ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15"
+          SSH="sshpass -p $SSH_PASSWORD ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15"
 
           echo "--- archiving karvon on both servers (move, not delete) ---"
           for pair in "$HOST1:server1" "$HOST2:server2"; do

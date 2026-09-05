@@ -119,7 +119,7 @@ CATEGORY_TREE: list[dict] = [
 SHOPS = [
     {
         "owner_phone": "+998901110001",
-        "owner_email": "anor@bozorliii.uz",
+        "owner_email": "anor@bozorliii.online",
         "name": "Anor Boutique",
         "description": "Ayollar sarpo va kechki liboslar",
         "floor": "5-yo'lak",
@@ -131,7 +131,7 @@ SHOPS = [
     },
     {
         "owner_phone": "+998901110002",
-        "owner_email": "dubai@bozorliii.uz",
+        "owner_email": "dubai@bozorliii.online",
         "name": "Dubai Atir Optom",
         "description": "Dubay atirlari va parfyumeriya optom",
         "floor": "3-Blok",
@@ -143,7 +143,7 @@ SHOPS = [
     },
     {
         "owner_phone": "+998901110003",
-        "owner_email": "turkiya@bozorliii.uz",
+        "owner_email": "turkiya@bozorliii.online",
         "name": "Turkiya Premium Poyabzal",
         "description": "Turkiya va Xitoy premium poyabzal",
         "floor": "1-Glavniy",
@@ -155,7 +155,7 @@ SHOPS = [
     },
     {
         "owner_phone": "+998901110004",
-        "owner_email": "kozgalovka@bozorliii.uz",
+        "owner_email": "kozgalovka@bozorliii.online",
         "name": "Kozgalovka Optom Fashion",
         "description": "Ulgurji kiyim seriyalari",
         "floor": "2-yo'lak",
@@ -167,7 +167,7 @@ SHOPS = [
     },
     {
         "owner_phone": "+998901110005",
-        "owner_email": "mato@bozorliii.uz",
+        "owner_email": "mato@bozorliii.online",
         "name": "Sarpo Gazmol Markazi",
         "description": "Kelin sarpo va turk matolari",
         "floor": "Yevropa bloki",
@@ -179,7 +179,7 @@ SHOPS = [
     },
     {
         "owner_phone": "+998901110006",
-        "owner_email": "sport@bozorliii.uz",
+        "owner_email": "sport@bozorliii.online",
         "name": "Sport Line Ippodrom",
         "description": "Sport majmualari chakana va optom",
         "floor": "Toshkent yo'lagi",

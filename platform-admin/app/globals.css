@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 :root {
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-display: "Inter", system-ui, sans-serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-sans);
 
-  --background: 224 71% 4%;
+  --background: 219 61% 7%;
   --foreground: 210 40% 98%;
-  --card: 224 47% 8%;
+  --card: 219 48% 10%;
   --card-foreground: 210 40% 98%;
   --popover: 224 47% 8%;
   --popover-foreground: 210 40% 98%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 222 47% 11%;
+  --primary: 216 86% 62%;
+  --primary-foreground: 0 0% 100%;
   --secondary: 215 28% 14%;
   --secondary-foreground: 210 40% 98%;
   --muted: 215 28% 14%;
@@ -27,7 +27,7 @@
   --border: 215 28% 18%;
   --input: 215 28% 18%;
   --ring: 217 91% 60%;
-  --radius: 0.75rem;
+  --radius: 0.875rem;
 
   --sidebar-background: 224 47% 6%;
   --sidebar-foreground: 210 40% 92%;
@@ -48,11 +48,16 @@
   }
   html {
     color-scheme: dark;
+    min-width: 320px;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    overflow-x: hidden;
+    min-height: 100dvh;
+    overflow-x: clip;
     -webkit-tap-highlight-color: transparent;
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
@@ -60,21 +65,61 @@
       radial-gradient(ellipse 80% 50% at 0% -20%, hsl(217 91% 60% / 0.12), transparent 55%),
       radial-gradient(ellipse 60% 40% at 100% 0%, hsl(262 83% 58% / 0.08), transparent 50%);
     background-attachment: fixed;
+    letter-spacing: -0.01em;
+    text-rendering: optimizeLegibility;
+  }
+
+  :where(main, section, article, aside, header, footer, nav, div) {
+    min-width: 0;
+  }
+
+  :where(h1, h2, h3, h4, h5, h6, p, li, a, button, label, dt, dd) {
+    overflow-wrap: anywhere;
+  }
+
+  :where(img, canvas, svg, video) {
+    max-width: 100%;
+  }
+
+  :where(input, select, textarea) {
+    max-width: 100%;
+  }
+
+  :where(a, button, input, select, textarea):focus-visible {
+    outline: 3px solid hsl(var(--primary) / 0.3);
+    outline-offset: 2px;
+  }
+}
+
+@media (max-width: 767px) {
+  :where(input, select, textarea) {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
 @layer components {
   .admin-card {
-    @apply rounded-xl border border-border bg-card/80 p-5 shadow-card backdrop-blur-sm;
+    @apply rounded-2xl border border-border bg-card/90 p-5 shadow-card backdrop-blur-sm;
   }
   .admin-table {
     @apply w-full text-sm;
   }
   .admin-table th {
-    @apply border-b border-border px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+    @apply border-b border-border px-3 py-3 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground;
   }
   .admin-table td {
-    @apply border-b border-border/60 px-3 py-3 text-foreground/90;
+    @apply border-b border-border/60 px-3 py-3.5 text-foreground/90;
   }
   .admin-badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;

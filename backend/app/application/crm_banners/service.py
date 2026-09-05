@@ -253,7 +253,7 @@ class CrmBannerService:
         await self._session.commit()
 
         base = (
-            (self._settings.payment_checkout_base_url or self._settings.site_url or "https://bozorliii.uz")
+            (self._settings.payment_checkout_base_url or self._settings.site_url or "https://bozorliii.online")
             .rstrip("/")
         )
         checkout_url = f"{base}/checkout/{prov}?checkout_id={checkout.id}&amount={amount}"

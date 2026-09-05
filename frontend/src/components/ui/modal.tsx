@@ -34,7 +34,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={onClose}
         >
           <motion.div
@@ -42,7 +42,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25 }}
-            className="w-full max-w-lg overflow-hidden rounded-2xl border border-border-strong bg-overlay shadow-modal"
+            className="flex max-h-[calc(100dvh-env(safe-area-inset-top,0px))] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border-strong bg-overlay pb-[env(safe-area-inset-bottom,0px)] shadow-modal sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:pb-0"
             onClick={(e) => e.stopPropagation()}
           >
             {title && (
@@ -53,7 +53,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
                 </button>
               </div>
             )}
-            <div className="p-6">{children}</div>
+            <div className="min-h-0 overflow-y-auto p-4 sm:p-6">{children}</div>
           </motion.div>
         </motion.div>
       )}

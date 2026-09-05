@@ -1,6 +1,6 @@
-# Bozorliii.uz
+# Bozorliii.online
 
-[![CI](https://github.com/miraziz-Developer/topdm.uz/actions/workflows/ci.yml/badge.svg)](https://github.com/miraziz-Developer/topdm.uz/actions/workflows/ci.yml)
+[![CI](https://github.com/miraziz-Developer/bozorliii.online/actions/workflows/ci.yml/badge.svg)](https://github.com/miraziz-Developer/bozorliii.online/actions/workflows/ci.yml)
 
 **AI-powered mahalliy bozor marketplace** — kiyim-kechak katalogi, vizual qidiruv, onlayn bron, xarita navigatsiyasi, merchant CRM va Telegram bot.
 
@@ -57,7 +57,7 @@ Har bir ilovada `README.md`. To'liq xarita: [docs/STRUCTURE.md](docs/STRUCTURE.m
 ## Tez boshlash
 
 ```bash
-git clone https://github.com/miraziz-Developer/topdm.uz.git bozorliii
+git clone https://github.com/miraziz-Developer/bozorliii.online.git bozorliii
 cd bozorliii
 cp .env.example .env
 docker compose up -d --build

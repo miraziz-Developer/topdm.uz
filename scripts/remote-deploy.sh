@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Sync project to server and run deploy-prod.sh
-# Usage: SERVER=root@8.222.211.54 REMOTE_DIR=/opt/bozorliii ./scripts/remote-deploy.sh
+# Usage: SERVER=root@SERVER_IP REMOTE_DIR=/opt/bozorliii ./scripts/remote-deploy.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER="${SERVER:-root@8.222.211.54}"
+SERVER="${SERVER:?Set SERVER explicitly; split production should use deploy-split-from-mac.sh}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/bozorliii}"
 SSH_OPTS=(-F /dev/null -o StrictHostKeyChecking=accept-new)
 
@@ -37,4 +37,4 @@ scp "${SSH_OPTS[@]}" "$ROOT/.env" "${SERVER}:${REMOTE_DIR}/.env"
 echo "== Remote deploy =="
 ssh "${SSH_OPTS[@]}" "$SERVER" "cd '$REMOTE_DIR' && chmod +x scripts/*.sh && ./scripts/deploy-prod.sh"
 
-echo "Done. Open https://bozorliii.uz"
+echo "Done. Open https://bozorliii.online"

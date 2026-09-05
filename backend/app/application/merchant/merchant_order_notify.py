@@ -56,6 +56,10 @@ def allowed_order_bot_actions(
         return ["c", "x"]
     if current in {"confirmed", "preparing"}:
         return ["r", "x"]
+    if current == "ready":
+        # Pickup is completed only through the QR web app; delivery is closed in CRM.
+        # Neither flow has a direct Telegram callback at this stage.
+        return ["x"]
     return ["x"]
 
 

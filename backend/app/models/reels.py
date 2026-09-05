@@ -1,4 +1,4 @@
-"""Bozorliii.uz Reels — TikTok Shop uslubidagi video commerce."""
+"""Bozorliii.online Reels — TikTok Shop uslubidagi video commerce."""
 from __future__ import annotations
 
 import uuid

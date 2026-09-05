@@ -24,6 +24,7 @@ from app.application.stylist.stylist_order_hints import load_recent_order_catego
 from app.application.stylist.stylist_session import StylistSessionStore
 from app.application.stylist.stylist_user_profile import merge_client_profile
 from app.core.client_context import get_locale
+from app.core.upload_validation import validate_image_bytes
 from app.infrastructure.cache.chat_history_store import ChatHistoryStore
 from app.infrastructure.cache.redis_gateway import RedisCacheGateway
 from app.infrastructure.db.session import get_db_session
@@ -42,7 +43,7 @@ class ChatAgentTurnBody(BaseModel):
     thread_id: str = Field("default", max_length=128)
     text: str = ""
     user_nav_node_id: str = Field("entrance-A", max_length=64)
-    image_base64: str | None = None
+    image_base64: str | None = Field(default=None, max_length=12 * 1024 * 1024)
     image_mime: str | None = Field(default=None, description="Optional when using raw base64, e.g. image/jpeg")
     photo_mode: StylistPhotoMode | None = Field(
         default=None,
@@ -72,12 +73,11 @@ def _decode_optional_image(payload: ChatAgentTurnBody) -> tuple[bytes | None, st
     else:
         b64 = raw
     try:
-        data = base64.b64decode(b64, validate=False)
-    except binascii.Error as exc:
+        data = base64.b64decode(b64, validate=True)
+    except (binascii.Error, ValueError) as exc:
         raise HTTPException(status_code=400, detail="Invalid base64 image") from exc
-    if len(data) > 8 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image must be 8MB or smaller")
-    return data, (mime or "image/jpeg").strip() or "image/jpeg"
+    detected_mime = validate_image_bytes(data, max_bytes=8 * 1024 * 1024, label="Rasm")
+    return data, detected_mime
 
 
 async def _prepare_stylist_text(body: ChatAgentTurnBody) -> str:

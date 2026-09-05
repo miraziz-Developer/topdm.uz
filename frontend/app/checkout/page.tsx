@@ -11,6 +11,7 @@ import { pageShellCheckout, pageContentTop } from "@/lib/responsive-layout";
 export default function CheckoutPage() {
   return (
     <main className={pageShellCheckout}>
+      <h1 className="sr-only">Buyurtma berish</h1>
       <Navigation />
       <div className={pageContentTop}>
         <Suspense fallback={<ProductSkeleton />}>

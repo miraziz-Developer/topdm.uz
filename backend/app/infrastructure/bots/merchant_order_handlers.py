@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
-
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from sqlalchemy import select
@@ -17,6 +15,7 @@ from app.application.merchant.merchant_order_notify import (
     order_action_not_allowed_message,
     order_status_next_step_hint,
 )
+from app.infrastructure.bots.callback_payload import parse_callback_uuid
 from app.infrastructure.db.models import OrderModel
 from app.infrastructure.db.session import AsyncSessionFactory
 from app.infrastructure.messaging.notifier_service import TelegramNotifierGateway
@@ -81,9 +80,8 @@ async def on_order_action(query: CallbackQuery) -> None:
     if not target_status:
         await query.answer("Noto'g'ri amal", show_alert=True)
         return
-    try:
-        order_id = uuid.UUID(order_id_s)
-    except ValueError:
+    order_id = parse_callback_uuid(order_id_s)
+    if order_id is None:
         await query.answer("Buyurtma topilmadi", show_alert=True)
         return
 
@@ -165,4 +163,8 @@ async def on_order_action(query: CallbackQuery) -> None:
             reply_markup=_markup_from_dict(markup),
         )
     except Exception:
-        pass
+        logger.warning(
+            "bot_order_message_edit_failed",
+            extra={"order_id": str(order_id), "status": new_status},
+            exc_info=True,
+        )

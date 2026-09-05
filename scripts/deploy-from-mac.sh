@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Run on YOUR Mac (where SSH to 8.222.211.54 works)
+# Legacy single-server deploy. Prefer deploy-split-from-mac.sh for production.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER="${SERVER:-root@8.222.211.54}"
+SERVER="${SERVER:?Set SERVER explicitly; split production should use deploy-split-from-mac.sh}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/bozorliii}"
 SSH_OPTS=(-F /dev/null -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
 
@@ -72,4 +72,4 @@ echo "== 6. Deploy stack =="
 ssh_cmd "cd '$REMOTE_DIR' && chmod +x scripts/*.sh deploy/*.sh && ./scripts/deploy-prod.sh"
 
 echo ""
-echo "DONE — open https://bozorliii.uz"
+echo "DONE — open https://bozorliii.online"

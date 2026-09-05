@@ -15,7 +15,7 @@ from app.models.merchant_support import MerchantSupportFaqModel
 
 ChatRole = Literal["user", "assistant"]
 
-_SYSTEM_TEMPLATE = """Sen Bozorliii.uz CRM yordamchisisan — do'kon egalari uchun qo'llab-quvvatlash AI.
+_SYSTEM_TEMPLATE = """Sen Bozorliii.online CRM yordamchisisan — do'kon egalari uchun qo'llab-quvvatlash AI.
 Javoblarni o'zbek tilida, qisqa va aniq yoz. CRM bo'limlari: Bosh sahifa, Savdo, Chat, Mahsulotlar, Kontent (banner), Do'kon.
 
 QOIDALAR:

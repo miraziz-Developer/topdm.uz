@@ -2,7 +2,7 @@
 # 2×4GB split — server bootstrap. Root yoki sudo bilan ishga tushiring.
 #
 # CORE serverda:
-#   git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
+#   git clone https://github.com/miraziz-Developer/bozorliii.online.git /opt/bozorliii
 #   cd /opt/bozorliii
 #   bash scripts/split-bootstrap.sh core
 #

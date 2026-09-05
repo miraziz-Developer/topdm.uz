@@ -32,14 +32,14 @@ done
 
 $COMPOSE ps
 
-SITE="${SITE_URL:-https://bozorliii.uz}"
+SITE="${SITE_URL:-https://bozorliii.online}"
 SITE="${SITE%/}"
 
 echo ""
 echo "== Edge health (if DNS + TLS ready) =="
 if curl -fsS --max-time 8 "${SITE}/health" >/dev/null 2>&1; then
   echo "OK  ${SITE}/health"
-elif curl -fsS --max-time 8 "http://127.0.0.1/health" -H "Host: bozorliii.uz" >/dev/null 2>&1; then
+elif curl -fsS --max-time 8 "http://127.0.0.1/health" -H "Host: bozorliii.online" >/dev/null 2>&1; then
   echo "OK  local nginx /health"
 else
   echo "WARN public health not reachable yet — check DNS, deploy/ssl, firewall 80/443"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from jose import jwt
+import jwt
 
 from app.core.config import get_settings
 

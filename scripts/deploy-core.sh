@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER="${SERVER:-root@8.222.211.54}"
+SERVER="${SERVER:?Set SERVER explicitly (for example root@152.42.204.27)}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/bozorliii}"
 SSH_OPTS=(-F /dev/null -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
 

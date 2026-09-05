@@ -41,3 +41,23 @@ def test_budget_filter():
     meta = {"style": "sport", "gender": "erkak", "budget": 500_000}
     out = validate_ai_picks(["x"], catalog, meta=meta, user_message="500 ming")
     assert out["product_ids"] == []
+
+
+def test_total_look_price_stays_within_budget():
+    catalog = [
+        _product("top", "Erkak sport futbolka", price=220_000),
+        _product("bottom", "Erkak sport shim", price=210_000),
+        _product("shoes", "Erkak sport krossovka", price=190_000),
+    ]
+    meta = {"style": "sport", "gender": "erkak", "budget": 500_000}
+
+    out = validate_ai_picks(
+        ["top", "bottom", "shoes"],
+        catalog,
+        meta=meta,
+        user_message="500 mingga erkak sport look",
+    )
+
+    assert out["product_ids"] == ["top", "bottom"]
+    assert out["selected_total_uzs"] == 430_000
+    assert any(reason.startswith("total_over_budget:") for reason in out["rejections"])

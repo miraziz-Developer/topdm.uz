@@ -1,23 +1,25 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { clearAccessToken } from "@/lib/auth";
-import { redirectToMerchantLogin, resolveMerchantSession } from "@/lib/merchant-session";
+import { resolveMerchantSession } from "@/lib/merchant-session";
 
 type AuthState = "loading" | "authenticated" | "unauthenticated";
 
 export function useMerchantAuth() {
+  const router = useRouter();
   const [state, setState] = useState<AuthState>("loading");
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const token = await resolveMerchantSession();
+      const token = await resolveMerchantSession().catch(() => null);
       if (cancelled) return;
       if (!token) {
         setState("unauthenticated");
-        redirectToMerchantLogin();
+        router.replace("/login");
         return;
       }
       setState("authenticated");
@@ -25,11 +27,11 @@ export function useMerchantAuth() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const signOut = () => {
     clearAccessToken();
-    window.location.href = "/login";
+    router.replace("/login");
   };
 
   return {

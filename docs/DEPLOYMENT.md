@@ -1,32 +1,27 @@
-# Production deploy — 1x 4GB (oddiy variant)
+# Production deploy
 
-> **Diqqat:** hozirgi jonli production 2x 4GB **split** topologiyada ishlaydi
-> (`docker-compose.core.yml` + `docker-compose.web.yml`, GitHub Actions
-> `deploy.yml` orqali avtomatik) — batafsil: [SPLIT_DEPLOYMENT.md](./SPLIT_DEPLOYMENT.md).
-> Shu hujjat quyida `docker-compose.prod.yml` bilan **bitta serverga** deploy
-> qilishni tasvirlaydi — kam trafikli boshlanish yoki split'dan orqaga tushish
-> uchun. Server hajmi tanlash: [SERVER_SIZING.md](./SERVER_SIZING.md).
+Batafsil operatsion qo'llanma. Server hajmi: [SERVER_SIZING.md](./SERVER_SIZING.md) · Split: [SPLIT_DEPLOYMENT.md](./SPLIT_DEPLOYMENT.md)
 
 ## Server va domenlar
 
 | Resurs | Qiymat |
 |--------|--------|
-| Server | droplet'ning public IP'i (o'zingiznikini yozing) |
+| WEB server | `103.253.145.151` |
+| CORE server | `152.42.204.27` |
 | Do'kon | `bozorliii.online` |
 | API | `api.bozorliii.online` |
 | CRM | `crm.bozorliii.online` |
 
 ## DNS
 
-Barcha quyidagi hostlarni **server public IP**'siga yo'naltiring (registrar panelida):
-
-| Type | Host |
-|------|------|
-| A | `@` |
-| A | `www` |
-| A | `api` |
-| A | `crm` |
-| A | `admin` |
+| Type | Host | Value |
+|------|------|--------|
+| A | `@` | `103.253.145.151` |
+| A | `www` | `103.253.145.151` |
+| A | `api` | `103.253.145.151` |
+| A | `crm` | `103.253.145.151` |
+| A | `media` | `103.253.145.151` |
+| A | `admin` | `152.42.204.27` |
 
 ```bash
 bash deploy/check-dns.sh
@@ -59,15 +54,14 @@ Namuna: `.env.production.example`
 Mac dan:
 
 ```bash
-./scripts/deploy-from-mac.sh
+WEB_PUBLIC_IP=103.253.145.151 CORE_PUBLIC_IP=152.42.204.27 ./scripts/deploy-split-from-mac.sh
 ```
 
 Serverda:
 
 ```bash
-bash deploy/install-docker.sh
-bash deploy/bootstrap-ssl.sh
-./scripts/deploy-prod.sh
+bash scripts/deploy-core-only.sh  # CORE serverda
+bash scripts/deploy-web-only.sh   # WEB serverda
 ```
 
 Tekshirish:

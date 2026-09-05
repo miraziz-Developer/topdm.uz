@@ -1,4 +1,4 @@
-"""Bozorliii.uz Reels API — video feed, upload, interactions."""
+"""Bozorliii.online Reels API — video feed, upload, interactions."""
 from __future__ import annotations
 
 import uuid

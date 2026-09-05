@@ -1,4 +1,4 @@
-"""Bozorliii.uz — Merchant monetizatsiya rejalari va narxlar.
+"""Bozorliii.online — Merchant monetizatsiya rejalari va narxlar.
 
 NARX STRATEGIYASI (O'zbekiston bozori, early-stage startup):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

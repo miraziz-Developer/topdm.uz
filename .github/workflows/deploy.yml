@@ -1,29 +1,46 @@
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy-core:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Install sshpass
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Pin production SSH host key
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
       - name: Deploy CORE (postgres/redis/backend/celery/bot)
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           HOST: ${{ secrets.SSH_HOST_2 }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$SSH_USER@$HOST" '
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
             set -e
             cd /opt/bozorliii
             git fetch origin
-            git reset --hard origin/main
-            docker compose -f docker-compose.core.yml up -d --build --remove-orphans
+            git reset --hard '$DEPLOY_SHA'
+            bash scripts/preflight-split-core.sh
+            docker compose -f docker-compose.core.yml up -d --build --remove-orphans --wait --wait-timeout 300
             docker image prune -f
-          '
+          "
 
   deploy-web:
     needs: deploy-core
@@ -31,20 +48,30 @@ jobs:
     steps:
       - name: Install sshpass
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+      - name: Pin production SSH host key
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
       - name: Deploy WEB (frontend/crm/admin/nginx)
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           HOST: ${{ secrets.SSH_HOST_1 }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "$SSH_USER@$HOST" '
+          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
             set -e
             cd /opt/bozorliii
             git fetch origin
-            git reset --hard origin/main
-            docker compose -f docker-compose.web.yml up -d --build --remove-orphans
+            git reset --hard '$DEPLOY_SHA'
+            bash scripts/preflight-split-web.sh
+            docker compose -f docker-compose.web.yml up -d --build --remove-orphans --wait --wait-timeout 300
             docker image prune -f
-          '
+          "
 
   smoke-test:
     needs: [deploy-core, deploy-web]
@@ -55,4 +82,6 @@ jobs:
       - name: Check live site
         run: |
           curl -sf https://bozorliii.online/ -o /dev/null && echo "frontend: OK" || (echo "frontend: FAILED" && exit 1)
-          curl -sf https://api.bozorliii.online/health && echo "" && echo "api: OK" || (echo "api: FAILED" && exit 1)
+          curl -sf https://crm.bozorliii.online/ -o /dev/null && echo "crm: OK" || (echo "crm: FAILED" && exit 1)
+          curl -sf https://admin.bozorliii.online/ -o /dev/null && echo "admin: OK" || (echo "admin: FAILED" && exit 1)
+          curl -sf https://api.bozorliii.online/api/v1/health/ready && echo "" && echo "api: OK" || (echo "api: FAILED" && exit 1)

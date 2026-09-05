@@ -48,7 +48,7 @@ const FIXED_ORDER: SectionKey[] = [
 
 export function HomeExperienceLayout({ sections }: Props) {
   return (
-    <div className="pt-14 sm:pt-16">
+    <div className="pt-14 sm:pt-16 [&>[data-section]]:scroll-mt-24">
       {FIXED_ORDER.map((key) =>
         sections[key] ? (
           <div key={key} data-section={key}>

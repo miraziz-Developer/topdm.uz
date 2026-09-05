@@ -47,12 +47,12 @@ SEED_OWNER_PHONES = {
 }
 
 SEED_OWNER_EMAILS = {
-    "anor@bozorliii.uz",
-    "dubai@bozorliii.uz",
-    "turkiya@bozorliii.uz",
-    "kozgalovka@bozorliii.uz",
-    "mato@bozorliii.uz",
-    "sport@bozorliii.uz",
+    "anor@bozorliii.online",
+    "dubai@bozorliii.online",
+    "turkiya@bozorliii.online",
+    "kozgalovka@bozorliii.online",
+    "mato@bozorliii.online",
+    "sport@bozorliii.online",
 }
 
 

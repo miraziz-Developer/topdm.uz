@@ -16,7 +16,11 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: process.env.CI
     ? {
-        command: "npm run start",
+        command:
+          "rm -rf .next/standalone/public .next/standalone/.next/static && " +
+          "cp -R public .next/standalone/public && " +
+          "mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && " +
+          "HOSTNAME=127.0.0.1 PORT=3000 node .next/standalone/server.js",
         url: baseURL,
         reuseExistingServer: false,
         timeout: 120_000,
