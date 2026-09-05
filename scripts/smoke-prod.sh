@@ -15,7 +15,7 @@ check() {
   local name="$1"
   local url="$2"
   local code
-  code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$url" || echo "000")
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url" || echo "000")
   if [[ "$code" =~ ^(200|301|302|307)$ ]]; then
     ok "$name ($code) $url"
   else
@@ -27,7 +27,7 @@ check_json() {
   local name="$1"
   local url="$2"
   local body
-  body=$(curl -fsSk --max-time 15 "$url" 2>/dev/null || echo "")
+  body=$(curl -fsS --max-time 15 "$url" 2>/dev/null || echo "")
   if echo "$body" | grep -qE '"status":"(ok|degraded)"'; then
     ok "$name"
   else
@@ -39,7 +39,7 @@ check_api_core() {
   local name="$1"
   local url="$2"
   local body
-  body=$(curl -fsSk --max-time 15 "$url" 2>/dev/null || echo "")
+  body=$(curl -fsS --max-time 15 "$url" 2>/dev/null || echo "")
   if echo "$body" | grep -q '"database":"ok"' && echo "$body" | grep -q '"redis":"ok"'; then
     ok "$name"
   else
@@ -58,7 +58,7 @@ check_api_core "API health (direct)" "$API/health"
 
 echo ""
 echo "== Moderation (do'kon only) =="
-code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$API/admin/product-moderation" || echo "000")
+code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$API/admin/product-moderation" || echo "000")
 if [[ "$code" == "404" || "$code" == "302" || "$code" == "307" ]]; then
   ok "Product moderation removed ($code)"
 else

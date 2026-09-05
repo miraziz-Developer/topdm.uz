@@ -26,7 +26,6 @@ import {
   rejectShop,
   setShopFeatured,
   verifyShop,
-  type ShopItem,
 } from "@/lib/admin-api";
 import { resolveMediaUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";

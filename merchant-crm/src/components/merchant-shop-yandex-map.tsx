@@ -32,6 +32,8 @@ export function MerchantShopYandexMap({
   const placemarkRef = useRef<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const positionLat = position?.lat;
+  const positionLng = position?.lng;
 
   useEffect(() => {
     let cancelled = false;
@@ -128,12 +130,12 @@ export function MerchantShopYandexMap({
   }, [marketSlug, shopName]);
 
   useEffect(() => {
-    if (!position || !placemarkRef.current) return;
+    if (positionLat === undefined || positionLng === undefined || !placemarkRef.current) return;
     const pm = placemarkRef.current as { geometry: { setCoordinates: (c: number[]) => void } };
-    pm.geometry.setCoordinates([position.lat, position.lng]);
+    pm.geometry.setCoordinates([positionLat, positionLng]);
     const map = mapRef.current as { setCenter?: (c: number[], zoom?: number) => void } | null;
-    map?.setCenter?.([position.lat, position.lng]);
-  }, [position?.lat, position?.lng]);
+    map?.setCenter?.([positionLat, positionLng]);
+  }, [positionLat, positionLng]);
 
   if (error) {
     return (

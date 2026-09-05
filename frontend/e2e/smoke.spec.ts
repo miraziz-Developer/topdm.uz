@@ -15,7 +15,7 @@ test.describe("Customer storefront smoke", () => {
 
   test("search page loads", async ({ page }) => {
     await page.goto("/search");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Mahsulot qidirish" })).toBeAttached();
   });
 
   test("map page loads", async ({ page }) => {
@@ -25,7 +25,7 @@ test.describe("Customer storefront smoke", () => {
 
   test("checkout page loads", async ({ page }) => {
     await page.goto("/checkout");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Buyurtma|zaxira|Olib/i);
+    await expect(page.getByRole("heading", { level: 1, name: "Buyurtmani rasmiylashtirish" })).toBeVisible();
   });
 
   test("auth page loads", async ({ page }) => {

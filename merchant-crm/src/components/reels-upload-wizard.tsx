@@ -19,6 +19,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { captureVideoPoster } from "@/lib/capture-video-poster";
@@ -246,7 +247,14 @@ export function ReelsUploadWizard({ onSuccess }: { onSuccess?: (v: ReelsVideo) =
                       )}
                     >
                       {p.images?.[0] ? (
-                        <img src={p.images[0]} alt={p.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                        <Image
+                          src={p.images[0]}
+                          alt={p.name}
+                          width={40}
+                          height={40}
+                          unoptimized
+                          className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                        />
                       ) : (
                         <div className="h-10 w-10 shrink-0 rounded-lg bg-elevated" />
                       )}

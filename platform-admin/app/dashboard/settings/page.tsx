@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Radio, Settings2, Percent, DollarSign, ShieldAlert, ShoppingCart, Truck, ToggleLeft, ToggleRight, Trash2, Plus } from "lucide-react";
+import { Radio, Settings2, Percent, ShieldAlert, ShoppingCart, ToggleLeft, ToggleRight, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";

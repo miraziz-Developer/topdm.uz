@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const usesExternalTarget = process.env.PLAYWRIGHT_EXTERNAL_TARGET === "true";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -21,7 +22,7 @@ export default defineConfig({
     video: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: process.env.CI
+  webServer: process.env.CI && !usesExternalTarget
     ? {
         command:
           "rm -rf .next/standalone/public .next/standalone/.next/static && " +

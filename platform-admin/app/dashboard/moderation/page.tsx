@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Package, Store, X } from "lucide-react";
-import Image from "next/image";
+import { Check, Package, Store, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/admin-empty-state";
 import { PageLoader } from "@/components/admin-page-loader";
 import { Button } from "@/components/ui/button";
 import { adminFetch, getPendingProducts, type PendingProductItem } from "@/lib/admin-api";
-import { resolveMediaUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 function formatDate(iso?: string | null) {

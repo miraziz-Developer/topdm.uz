@@ -19,7 +19,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       full_web: ${{ steps.filter.outputs.full_web }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
@@ -50,24 +50,24 @@ jobs:
     if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Install sshpass
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
       - name: Pin production SSH host key
         env:
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          test -n "$SSH_KNOWN_HOSTS"
+          test -n "$SSH_KNOWN_HOSTS" && test -n "$SSH_PRIVATE_KEY"
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519
       - name: Deploy CORE (postgres/redis/backend/celery/bot)
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           HOST: ${{ secrets.SSH_HOST_2 }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
             set -e
             cd /opt/bozorliii
             git fetch origin
@@ -82,25 +82,25 @@ jobs:
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Install sshpass
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
       - name: Pin production SSH host key
         env:
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          test -n "$SSH_KNOWN_HOSTS"
+          test -n "$SSH_KNOWN_HOSTS" && test -n "$SSH_PRIVATE_KEY"
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519
       - name: Deploy WEB (frontend/crm/admin/nginx)
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           HOST: ${{ secrets.SSH_HOST_1 }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
           FULL_WEB: ${{ needs.changes.outputs.full_web }}
         run: |
-          sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
             set -e
             cd /opt/bozorliii
              if test -s deploy/ssl/fullchain.pem && test -s deploy/ssl/privkey.pem; then

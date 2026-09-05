@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   MessageSquare,
   Package,
-  Radio,
   Settings,
   ShoppingBag,
   Store,
