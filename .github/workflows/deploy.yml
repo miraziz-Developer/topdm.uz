@@ -66,8 +66,18 @@ jobs:
           sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
             set -e
             cd /opt/bozorliii
+             if test -s deploy/ssl/fullchain.pem && test -s deploy/ssl/privkey.pem; then
+               install -d -m 700 /root/bozorliii-tls-backup
+               install -m 644 deploy/ssl/fullchain.pem /root/bozorliii-tls-backup/fullchain.pem
+               install -m 600 deploy/ssl/privkey.pem /root/bozorliii-tls-backup/privkey.pem
+             fi
             git fetch origin
             git reset --hard '$DEPLOY_SHA'
+             if test -s /root/bozorliii-tls-backup/fullchain.pem && test -s /root/bozorliii-tls-backup/privkey.pem; then
+               install -d -m 700 deploy/ssl
+               install -m 644 /root/bozorliii-tls-backup/fullchain.pem deploy/ssl/fullchain.pem
+               install -m 600 /root/bozorliii-tls-backup/privkey.pem deploy/ssl/privkey.pem
+             fi
             bash scripts/preflight-split-web.sh
             docker compose -f docker-compose.web.yml up -d --build --remove-orphans --wait --wait-timeout 300
             docker image prune -f
