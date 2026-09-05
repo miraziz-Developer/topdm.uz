@@ -55,7 +55,7 @@ scp ~/Backups/bozorliii/latest/db.sql.gz \
 
 # 1. on the new server — install Docker, clone, restore .env
 curl -fsSL https://get.docker.com | sh
-git clone https://github.com/miraziz-Developer/topdm.uz.git /opt/bozorliii
+git clone https://github.com/miraziz-Developer/bozorliii.online.git /opt/bozorliii
 cd /opt/bozorliii
 cp /root/core.env .env            # (web.env on the WEB box)
 
