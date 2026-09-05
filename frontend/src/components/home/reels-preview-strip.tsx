@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, Film, Play } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Eye, Film, Play, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ReelPreviewMedia } from "@/components/reels/reel-preview-media";
 import { isUnreliableShopMedia } from "@/lib/shop-branding";
@@ -76,25 +76,50 @@ function ReelThumb({ reel }: { reel: ReelItem }) {
 export function ReelsPreviewStrip() {
   const [reels, setReels] = useState<ReelItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  const loadReels = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      const response = await fetch(`/api/v1/reels/feed?limit=${PREVIEW_LIMIT}&session_id=home`, {
+        signal,
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`Reels request failed (${response.status})`);
+      const d = await response.json() as { items?: ReelItem[] };
+      const raw = d.items ?? [];
+      const items = raw.filter((item) => {
+        const hasVideo = Boolean(item.video_url?.trim());
+        const canShow =
+          item.playable !== false ||
+          Boolean(item.thumbnail_url?.trim()) ||
+          Boolean(item.shop?.logo_url?.trim() && !isUnreliableShopMedia(item.shop.logo_url));
+        return hasVideo && canShow;
+      });
+      setReels(mixReels(items));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setReels([]);
+      setFailed(true);
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch(`/api/v1/reels/feed?limit=${PREVIEW_LIMIT}&session_id=home`)
-      .then((r) => r.json())
-      .then((d) => {
-        const raw: ReelItem[] = d.items ?? [];
-        const items = raw.filter((item) => {
-          const hasVideo = Boolean(item.video_url?.trim());
-          const canShow =
-            item.playable !== false ||
-            Boolean(item.thumbnail_url?.trim()) ||
-            Boolean(item.shop?.logo_url?.trim() && !isUnreliableShopMedia(item.shop.logo_url));
-          return hasVideo && canShow;
-        });
-        setReels(mixReels(items));
-      })
-      .catch(() => setReels([]))
-      .finally(() => setLoading(false));
-  }, []);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10_000);
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        void loadReels(controller.signal).finally(() => window.clearTimeout(timeout));
+      }
+    });
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [loadReels]);
 
   return (
     <section className="py-4">
@@ -116,7 +141,7 @@ export function ReelsPreviewStrip() {
           </div>
 
           {loading ? (
-            <div className="scrollbar-hide -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
+            <div className="scrollbar-hide -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1" role="status" aria-label="Reels yuklanmoqda">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
@@ -124,9 +149,16 @@ export function ReelsPreviewStrip() {
                 />
               ))}
             </div>
+          ) : failed ? (
+            <div className="rounded-2xl border border-dashed border-border-subtle bg-elevated/40 px-4 py-6 text-center" role="alert">
+              <p className="text-sm text-ink-500">Videolarni yuklab bo&apos;lmadi.</p>
+              <button type="button" onClick={() => void loadReels()} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-subtle bg-white px-4 text-sm font-bold text-electric-600">
+                <RefreshCw className="h-4 w-4" aria-hidden /> Qayta urinish
+              </button>
+            </div>
           ) : reels.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-border-subtle bg-elevated/40 px-4 py-8 text-center text-sm text-ink-500">
-              Hali reel yo&apos;q. CRM orqali video yuklang — shu yerda chiqadi.
+              Hozircha videolar yo&apos;q.
             </p>
           ) : (
             <div className="scrollbar-hide -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 snap-x snap-mandatory">

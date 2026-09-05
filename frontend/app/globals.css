@@ -66,6 +66,8 @@
   --app-header-h: 3.5rem;
   --app-bottom-nav-h: 5.75rem;
   --app-fab-stack-gap: 3.75rem;
+  --page-gutter: clamp(0.625rem, 3.5vw, 1.5rem);
+  --touch-target: 2.75rem;
 }
 
 @media (min-width: 640px) {
@@ -123,6 +125,38 @@ body {
 :where(input, select, textarea) {
   min-width: 0;
   max-width: 100%;
+}
+
+:where(button, a, input, select, textarea) {
+  touch-action: manipulation;
+}
+
+.mobile-scroll-row {
+  overscroll-behavior-inline: contain;
+  scroll-padding-inline: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .mobile-scroll-row > * {
+    scroll-snap-stop: normal;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  :root {
+    --app-bottom-nav-h: 4.5rem;
+  }
+
+  .premium-dock {
+    max-width: 32rem;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid CanvasText;
+  }
 }
 
 img,

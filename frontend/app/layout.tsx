@@ -20,6 +20,7 @@ import { ActionFabDockProvider } from "@/components/ui/action-fab-dock";
 import { AIChat } from "@/components/AIChat";
 import { MerchantCrmLauncher } from "@/components/merchant/merchant-crm-launcher";
 import { TelegramWebAppProvider } from "@/components/providers/telegram-webapp";
+import { BrowserObservability } from "@/components/providers/browser-observability";
 import { LayoutGroup } from "framer-motion";
 
 import { QueryProvider } from "@/lib/query-provider";
@@ -117,6 +118,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <DynamicFavicon />
                 <PwaRegister />
                 <SiteAnalytics />
+                <BrowserObservability />
                 <MetaPixel />
                 <TelegramWebAppProvider />
                 <MerchantCrmLauncher variant="dock" />

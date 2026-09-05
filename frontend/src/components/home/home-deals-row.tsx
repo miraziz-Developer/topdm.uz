@@ -58,12 +58,12 @@ export function HomeDealsRow({ variant, products, loading }: Props) {
             <p className="truncate text-[10px] text-ink-500 min-[360px]:text-[11px]">{cfg.subtitle}</p>
           </div>
         </div>
-        <Link href={cfg.href} className="shrink-0 whitespace-nowrap text-[11px] font-bold text-electric-500 hover:underline min-[360px]:text-xs">
+        <Link href={cfg.href} className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap px-1 text-[11px] font-bold text-electric-500 hover:underline min-[360px]:text-xs" aria-label={`${cfg.title}: hammasini ko'rish`}>
           Hammasi →
         </Link>
       </div>
 
-      <div className="scrollbar-hide -mx-1 flex gap-3 overflow-x-auto px-1 pb-1 snap-x snap-mandatory">
+      <div className="mobile-scroll-row scrollbar-hide -mx-1 flex gap-3 overflow-x-auto px-1 pb-1 snap-x snap-mandatory" aria-label={cfg.title}>
         {loading
           ? Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="skeleton h-[220px] w-[140px] shrink-0 rounded-2xl sm:w-[152px]" />

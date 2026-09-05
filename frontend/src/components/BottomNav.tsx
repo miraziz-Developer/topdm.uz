@@ -37,16 +37,17 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               data-cart-anchor={item.href === "/checkout" ? true : undefined}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "relative flex min-h-[54px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-px text-[9px] font-semibold transition-all duration-200 min-[360px]:min-h-[58px] min-[360px]:px-0.5 min-[360px]:text-[10px] sm:min-h-[60px] sm:text-[11px]",
                 isActive ? "premium-nav-active font-bold text-electric-500" : "text-ink-500 hover:text-ink-900",
               )}
             >
               <span className="relative">
-                <item.icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+                <item.icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} aria-hidden />
                 {item.href === "/checkout" && totalItems > 0 ? (
-                  <span className="absolute -right-2.5 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-gradient-gold px-1 text-[9px] font-bold text-white shadow-gold ring-2 ring-white">
-                    {totalItems}
+                  <span className="absolute -right-2.5 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-gradient-gold px-1 text-[9px] font-bold text-white shadow-gold ring-2 ring-white" aria-label={`Savatchada ${totalItems} ta mahsulot`}>
+                    {totalItems > 99 ? "99+" : totalItems}
                   </span>
                 ) : null}
               </span>

@@ -11,8 +11,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-core:
+  changes:
     if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      web: ${{ steps.filter.outputs.web }}
+      full_web: ${{ steps.filter.outputs.full_web }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+      - id: filter
+        shell: bash
+        run: |
+          before="$(git rev-parse HEAD^ 2>/dev/null || echo HEAD)"
+          changed="$(git diff --name-only "$before" HEAD)"
+          echo "$changed"
+          if echo "$changed" | grep -Eq '^(backend/|docker-compose\.core\.yml|deploy/docker-entrypoint\.sh|scripts/preflight-split-core\.sh)'; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "core=false" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$changed" | grep -Eq '^(frontend/|merchant-crm/|platform-admin/|deploy/nginx/|docker-compose\.web\.yml|scripts/(deploy-web|preflight-split-web|smoke-prod))|^\.env\.'; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "web=false" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$changed" | grep -Eq '^(merchant-crm/|platform-admin/|deploy/nginx/)'; then
+            echo "full_web=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_web=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-core:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Install sshpass
@@ -43,7 +78,8 @@ jobs:
           "
 
   deploy-web:
-    needs: deploy-core
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Install sshpass
@@ -62,6 +98,7 @@ jobs:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           HOST: ${{ secrets.SSH_HOST_1 }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          FULL_WEB: ${{ needs.changes.outputs.full_web }}
         run: |
           sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$HOST" "
             set -e
@@ -78,13 +115,17 @@ jobs:
                install -m 644 /root/bozorliii-tls-backup/fullchain.pem deploy/ssl/fullchain.pem
                install -m 600 /root/bozorliii-tls-backup/privkey.pem deploy/ssl/privkey.pem
              fi
-            bash scripts/preflight-split-web.sh
-            docker compose -f docker-compose.web.yml up -d --build --remove-orphans --wait --wait-timeout 300
+            if test '$FULL_WEB' = 'true'; then
+              DEPLOY_SHA='$DEPLOY_SHA' docker compose -f docker-compose.web.yml up -d --build --remove-orphans --wait --wait-timeout 300
+            else
+              DEPLOY_SHA='$DEPLOY_SHA' bash scripts/deploy-web-atomic.sh
+            fi
             docker image prune -f
           "
 
   smoke-test:
-    needs: [deploy-core, deploy-web]
+    needs: [changes, deploy-core, deploy-web]
+    if: always() && needs.changes.result == 'success' && !contains(needs.*.result, 'failure') && (needs.changes.outputs.core == 'true' || needs.changes.outputs.web == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Wait for services to settle
@@ -95,3 +136,16 @@ jobs:
           curl -sf https://crm.bozorliii.online/ -o /dev/null && echo "crm: OK" || (echo "crm: FAILED" && exit 1)
           curl -sf https://admin.bozorliii.online/ -o /dev/null && echo "admin: OK" || (echo "admin: FAILED" && exit 1)
           curl -sf https://api.bozorliii.online/api/v1/health/ready && echo "" && echo "api: OK" || (echo "api: FAILED" && exit 1)
+      - name: Send deploy failure alert
+        if: failure()
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.DEPLOY_ALERT_WEBHOOK_URL }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ -n "$ALERT_WEBHOOK_URL" ]; then
+            curl -fsS -X POST -H 'Content-Type: application/json' \
+              --data "{\"text\":\"Bozorliii production smoke failed for ${DEPLOY_SHA}. Check GitHub Actions immediately.\"}" \
+              "$ALERT_WEBHOOK_URL"
+          else
+            echo "DEPLOY_ALERT_WEBHOOK_URL is not configured; GitHub failure notification remains active."
+          fi

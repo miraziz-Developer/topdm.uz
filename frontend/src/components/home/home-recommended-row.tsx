@@ -44,14 +44,16 @@ export function HomeRecommendedRow({ products, loading, category, onCategoryChan
       <h2 className="text-base font-bold text-ink-900">Sizga tavsiya</h2>
       <p className="mt-0.5 text-xs text-ink-500">Qiziqishlaringiz bo&apos;yicha tanlang</p>
 
-      <div className="scrollbar-hide mt-3 flex gap-2 overflow-x-auto pb-2">
+      <div className="mobile-scroll-row scrollbar-hide mt-3 flex gap-2 overflow-x-auto pb-2" role="tablist" aria-label="Tavsiya kategoriyalari">
         {pills.map((cat) => (
           <button
             key={cat.id}
             type="button"
+            role="tab"
+            aria-selected={category === cat.id}
             onClick={() => onCategoryChange(cat.id)}
             className={cn(
-              "shrink-0 rounded-full px-4 py-2 text-xs font-bold transition",
+              "min-h-11 shrink-0 rounded-full px-4 py-2 text-xs font-bold transition",
               category === cat.id
                 ? "bg-ink-900 text-white shadow-md"
                 : "border border-border-subtle bg-white text-ink-600 hover:border-electric-500/40",
@@ -62,7 +64,7 @@ export function HomeRecommendedRow({ products, loading, category, onCategoryChan
         ))}
       </div>
 
-      <div className="scrollbar-hide mt-3 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
+      <div className="mobile-scroll-row scrollbar-hide mt-3 flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1" aria-live="polite">
         {loading
           ? Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="skeleton h-[220px] w-[140px] shrink-0 rounded-2xl" />

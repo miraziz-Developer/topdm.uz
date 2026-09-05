@@ -49,12 +49,15 @@ for (const viewport of viewports) {
           )
           .toBeLessThanOrEqual(0);
 
-        const pageBounds = await page.locator("body").evaluate((body) => {
-          const rect = body.getBoundingClientRect();
-          return { left: rect.left, right: rect.right, viewport: window.innerWidth };
-        });
-        expect(pageBounds.left, `${route} body starts outside the viewport`).toBeGreaterThanOrEqual(0);
-        expect(pageBounds.right, `${route} body exceeds the viewport`).toBeLessThanOrEqual(pageBounds.viewport);
+        await expect
+          .poll(
+            async () => page.evaluate(() => {
+              const rect = document.body.getBoundingClientRect();
+              return rect.left >= 0 && rect.right <= window.innerWidth;
+            }).catch(() => false),
+            { message: `${route} body should remain inside the viewport after client redirects` },
+          )
+          .toBe(true);
       });
     }
   });

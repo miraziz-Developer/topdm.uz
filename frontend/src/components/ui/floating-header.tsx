@@ -155,7 +155,8 @@ export function FloatingHeader() {
 
           <Link
             href="/profile"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-default text-ink-700 transition hover:border-electric-500/40 hover:text-electric-500"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-default text-ink-700 transition hover:border-electric-500/40 hover:text-electric-500"
+            aria-label="Profil"
           >
             <UserRound className="h-[1.1rem] w-[1.1rem]" />
           </Link>
@@ -163,7 +164,8 @@ export function FloatingHeader() {
           <Link
             href="/checkout"
             data-cart-anchor
-            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-default text-ink-700 transition hover:border-neon-500/40"
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-default text-ink-700 transition hover:border-neon-500/40"
+            aria-label={totalItems > 0 ? `Savatcha, ${totalItems} ta mahsulot` : "Savatcha"}
           >
             <ShoppingBag className="h-[1.1rem] w-[1.1rem]" />
             <AnimatePresence>

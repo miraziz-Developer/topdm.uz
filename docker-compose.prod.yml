@@ -221,6 +221,7 @@ services:
       - backend-network
 
   frontend:
+    image: bozorliii-frontend:${DEPLOY_SHA:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
@@ -238,6 +239,8 @@ services:
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
         NEXT_PUBLIC_YANDEX_METRIKA_ID: ${NEXT_PUBLIC_YANDEX_METRIKA_ID:-}
         NEXT_PUBLIC_META_PIXEL_ID: ${NEXT_PUBLIC_META_PIXEL_ID:-}
+        NEXT_PUBLIC_MONITORING_ENDPOINT: ${NEXT_PUBLIC_MONITORING_ENDPOINT:-}
+        NEXT_PUBLIC_RELEASE: ${DEPLOY_SHA:-local}
     restart: always
     env_file:
       - .env
