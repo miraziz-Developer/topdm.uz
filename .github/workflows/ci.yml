@@ -171,6 +171,19 @@ jobs:
 
   docker-prod-build:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: testpassword
+      JWT_SECRET: ci-test-jwt-secret-32chars-min
+      ADMIN_API_KEY: ci-admin-key-not-for-production
+      ADMIN_PANEL_PASSWORD: ci-admin-password-not-for-production
+      ADMIN_PANEL_SECRET: ci-admin-panel-secret-not-for-production
+      ADMIN_SESSION_SECRET: ci-admin-session-secret-not-for-production
+      BACKEND_API_URL: http://127.0.0.1:8000
+      CORE_BACKEND_HOST: 127.0.0.1
+      GROQ_API_KEY: sk-ci-placeholder
+      TELEGRAM_BOT_TOKEN: "123456:ABC-DEF"
+      GOOGLE_API_KEY: ci-google-key
+      OPENAI_API_KEY: ci-openai-key
     steps:
       - uses: actions/checkout@v4
       - run: cp .env.production.example .env
@@ -186,16 +199,3 @@ jobs:
         run: |
           docker compose -f docker-compose.core.yml build backend merchant-bot celery-worker celery-beat
           docker compose -f docker-compose.web.yml build frontend merchant-crm platform-admin nginx
-        env:
-          POSTGRES_PASSWORD: testpassword
-          JWT_SECRET: ci-test-jwt-secret-32chars-min
-          ADMIN_API_KEY: ci-admin-key-not-for-production
-          ADMIN_PANEL_PASSWORD: ci-admin-password-not-for-production
-          ADMIN_PANEL_SECRET: ci-admin-panel-secret-not-for-production
-          ADMIN_SESSION_SECRET: ci-admin-session-secret-not-for-production
-          BACKEND_API_URL: http://127.0.0.1:8000
-          CORE_BACKEND_HOST: 127.0.0.1
-          GROQ_API_KEY: sk-ci-placeholder
-          TELEGRAM_BOT_TOKEN: "123456:ABC-DEF"
-          GOOGLE_API_KEY: ci-google-key
-          OPENAI_API_KEY: ci-openai-key
