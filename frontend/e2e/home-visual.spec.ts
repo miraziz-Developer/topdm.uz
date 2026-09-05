@@ -18,10 +18,12 @@ for (const phone of phones) {
       body: JSON.stringify({ items: [], lightning: [], clearance: [], recommended: [] }),
     }));
     await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important}" });
     await page.evaluate(() => document.fonts.ready);
-    await expect(page.locator("#home-hero-title")).toBeVisible();
+    const hero = page.locator("section[aria-labelledby='home-hero-title']");
+    await expect(hero).toBeVisible();
     await page.waitForTimeout(300);
-    await expect(page).toHaveScreenshot(`home-${phone.name}.png`, {
+    await expect(hero).toHaveScreenshot(`home-${phone.name}.png`, {
       animations: "disabled",
       caret: "hide",
       scale: "css",
